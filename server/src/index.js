@@ -1,31 +1,85 @@
-const app = require('./app.js')
-const env = require('./config/env.js')
+const app    = require('./app.js')
+const env    = require('./config/env.js')
+const logger = require('./config/logger.js')
+const { prisma } = require('./config/database.js')
+const { pool }   = require('./db/pool.js')
+
+// ─── Startup ──────────────────────────────────────────────────────────────────
 
 const server = app.listen(env.port, () => {
-  console.log(`API listening on port ${env.port} (${env.nodeEnv})`)
+  logger.info({ port: env.port, env: env.nodeEnv }, '[startup] API listening')
 })
 
 server.on('error', (err) => {
-  if (err && err.code === 'EADDRINUSE') {
-    console.error(
-      `\n[startup] Port ${env.port} is already in use.\n` +
-        `           Another process is holding it. Run:\n` +
-        `             npm run free:port\n` +
-        `           then try again. Exiting.\n`,
+  if (err?.code === 'EADDRINUSE') {
+    logger.fatal(
+      { port: env.port },
+      `[startup] Port ${env.port} is already in use. Run "npm run free:port" then retry.`,
     )
-    process.exit(1)
+  } else {
+    logger.fatal({ err }, '[startup] Server error')
   }
-  console.error('[startup] server error:', err)
   process.exit(1)
 })
 
-function shutdown(signal) {
-  console.log(`${signal} received, closing server…`)
-  server.close(() => {
+// ─── Graceful shutdown ────────────────────────────────────────────────────────
+
+let isShuttingDown = false
+
+async function shutdown(signal) {
+  if (isShuttingDown) return
+  isShuttingDown = true
+
+  logger.info({ signal }, '[shutdown] Starting graceful shutdown')
+
+  // Force-exit safety valve — if cleanup takes longer than 15 s something is
+  // stuck.  Exit code 1 tells the process manager the stop was not clean.
+  const forceTimer = setTimeout(() => {
+    logger.error('[shutdown] Cleanup timed out after 15 s — forcing exit (code 1)')
+    process.exit(1)
+  }, 15_000)
+  forceTimer.unref()
+
+  try {
+    // 1 — Stop accepting new HTTP connections; let in-flight requests finish
+    logger.info('[shutdown] 1/3 Closing HTTP server…')
+    await new Promise((resolve, reject) => {
+      server.close((err) => (err ? reject(err) : resolve()))
+    })
+    logger.info('[shutdown] 1/3 HTTP server closed')
+
+    // 2 — Drain Prisma's internal connection pool
+    logger.info('[shutdown] 2/3 Disconnecting Prisma…')
+    await prisma.$disconnect()
+    logger.info('[shutdown] 2/3 Prisma disconnected')
+
+    // 3 — Drain the raw pg Pool used by the catalog service
+    logger.info('[shutdown] 3/3 Closing PostgreSQL pool…')
+    await pool.end()
+    logger.info('[shutdown] 3/3 PostgreSQL pool closed')
+
+    clearTimeout(forceTimer)
+    logger.info('[shutdown] Cleanup complete — exiting cleanly (code 0)')
     process.exit(0)
-  })
-  setTimeout(() => process.exit(1), 10_000).unref()
+  } catch (err) {
+    logger.error({ err }, '[shutdown] Error during cleanup')
+    process.exit(1)
+  }
 }
 
+// ─── Signal handlers ─────────────────────────────────────────────────────────
+
 process.on('SIGTERM', () => shutdown('SIGTERM'))
-process.on('SIGINT', () => shutdown('SIGINT'))
+process.on('SIGINT',  () => shutdown('SIGINT'))
+
+// ─── Unhandled errors ────────────────────────────────────────────────────────
+
+process.on('unhandledRejection', (reason) => {
+  logger.fatal({ reason }, '[process] Unhandled promise rejection — shutting down')
+  shutdown('unhandledRejection')
+})
+
+process.on('uncaughtException', (err) => {
+  logger.fatal({ err }, '[process] Uncaught exception — shutting down')
+  shutdown('uncaughtException')
+})

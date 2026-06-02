@@ -13,8 +13,8 @@ function serializeProduct(p) {
     price: serializeDecimal(p.price),
     seller: p.seller
       ? {
-          id: p.seller.id,
-          email: p.seller.email,
+          id:          p.seller.id,
+          email:       p.seller.email,
           companyName: p.seller.companyName,
         }
       : undefined,
@@ -25,19 +25,22 @@ function serializeOrder(o) {
   if (!o) return o
   return {
     ...o,
-    totalAmount: serializeDecimal(o.totalAmount),
+    totalAmount:      serializeDecimal(o.totalAmount),
+    // shippingSnapshot and billingSnapshot are plain JSON — no transformation needed
     items: o.items?.map((i) => ({
       ...i,
       unitPrice: serializeDecimal(i.unitPrice),
       lineTotal: serializeDecimal(i.lineTotal),
       product: i.product
         ? {
-            id: i.product.id,
-            sku: i.product.sku,
+            id:   i.product.id,
+            sku:  i.product.sku,
             name: i.product.name,
           }
         : undefined,
     })),
+    // history is already a plain object array from Prisma — included as-is
+    history: o.history ?? undefined,
   }
 }
 

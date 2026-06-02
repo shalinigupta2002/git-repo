@@ -2,16 +2,24 @@ const { verifyToken } = require('../utils/jwt.js')
 const { AppError } = require('../utils/AppError.js')
 const { prisma } = require('../config/database.js')
 
-function extractBearer(req) {
+const COOKIE_NAME = 'auth_token'
+
+/**
+ * Extract the JWT from the httpOnly cookie set by the auth endpoints.
+ * Falls back to the Authorization: Bearer header so existing API clients
+ * (Postman, mobile apps, tests) keep working during migration.
+ */
+function extractToken(req) {
+  if (req.cookies?.[COOKIE_NAME]) return req.cookies[COOKIE_NAME]
   const h = req.headers.authorization
-  if (!h || !h.startsWith('Bearer ')) return null
-  return h.slice(7).trim()
+  if (h && h.startsWith('Bearer ')) return h.slice(7).trim()
+  return null
 }
 
-/** Requires a valid JWT and attaches req.user { id, email, role } */
+/** Requires a valid JWT and attaches req.user { id, email, role, companyName } */
 async function authenticate(req, res, next) {
   try {
-    const token = extractBearer(req)
+    const token = extractToken(req)
     if (!token) {
       throw new AppError('Authentication required', 401, 'UNAUTHORIZED')
     }
@@ -38,9 +46,9 @@ async function authenticate(req, res, next) {
   }
 }
 
-/** Optional JWT — sets req.user if valid */
+/** Optional JWT — sets req.user if valid, continues regardless */
 async function optionalAuth(req, res, next) {
-  const token = extractBearer(req)
+  const token = extractToken(req)
   if (!token) return next()
   try {
     const decoded = verifyToken(token)
@@ -69,4 +77,4 @@ function authorize(...allowedRoles) {
   }
 }
 
-module.exports = { authenticate, optionalAuth, authorize, extractBearer }
+module.exports = { authenticate, optionalAuth, authorize, COOKIE_NAME }

@@ -28,7 +28,13 @@ INSERT INTO catalog.brands (name, slug) VALUES
   ('Boat',    'boat'),
   ('Nike',    'nike'),
   ('Adidas',  'adidas'),
-  ('LG',      'lg');
+  ('LG',      'lg'),
+  ('OnePlus', 'oneplus'),
+  ('realme',  'realme'),
+  ('Xiaomi',  'xiaomi'),
+  ('vivo',    'vivo'),
+  ('Nokia',   'nokia'),
+  ('Motorola','motorola');
 
 -- Products
 -- Staggered created_at so cursor pagination has deterministic order.
@@ -67,4 +73,14 @@ INSERT INTO catalog.products (title, description, price, image_url, category_id,
 
   ('LG 1.5 Ton AC',        '5-star inverter split air conditioner.',                            44999.00,  'https://picsum.photos/seed/lg-ac/600/600',         (SELECT id FROM catalog.categories WHERE slug='home-appliances'), (SELECT id FROM catalog.brands WHERE slug='lg'),      NOW() - INTERVAL '115 minutes'),
   ('LG 260L Fridge',       'Double-door frost-free refrigerator.',                              28990.00,  'https://picsum.photos/seed/lg-fridge/600/600',     (SELECT id FROM catalog.categories WHERE slug='home-appliances'), (SELECT id FROM catalog.brands WHERE slug='lg'),      NOW() - INTERVAL '120 minutes'),
-  ('LG 7kg Washing Machine','Fully automatic front load washing machine.',                      32990.00,  'https://picsum.photos/seed/lg-wash/600/600',       (SELECT id FROM catalog.categories WHERE slug='home-appliances'), (SELECT id FROM catalog.brands WHERE slug='lg'),      NOW() - INTERVAL '125 minutes');
+  ('LG 7kg Washing Machine','Fully automatic front load washing machine.',                      32990.00,  'https://picsum.photos/seed/lg-wash/600/600',       (SELECT id FROM catalog.categories WHERE slug='home-appliances'), (SELECT id FROM catalog.brands WHERE slug='lg'),      NOW() - INTERVAL '125 minutes'),
+
+  ('OnePlus 12 5G',        'Snapdragon 8 Gen 3 flagship, 12GB RAM, 256GB, Hasselblad camera.', 64999.00,  'https://picsum.photos/seed/oneplus12/600/600',     (SELECT id FROM catalog.categories WHERE slug='mobiles'),     (SELECT id FROM catalog.brands WHERE slug='oneplus'), NOW() - INTERVAL '128 minutes'),
+  ('realme 12 Pro+ 5G',    'Periscope telephoto, Sony IMX890 sensor, 120Hz curved AMOLED.',     34999.00,  'https://picsum.photos/seed/realme12pro/600/600',   (SELECT id FROM catalog.categories WHERE slug='mobiles'),     (SELECT id FROM catalog.brands WHERE slug='realme'),  NOW() - INTERVAL '129 minutes'),
+  ('Redmi Note 13 Pro',    '200MP main camera, 67W turbo charge, 1.5K AMOLED display.',          28999.00,  'https://picsum.photos/seed/redmi-note13/600/600',   (SELECT id FROM catalog.categories WHERE slug='mobiles'),     (SELECT id FROM catalog.brands WHERE slug='xiaomi'),  NOW() - INTERVAL '130 minutes'),
+  ('POCO X6 Pro 5G',       'Dimensity 8300 Ultra, 67W charging, IP54 dust and splash resistance.', 26999.00, 'https://picsum.photos/seed/poco-x6/600/600',       (SELECT id FROM catalog.categories WHERE slug='mobiles'),     (SELECT id FROM catalog.brands WHERE slug='xiaomi'),  NOW() - INTERVAL '131 minutes'),
+  ('vivo V30',             'Slim portrait flagship, 50MP Zeiss camera, 5000mAh battery.',        33999.00,  'https://picsum.photos/seed/vivov30/600/600',       (SELECT id FROM catalog.categories WHERE slug='mobiles'),     (SELECT id FROM catalog.brands WHERE slug='vivo'),    NOW() - INTERVAL '132 minutes'),
+  ('Nokia G42 5G',         'QuickFix repairable design, 6GB RAM, 128GB, Android 13.',            12999.00,  'https://picsum.photos/seed/nokia-g42/600/600',     (SELECT id FROM catalog.categories WHERE slug='mobiles'),     (SELECT id FROM catalog.brands WHERE slug='nokia'),   NOW() - INTERVAL '133 minutes'),
+  ('Motorola Edge 50 Pro', '125W TurboPower, 50MP AI camera, pOLED 144Hz display.',               31999.00,  'https://picsum.photos/seed/moto-edge50/600/600',   (SELECT id FROM catalog.categories WHERE slug='mobiles'),     (SELECT id FROM catalog.brands WHERE slug='motorola'),NOW() - INTERVAL '134 minutes'),
+  ('Samsung Galaxy A35 5G', '6.6" Super AMOLED, 5000mAh, 5 years security updates.',             30999.00,  'https://picsum.photos/seed/galaxy-a35/600/600',    (SELECT id FROM catalog.categories WHERE slug='mobiles'),     (SELECT id FROM catalog.brands WHERE slug='samsung'), NOW() - INTERVAL '135 minutes'),
+  ('iPhone 13',            'A15 Bionic, dual 12MP cameras, all-day battery life.',                59900.00,  'https://picsum.photos/seed/iphone13/600/600',      (SELECT id FROM catalog.categories WHERE slug='mobiles'),     (SELECT id FROM catalog.brands WHERE slug='apple'),   NOW() - INTERVAL '136 minutes');

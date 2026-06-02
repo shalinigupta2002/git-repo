@@ -1,0 +1,72 @@
+/**
+ * HTTP request logger middleware (pino-http).
+ *
+ * What this does:
+ *  - Assigns a unique request ID to every inbound request (`req.id`).
+ *  - Echoes the ID back in the `X-Request-Id` response header so clients can
+ *    correlate their logs with server logs.
+ *  - Logs one structured line per request after the response finishes:
+ *      method, url, statusCode, responseTime, requestId, userId
+ *  - Log level follows the response status:
+ *      <400 → info   |   4xx → warn   |   5xx / err → error
+ *  - Health-check hits are silenced to avoid noise in log aggregators.
+ */
+
+const crypto   = require('crypto')
+const pinoHttp = require('pino-http')
+const logger   = require('../config/logger.js')
+
+const SILENT_PATHS = new Set(['/api/health', '/api/catalog/health'])
+
+const requestLogger = pinoHttp({
+  logger,
+
+  // ── Request ID ─────────────────────────────────────────────────────────────
+  // Accept a caller-supplied ID (useful for distributed tracing with upstream
+  // services) or mint a fresh UUID.  Always echo the final ID back.
+  genReqId(req, res) {
+    const incoming = req.headers['x-request-id']
+    const id =
+      typeof incoming === 'string' && incoming.trim()
+        ? incoming.trim().slice(0, 128)
+        : crypto.randomUUID()
+    res.setHeader('X-Request-Id', id)
+    return id
+  },
+
+  // ── Log level by HTTP status ───────────────────────────────────────────────
+  customLogLevel(req, res, err) {
+    if (err || res.statusCode >= 500) return 'error'
+    if (res.statusCode >= 400)        return 'warn'
+    return 'info'
+  },
+
+  // ── Message format ─────────────────────────────────────────────────────────
+  customSuccessMessage(req, res) {
+    return `${req.method} ${req.url} ${res.statusCode}`
+  },
+  customErrorMessage(req, res, err) {
+    return `${req.method} ${req.url} ${res.statusCode} — ${err?.message ?? 'unknown error'}`
+  },
+
+  // ── Suppress health-check noise ────────────────────────────────────────────
+  autoLogging: {
+    ignore(req) {
+      return SILENT_PATHS.has(req.url)
+    },
+  },
+
+  // ── Extra fields on every request log ─────────────────────────────────────
+  // userId / userRole are populated by authenticate middleware which runs after
+  // the request logger; they will be present on the *response* log line because
+  // pino-http calls customProps just before writing (after the route ran).
+  customProps(req) {
+    return {
+      requestId: req.id,
+      userId:    req.user?.id   ?? undefined,
+      userRole:  req.user?.role ?? undefined,
+    }
+  },
+})
+
+module.exports = requestLogger

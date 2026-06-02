@@ -1,18 +1,50 @@
 const { Router } = require('express')
-const authRoutes = require('./auth.routes.js')
-const productRoutes = require('./product.routes.js')
-const orderRoutes = require('./order.routes.js')
-const adminRoutes = require('./admin.routes.js')
+const authRoutes             = require('./auth.routes.js')
+const productRoutes          = require('./product.routes.js')
+const orderRoutes            = require('./order.routes.js')
+const adminRoutes            = require('./admin.routes.js')
+const subscriptionRoutes     = require('./subscription.routes.js')
+const addressRoutes          = require('./address.routes.js')
+const categoryRequestRoutes  = require('./categoryRequest.routes.js')
+const contactRoutes          = require('./contact.routes.js')
+const { getSnapshot }        = require('../middleware/metrics.js')
 
 const router = Router()
 
-router.use('/auth', authRoutes)
-router.use('/products', productRoutes)
-router.use('/orders', orderRoutes)
-router.use('/admin', adminRoutes)
+router.use('/auth',               authRoutes)
+router.use('/products',           productRoutes)
+router.use('/orders',             orderRoutes)
+router.use('/admin',              adminRoutes)
+router.use('/subscriptions',      subscriptionRoutes)
+router.use('/addresses',          addressRoutes)
+router.use('/category-requests',  categoryRequestRoutes)
+router.use('/contact',            contactRoutes)
 
+/**
+ * GET /api/health
+ *
+ * Public liveness + readiness probe.  Returns:
+ *  - status          "ok" always (if the process is alive)
+ *  - version         from package.json
+ *  - uptimeSec       seconds since the process started
+ *  - requests        total / success / clientError / serverError counters
+ *  - responseTime    avg, p50, p95, p99 in ms over the last 1 000 requests
+ *  - memory          heap and RSS in MB
+ *
+ * Health-check hits are suppressed from the request logger to avoid log noise.
+ */
 router.get('/health', (req, res) => {
-  res.json({ success: true, data: { status: 'ok', uptime: process.uptime() } })
+  const { version } = require('../../package.json')
+
+  res.json({
+    success: true,
+    data: {
+      status:    'ok',
+      version,
+      timestamp: new Date().toISOString(),
+      ...getSnapshot(),
+    },
+  })
 })
 
 module.exports = router

@@ -1,0 +1,78 @@
+version: "3.9"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# B2B eCommerce — local / production container stack
+#
+# Quick start:
+#   1. cp .env.example .env          (fill in POSTGRES_PASSWORD and server vars)
+#   2. cp server/.env.example server/.env  (fill in JWT_SECRET, RAZORPAY keys, etc.)
+#   3. docker compose up --build -d
+#
+# To seed demo data on first boot set SEED_DB=true in server/.env before step 3.
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+
+  # ── PostgreSQL ──────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB:       ${POSTGRES_DB:-ecommerce}
+      POSTGRES_USER:     ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-ecommerce}
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ── Backend API (Express + Prisma) ──────────────────────────────────────────
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - ./server/.env
+    environment:
+      # Override DATABASE_URL so it points to the postgres service, not localhost
+      DATABASE_URL: >-
+        postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-ecommerce}
+      NODE_ENV: production
+      PORT:     3001
+    ports:
+      - "${API_PORT:-3001}:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          wget -qO- http://localhost:3001/api/health 2>/dev/null | grep -q '"status":"ok"'
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
+
+  # ── Frontend (Vite build → nginx) ───────────────────────────────────────────
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-80}:80"
+    depends_on:
+      server:
+        condition: service_healthy
+
+volumes:
+  postgres_data:

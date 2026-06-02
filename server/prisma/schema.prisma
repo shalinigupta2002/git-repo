@@ -7,6 +7,10 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Enums
+// ─────────────────────────────────────────────────────────────────────────────
+
 enum Role {
   BUYER
   SELLER
@@ -21,6 +25,66 @@ enum OrderStatus {
   CANCELLED
 }
 
+enum SubscriptionPlan {
+  BUYER_STANDARD
+  BUYER_LIFETIME
+  SELLER_MONTH
+  SELLER_LIFETIME
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+}
+
+/// Why stock changed — drives the InventoryLog trail.
+enum InventoryReason {
+  RESTOCK          /// Seller manually added stock
+  ADJUSTMENT       /// Admin correction (positive or negative delta)
+  ORDER_RESERVED   /// Quantity soft-reserved when a PENDING order is created
+  ORDER_CONFIRMED  /// Hard deduction when seller confirms the order
+  ORDER_CANCELLED  /// Reservation released (from PENDING) or stock returned (from CONFIRMED)
+}
+
+enum MessageStatus {
+  UNREAD
+  READ
+  REPLIED
+}
+
+enum CategoryRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum CategoryRequestType {
+  CATEGORY
+  SUBCATEGORY
+}
+
+/// Broad verb stored in every AuditLog row.
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  STATUS_CHANGE
+  LOGIN
+  LOGOUT
+  STOCK_ADJUST
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Core models
+// ─────────────────────────────────────────────────────────────────────────────
+
 model User {
   id           String   @id @default(uuid())
   email        String   @unique
@@ -30,28 +94,110 @@ model User {
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  products     Product[]
-  buyerOrders  Order[]  @relation("BuyerOrders")
-  sellerOrders Order[]  @relation("SellerOrders")
+  products             Product[]
+  buyerOrders          Order[]           @relation("BuyerOrders")
+  sellerOrders         Order[]           @relation("SellerOrders")
+  subscriptions        Subscription[]
+  payments             Payment[]
+  addresses            Address[]
+  orderHistoryChanges  OrderHistory[]
+  auditLogs            AuditLog[]
+  categoryRequests     CategoryRequest[]
+  contactMessages      ContactMessage[]
 
   @@map("users")
 }
 
-model Product {
-  id          String   @id @default(uuid())
-  sellerId    String   @map("seller_id")
-  seller      User     @relation(fields: [sellerId], references: [id], onDelete: Cascade)
-  sku         String
-  name        String
-  description String?
-  price       Decimal  @db.Decimal(12, 2)
-  moq         Int      @default(1)
-  currency    String   @default("INR")
-  isActive    Boolean  @default(true) @map("is_active")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+model Subscription {
+  id        String             @id @default(uuid())
+  userId    String             @map("user_id")
+  user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan      SubscriptionPlan
+  status    SubscriptionStatus @default(ACTIVE)
+  startsAt  DateTime           @default(now()) @map("starts_at")
+  expiresAt DateTime?          @map("expires_at")
+  createdAt DateTime           @default(now()) @map("created_at")
+  updatedAt DateTime           @updatedAt @map("updated_at")
 
-  orderItems OrderItem[]
+  payments Payment[]
+
+  @@index([userId])
+  @@index([status])
+  @@map("subscriptions")
+}
+
+model Payment {
+  id                String           @id @default(uuid())
+  userId            String           @map("user_id")
+  user              User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subscriptionId    String?          @map("subscription_id")
+  subscription      Subscription?    @relation(fields: [subscriptionId], references: [id])
+  razorpayOrderId   String           @unique @map("razorpay_order_id")
+  razorpayPaymentId String?          @map("razorpay_payment_id")
+  razorpaySignature String?          @map("razorpay_signature")
+  plan              SubscriptionPlan
+  amountPaise       Int              @map("amount_paise")
+  currency          String           @default("INR")
+  status            PaymentStatus    @default(PENDING)
+  createdAt         DateTime         @default(now()) @map("created_at")
+  updatedAt         DateTime         @updatedAt @map("updated_at")
+
+  @@index([userId])
+  @@index([status])
+  @@map("payments")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Address — saved addresses for buyers/sellers; also used as order snapshots
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Address {
+  id         String   @id @default(uuid())
+  userId     String   @map("user_id")
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Friendly label: "Head Office", "Warehouse A", etc.
+  label      String?  @db.VarChar(100)
+  line1      String   @map("line_1")
+  line2      String?  @map("line_2")
+  city       String   @db.VarChar(100)
+  state      String   @db.VarChar(100)
+  postalCode String   @map("postal_code") @db.VarChar(20)
+  country    String   @default("IN") @db.VarChar(3)
+  phone      String?  @db.VarChar(20)
+  isDefault  Boolean  @default(false) @map("is_default")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@index([userId])
+  @@map("addresses")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Product — now includes inventory tracking fields
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Product {
+  id             String   @id @default(uuid())
+  sellerId       String   @map("seller_id")
+  seller         User     @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  sku            String
+  name           String
+  description    String?
+  price          Decimal  @db.Decimal(12, 2)
+  moq            Int      @default(1)
+  currency       String   @default("INR")
+  isActive       Boolean  @default(true) @map("is_active")
+  /// When true, orders deduct from stockQty and availability is enforced.
+  trackInventory Boolean  @default(false) @map("track_inventory")
+  /// On-hand quantity (decrements when an order is CONFIRMED).
+  stockQty       Int      @default(0) @map("stock_qty")
+  /// Quantity soft-reserved by PENDING orders (not yet confirmed).
+  reservedQty    Int      @default(0) @map("reserved_qty")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  orderItems    OrderItem[]
+  inventoryLogs InventoryLog[]
 
   @@unique([sellerId, sku])
   @@index([sellerId])
@@ -59,20 +205,52 @@ model Product {
   @@map("products")
 }
 
-model Order {
-  id          String      @id @default(uuid())
-  orderNumber String      @unique @map("order_number")
-  buyerId     String      @map("buyer_id")
-  buyer       User        @relation("BuyerOrders", fields: [buyerId], references: [id])
-  sellerId    String      @map("seller_id")
-  seller      User        @relation("SellerOrders", fields: [sellerId], references: [id])
-  status      OrderStatus @default(PENDING)
-  totalAmount Decimal     @map("total_amount") @db.Decimal(12, 2)
-  notes       String?
-  createdAt   DateTime    @default(now()) @map("created_at")
-  updatedAt   DateTime    @updatedAt @map("updated_at")
+/// Full trail of every stock movement for a product.
+model InventoryLog {
+  id          String          @id @default(uuid())
+  productId   String          @map("product_id")
+  product     Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  /// Change applied to stockQty (positive = added, negative = removed).
+  delta       Int
+  reason      InventoryReason
+  /// Linked order ID when the change is order-driven; null for manual actions.
+  referenceId String?         @map("reference_id")
+  /// User who triggered the change; null for automated system actions.
+  performedBy String?         @map("performed_by")
+  note        String?
+  createdAt   DateTime        @default(now()) @map("created_at")
 
-  items OrderItem[]
+  @@index([productId])
+  @@index([referenceId])
+  @@map("inventory_logs")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Order — now stores address snapshots and has a history relation
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Order {
+  id             String      @id @default(uuid())
+  orderNumber    String      @unique @map("order_number")
+  buyerId        String      @map("buyer_id")
+  buyer          User        @relation("BuyerOrders", fields: [buyerId], references: [id])
+  sellerId       String      @map("seller_id")
+  seller         User        @relation("SellerOrders", fields: [sellerId], references: [id])
+  status         OrderStatus @default(PENDING)
+  totalAmount    Decimal     @map("total_amount") @db.Decimal(12, 2)
+  notes          String?
+  /// Client-supplied idempotency key (UUID v4 recommended). A repeated key
+  /// from the same buyer returns the existing order rather than a duplicate.
+  idempotencyKey String?     @unique @map("idempotency_key")
+  /// Address snapshot captured at order-creation time (JSON).
+  /// Stored inline so order history is immutable even if the address is edited.
+  shippingSnapshot Json?     @map("shipping_snapshot")
+  billingSnapshot  Json?     @map("billing_snapshot")
+  createdAt      DateTime    @default(now()) @map("created_at")
+  updatedAt      DateTime    @updatedAt @map("updated_at")
+
+  items   OrderItem[]
+  history OrderHistory[]
 
   @@index([buyerId])
   @@index([sellerId])
@@ -92,4 +270,94 @@ model OrderItem {
 
   @@index([orderId])
   @@map("order_items")
+}
+
+/// Immutable log of every order status transition — who changed it and when.
+model OrderHistory {
+  id          String       @id @default(uuid())
+  orderId     String       @map("order_id")
+  order       Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  /// Null only for the initial PENDING creation event.
+  fromStatus  OrderStatus? @map("from_status")
+  toStatus    OrderStatus  @map("to_status")
+  note        String?
+  changedById String       @map("changed_by_id")
+  changedBy   User         @relation(fields: [changedById], references: [id])
+  createdAt   DateTime     @default(now()) @map("created_at")
+
+  @@index([orderId])
+  @@map("order_history")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Contact Message — buyer/seller sends a message to admin; admin can reply
+// ─────────────────────────────────────────────────────────────────────────────
+
+model ContactMessage {
+  id             String        @id @default(uuid())
+  senderId       String        @map("sender_id")
+  sender         User          @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  subject        String        @db.VarChar(300)
+  message        String        @db.VarChar(5000)
+  status         MessageStatus @default(UNREAD)
+  adminReply     String?       @map("admin_reply") @db.VarChar(5000)
+  repliedAt      DateTime?     @map("replied_at")
+  /// True once the sender has read the admin reply
+  replyRead      Boolean       @default(false) @map("reply_read")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+
+  @@index([senderId])
+  @@index([status])
+  @@map("contact_messages")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Category Request — seller requests a new catalog category from admin
+// ─────────────────────────────────────────────────────────────────────────────
+
+model CategoryRequest {
+  id                 String               @id @default(uuid())
+  sellerId           String               @map("seller_id")
+  seller             User                 @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  requestType        CategoryRequestType  @default(CATEGORY) @map("request_type")
+  categoryName       String               @map("category_name")     @db.VarChar(200)
+  /// Filled when requestType = SUBCATEGORY: name of the parent category
+  parentCategoryName String?              @map("parent_category_name") @db.VarChar(200)
+  description        String?              @db.VarChar(1000)
+  status             CategoryRequestStatus @default(PENDING)
+  adminNote          String?              @map("admin_note")         @db.VarChar(500)
+  /// Set to true once the seller has seen the decision notification
+  notificationRead   Boolean              @default(false)            @map("notification_read")
+  createdAt          DateTime             @default(now())            @map("created_at")
+  updatedAt          DateTime             @updatedAt                 @map("updated_at")
+
+  @@index([sellerId])
+  @@index([status])
+  @@map("category_requests")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Audit Log — who did what and when across the entire system
+// ─────────────────────────────────────────────────────────────────────────────
+
+model AuditLog {
+  id         String      @id @default(uuid())
+  /// Null for unauthenticated or system-triggered events.
+  actorId    String?     @map("actor_id")
+  actor      User?       @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  action     AuditAction
+  /// Logical resource name: "order", "product", "address", "subscription", etc.
+  resource   String      @db.VarChar(64)
+  resourceId String?     @map("resource_id")
+  /// Arbitrary JSON context: field diffs, old values, extra metadata.
+  meta       Json?
+  ipAddress  String?     @map("ip_address") @db.VarChar(45)
+  userAgent  String?     @map("user_agent") @db.VarChar(512)
+  createdAt  DateTime    @default(now()) @map("created_at")
+
+  @@index([actorId])
+  @@index([resource, resourceId])
+  @@index([createdAt])
+  @@map("audit_logs")
 }

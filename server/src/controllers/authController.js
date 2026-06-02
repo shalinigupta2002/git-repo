@@ -3,6 +3,33 @@ const { AppError } = require('../utils/AppError.js')
 const { asyncHandler } = require('../utils/asyncHandler.js')
 const { hashPassword, comparePassword } = require('../utils/password.js')
 const { signToken } = require('../utils/jwt.js')
+const env = require('../config/env.js')
+const { COOKIE_NAME } = require('../middleware/authenticate.js')
+
+/**
+ * Build the cookie options object.
+ * - httpOnly: prevents JavaScript access (XSS mitigation)
+ * - secure:   HTTPS-only in production
+ * - sameSite: 'lax' allows top-level navigations (e.g. OAuth redirects) while
+ *             still blocking CSRF from cross-origin form submissions
+ * - maxAge:   matches JWT expiry so both expire together
+ */
+function cookieOptions() {
+  return {
+    httpOnly: true,
+    secure: env.nodeEnv === 'production',
+    sameSite: 'lax',
+    maxAge: env.cookieMaxAge,
+    path: '/',
+  }
+}
+
+/** Mint a JWT and write it as an httpOnly cookie. */
+function setAuthCookie(res, payload) {
+  const token = signToken(payload)
+  res.cookie(COOKIE_NAME, token, cookieOptions())
+  return token
+}
 
 const register = asyncHandler(async (req, res) => {
   const { email, password, role, companyName } = req.body
@@ -29,15 +56,11 @@ const register = asyncHandler(async (req, res) => {
     },
   })
 
-  const token = signToken({
-    sub: user.id,
-    email: user.email,
-    role: user.role,
-  })
+  setAuthCookie(res, { sub: user.id, email: user.email, role: user.role })
 
   res.status(201).json({
     success: true,
-    data: { user, token },
+    data: { user },
   })
 })
 
@@ -62,15 +85,11 @@ const login = asyncHandler(async (req, res) => {
     createdAt: user.createdAt,
   }
 
-  const token = signToken({
-    sub: user.id,
-    email: user.email,
-    role: user.role,
-  })
+  setAuthCookie(res, { sub: user.id, email: user.email, role: user.role })
 
   res.json({
     success: true,
-    data: { user: safeUser, token },
+    data: { user: safeUser },
   })
 })
 
@@ -81,4 +100,19 @@ const me = asyncHandler(async (req, res) => {
   })
 })
 
-module.exports = { register, login, me }
+/**
+ * Clear the auth cookie on the client. This endpoint is intentionally
+ * unauthenticated — clearing a cookie for an already-expired session
+ * should still succeed so the UI can reach a clean state.
+ */
+const logout = asyncHandler(async (req, res) => {
+  res.clearCookie(COOKIE_NAME, {
+    httpOnly: true,
+    secure: env.nodeEnv === 'production',
+    sameSite: 'lax',
+    path: '/',
+  })
+  res.json({ success: true, data: { message: 'Logged out successfully' } })
+})
+
+module.exports = { register, login, me, logout }

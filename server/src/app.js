@@ -30,6 +30,7 @@ const express        = require('express')
 const cors           = require('cors')
 const helmet         = require('helmet')
 const cookieParser   = require('cookie-parser')
+const env            = require('./config/env.js')
 const corsOptions    = require('./config/cors.js')
 const requestLogger  = require('./middleware/requestLogger.js')
 const { metricsMiddleware } = require('./middleware/metrics.js')
@@ -39,8 +40,19 @@ const { errorHandler, notFoundHandler } = require('./middleware/errorHandler.js'
 
 const app = express()
 
+// Render / other PaaS terminate TLS at the edge — needed for secure cookies.
+if (env.isProd || env.useCrossSiteCookies) {
+  app.set('trust proxy', 1)
+}
+
 // ── Security ──────────────────────────────────────────────────────────────────
-app.use(helmet())
+app.use(
+  helmet({
+    crossOriginResourcePolicy: env.useCrossSiteCookies
+      ? { policy: 'cross-origin' }
+      : undefined,
+  }),
+)
 app.options('*', cors(corsOptions))
 app.use(cors(corsOptions))
 

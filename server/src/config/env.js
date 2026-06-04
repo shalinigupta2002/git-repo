@@ -82,6 +82,31 @@ if (isProd) {
   clientUrls = normalizeOrigins(raw.split(',').map((s) => s.trim()).filter(Boolean))
 }
 
+/**
+ * True when the frontend is on a real HTTPS origin (e.g. Vercel), separate from
+ * the API host (e.g. Render). Enables SameSite=None + Secure auth cookies.
+ */
+function detectCrossSiteCookies(urls) {
+  return urls.some((origin) => {
+    try {
+      const { protocol, hostname } = new URL(origin)
+      if (protocol !== 'https:') return false
+      return !/localhost|127\.0\.0\.1/i.test(hostname)
+    } catch {
+      return false
+    }
+  })
+}
+
+const useCrossSiteCookies = detectCrossSiteCookies(clientUrls)
+
+if (useCrossSiteCookies && !isProd) {
+  console.warn(
+    '[config] CLIENT_URL is a production HTTPS origin but NODE_ENV is not "production". ' +
+      'Cross-site cookies (SameSite=None) are enabled from CLIENT_URL. Set NODE_ENV=production on Render.',
+  )
+}
+
 // ─── Razorpay — warn loudly if placeholder keys reach production ─────────────
 
 const razorpayKeyId     = optional('RAZORPAY_KEY_ID')
@@ -113,6 +138,7 @@ module.exports = Object.freeze({
   jwtExpiresIn,
   cookieMaxAge:  parseDurationMs(jwtExpiresIn),
   clientUrls,
+  useCrossSiteCookies,
   razorpayKeyId,
   razorpayKeySecret,
 })

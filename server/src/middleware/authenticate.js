@@ -1,8 +1,7 @@
 const { verifyToken } = require('../utils/jwt.js')
 const { AppError } = require('../utils/AppError.js')
 const { prisma } = require('../config/database.js')
-
-const COOKIE_NAME = 'auth_token'
+const { COOKIE_NAME } = require('../config/cookies.js')
 
 /**
  * Extract the JWT from the httpOnly cookie set by the auth endpoints.

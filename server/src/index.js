@@ -7,7 +7,15 @@ const { pool }   = require('./db/pool.js')
 // ─── Startup ──────────────────────────────────────────────────────────────────
 
 const server = app.listen(env.port, () => {
-  logger.info({ port: env.port, env: env.nodeEnv }, '[startup] API listening')
+  logger.info(
+    {
+      port: env.port,
+      env: env.nodeEnv,
+      crossSiteCookies: env.useCrossSiteCookies,
+      clientUrls: env.clientUrls,
+    },
+    '[startup] API listening',
+  )
 })
 
 server.on('error', (err) => {

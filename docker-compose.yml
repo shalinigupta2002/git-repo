@@ -4,11 +4,12 @@ version: "3.9"
 # B2B eCommerce — local / production container stack
 #
 # Quick start:
-#   1. cp .env.example .env          (fill in POSTGRES_PASSWORD and server vars)
-#   2. cp server/.env.example server/.env  (fill in JWT_SECRET, RAZORPAY keys, etc.)
-#   3. docker compose up --build -d
+#   1. cp server/.env.example server/.env  (set DATABASE_URL to Neon, JWT_SECRET, etc.)
+#   2. docker compose up --build -d server client
 #
-# To seed demo data on first boot set SEED_DB=true in server/.env before step 3.
+# Database: the API uses DATABASE_URL from server/.env (Neon recommended).
+# The optional `postgres` service below is only for a fully local Docker DB stack.
+# To seed demo data on first boot set SEED_DB=true in server/.env before step 2.
 # ─────────────────────────────────────────────────────────────────────────────
 
 services:
@@ -42,16 +43,15 @@ services:
     env_file:
       - ./server/.env
     environment:
-      # Override DATABASE_URL so it points to the postgres service, not localhost
-      DATABASE_URL: >-
-        postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-ecommerce}
+      # DATABASE_URL comes from server/.env (e.g. Neon). Do not override unless using the local postgres service.
       NODE_ENV: production
       PORT:     3001
     ports:
       - "${API_PORT:-3001}:3001"
-    depends_on:
-      postgres:
-        condition: service_healthy
+    # When using Neon, remove depends_on so the API does not wait for local postgres.
+    # depends_on:
+    #   postgres:
+    #     condition: service_healthy
     healthcheck:
       test:
         - CMD-SHELL

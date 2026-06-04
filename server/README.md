@@ -4,7 +4,7 @@ Production-oriented REST API: **Express**, **PostgreSQL**, **Prisma**, **JWT** a
 
 ## Setup
 
-1. **PostgreSQL** — create a database (e.g. `b2b_ecommerce`).
+1. **PostgreSQL** — use [Neon](https://neon.tech) (recommended) or any PostgreSQL 14+ instance.
 
 2. **Environment**
 
@@ -12,13 +12,16 @@ Production-oriented REST API: **Express**, **PostgreSQL**, **Prisma**, **JWT** a
    cp .env.example .env
    ```
 
-   Set `DATABASE_URL`, `JWT_SECRET` (long random string), and optionally `PORT` / `CLIENT_URL`.
+   Set `DATABASE_URL` to your Neon connection string (pooled host, `?sslmode=require`),
+   `JWT_SECRET` (long random string), and optionally `PORT` / `CLIENT_URL`.
 
 3. **Install & database**
 
    ```bash
    npm install
-   npx prisma migrate dev --name init
+   npx prisma generate
+   npm run db:migrate:deploy
+   npm run catalog:migrate
    npm run db:seed
    ```
 

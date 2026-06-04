@@ -96,28 +96,54 @@ describe('POST /api/subscriptions/create-order', () => {
     expect(res.body.data.razorpayOrderId).toBe('rzp_order_SELLER01')
   })
 
-  test('403 – BUYER attempting to buy a SELLER plan is rejected', async () => {
+  test('200 – BUYER may purchase a seller plan (both-access checkout)', async () => {
+    const sellerRzpOrder = { id: 'rzp_order_BOTH01', amount: 199900, currency: 'INR' }
+
     prisma.user.findUnique.mockResolvedValue(BUYER)
+    prisma.payment.findFirst.mockResolvedValue(null)
+    Razorpay._mockOrders.create.mockResolvedValue(sellerRzpOrder)
+    prisma.payment.create.mockResolvedValue({})
 
     const res = await agent
       .post('/api/subscriptions/create-order')
       .set(cookieFor(buyerToken))
       .send({ plan: 'SELLER_MONTH' })
 
-    expect(res.status).toBe(403)
-    expect(res.body.error.code).toBe('PLAN_ROLE_MISMATCH')
+    expect(res.status).toBe(200)
+    expect(res.body.data.razorpayOrderId).toBe('rzp_order_BOTH01')
   })
 
-  test('403 – SELLER attempting to buy a BUYER plan is rejected', async () => {
+  test('200 – BUYER creates a combined BOTH bundle order', async () => {
+    const bundleOrder = { id: 'rzp_order_BOTH01', amount: 699800, currency: 'INR' }
+
+    prisma.user.findUnique.mockResolvedValue(BUYER)
+    prisma.payment.findFirst.mockResolvedValue(null)
+    Razorpay._mockOrders.create.mockResolvedValue(bundleOrder)
+    prisma.payment.create.mockResolvedValue({})
+
+    const res = await agent
+      .post('/api/subscriptions/create-order')
+      .set(cookieFor(buyerToken))
+      .send({ plan: 'BOTH_STANDARD_MONTH' })
+
+    expect(res.status).toBe(200)
+    expect(res.body.data.amount).toBe(699800)
+    expect(res.body.data.razorpayOrderId).toBe('rzp_order_BOTH01')
+  })
+
+  test('200 – SELLER may purchase a buyer plan (both-access checkout)', async () => {
     prisma.user.findUnique.mockResolvedValue(SELLER)
+    prisma.payment.findFirst.mockResolvedValue(null)
+    Razorpay._mockOrders.create.mockResolvedValue(RZP_ORDER)
+    prisma.payment.create.mockResolvedValue({})
 
     const res = await agent
       .post('/api/subscriptions/create-order')
       .set(cookieFor(sellerToken))
       .send({ plan: 'BUYER_STANDARD' })
 
-    expect(res.status).toBe(403)
-    expect(res.body.error.code).toBe('PLAN_ROLE_MISMATCH')
+    expect(res.status).toBe(200)
+    expect(res.body.data.razorpayOrderId).toBe('rzp_order_NEWONE')
   })
 
   test('400 – unknown plan name is rejected before reaching controller', async () => {

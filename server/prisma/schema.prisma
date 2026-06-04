@@ -30,6 +30,14 @@ enum SubscriptionPlan {
   BUYER_LIFETIME
   SELLER_MONTH
   SELLER_LIFETIME
+  /// One payment → buyer standard + seller monthly
+  BOTH_STANDARD_MONTH
+  /// One payment → buyer lifetime + seller lifetime
+  BOTH_LIFETIME_LIFETIME
+  /// One payment → buyer lifetime + seller monthly
+  BOTH_LIFETIME_MONTH
+  /// One payment → buyer standard + seller lifetime
+  BOTH_STANDARD_LIFETIME
 }
 
 enum SubscriptionStatus {

@@ -36,6 +36,9 @@ const listMyMessages = asyncHandler(async (req, res) => {
 
 /** GET /api/contact/unread-reply-count — number of unread admin replies for this user */
 const unreadReplyCount = asyncHandler(async (req, res) => {
+  if (!prisma.contactMessage?.count) {
+    return res.json({ success: true, data: { count: 0 } })
+  }
   const count = await prisma.contactMessage.count({
     where: {
       senderId:  req.user.id,

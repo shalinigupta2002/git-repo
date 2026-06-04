@@ -54,12 +54,17 @@ const jwtExpiresIn = optional('JWT_EXPIRES_IN', '7d')
 //              can run the app without touching .env at all.
 // Production:  CLIENT_URL is mandatory — no wildcard, no localhost fallback.
 
+/** Strip trailing slashes so CORS matches the browser Origin header exactly. */
+function normalizeOrigins(list) {
+  return list.map((u) => u.replace(/\/+$/, ''))
+}
+
 let clientUrls
 
 if (isProd) {
   // Will throw if CLIENT_URL is absent or blank
   const raw = required('CLIENT_URL')
-  clientUrls = raw.split(',').map((s) => s.trim()).filter(Boolean)
+  clientUrls = normalizeOrigins(raw.split(',').map((s) => s.trim()).filter(Boolean))
 
   if (clientUrls.length === 0) {
     throw new Error('[config] CLIENT_URL must contain at least one origin in production.')
@@ -74,7 +79,7 @@ if (isProd) {
   }
 } else {
   const raw = optional('CLIENT_URL', 'http://localhost:5173,http://localhost:3000')
-  clientUrls = raw.split(',').map((s) => s.trim()).filter(Boolean)
+  clientUrls = normalizeOrigins(raw.split(',').map((s) => s.trim()).filter(Boolean))
 }
 
 // ─── Razorpay — warn loudly if placeholder keys reach production ─────────────

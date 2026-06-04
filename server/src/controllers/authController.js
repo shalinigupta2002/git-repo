@@ -10,15 +10,16 @@ const { COOKIE_NAME } = require('../middleware/authenticate.js')
  * Build the cookie options object.
  * - httpOnly: prevents JavaScript access (XSS mitigation)
  * - secure:   HTTPS-only in production
- * - sameSite: 'lax' allows top-level navigations (e.g. OAuth redirects) while
- *             still blocking CSRF from cross-origin form submissions
+ * - sameSite: 'none' in production so httpOnly cookies work when the frontend
+ *             (e.g. Vercel) and API (e.g. Render) are on different origins.
+ *             'lax' in development for same-origin / localhost proxy setups.
  * - maxAge:   matches JWT expiry so both expire together
  */
 function cookieOptions() {
   return {
     httpOnly: true,
     secure: env.nodeEnv === 'production',
-    sameSite: 'lax',
+    sameSite: env.isProd ? 'none' : 'lax',
     maxAge: env.cookieMaxAge,
     path: '/',
   }
@@ -109,7 +110,7 @@ const logout = asyncHandler(async (req, res) => {
   res.clearCookie(COOKIE_NAME, {
     httpOnly: true,
     secure: env.nodeEnv === 'production',
-    sameSite: 'lax',
+    sameSite: env.isProd ? 'none' : 'lax',
     path: '/',
   })
   res.json({ success: true, data: { message: 'Logged out successfully' } })

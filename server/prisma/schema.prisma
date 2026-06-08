@@ -73,6 +73,12 @@ enum CategoryRequestStatus {
   REJECTED
 }
 
+enum QuoteRequestStatus {
+  PENDING
+  RESPONDED
+  DECLINED
+}
+
 enum CategoryRequestType {
   CATEGORY
   SUBCATEGORY
@@ -112,6 +118,8 @@ model User {
   auditLogs            AuditLog[]
   categoryRequests     CategoryRequest[]
   contactMessages      ContactMessage[]
+  buyerQuoteRequests   QuoteRequest[]    @relation("BuyerQuoteRequests")
+  sellerQuoteRequests  QuoteRequest[]    @relation("SellerQuoteRequests")
 
   @@map("users")
 }
@@ -343,6 +351,35 @@ model CategoryRequest {
   @@index([sellerId])
   @@index([status])
   @@map("category_requests")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Quote Request — buyer RFQs from product/catalog browsing to seller workspace
+// ─────────────────────────────────────────────────────────────────────────────
+
+model QuoteRequest {
+  id               String             @id @default(uuid())
+  buyerId          String             @map("buyer_id")
+  buyer            User               @relation("BuyerQuoteRequests", fields: [buyerId], references: [id], onDelete: Cascade)
+  /// Null for public catalog RFQs that should be visible to all sellers.
+  sellerId         String?            @map("seller_id")
+  seller           User?              @relation("SellerQuoteRequests", fields: [sellerId], references: [id], onDelete: SetNull)
+  catalogProductId String?            @map("catalog_product_id") @db.VarChar(64)
+  productTitle     String             @map("product_title") @db.VarChar(300)
+  productCategory  String?            @map("product_category") @db.VarChar(200)
+  brandName        String?            @map("brand_name") @db.VarChar(200)
+  quantity         Int                @default(1)
+  targetPrice      Decimal?           @map("target_price") @db.Decimal(12, 2)
+  message          String?            @db.VarChar(1000)
+  status           QuoteRequestStatus @default(PENDING)
+  createdAt        DateTime           @default(now()) @map("created_at")
+  updatedAt        DateTime           @updatedAt @map("updated_at")
+
+  @@index([buyerId])
+  @@index([sellerId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("quote_requests")
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

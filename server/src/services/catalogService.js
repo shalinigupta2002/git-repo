@@ -108,7 +108,8 @@ async function listProducts({ q, category, brand, cursor, limit } = {}) {
 
   if (category && category.trim()) {
     params.push(category.trim())
-    where.push(`c.slug = $${params.length}`)
+    const idx = params.length
+    where.push(`(c.slug = $${idx} OR parent.slug = $${idx})`)
   }
 
   if (brand && brand.trim()) {
@@ -144,8 +145,9 @@ async function listProducts({ q, category, brand, cursor, limit } = {}) {
       b.slug AS brand_slug,
       b.name AS brand_name
     FROM catalog.products   p
-    JOIN catalog.categories c ON c.id = p.category_id
-    JOIN catalog.brands     b ON b.id = p.brand_id
+    JOIN catalog.categories c      ON c.id = p.category_id
+    LEFT JOIN catalog.categories parent ON parent.id = c.parent_id
+    JOIN catalog.brands     b      ON b.id = p.brand_id
     ${whereSql}
     ORDER BY p.created_at DESC, p.id DESC
     LIMIT $${limitIdx}

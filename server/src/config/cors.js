@@ -17,6 +17,25 @@
 const env = require('./env.js')
 
 /**
+ * Check if the request origin matches the allowed pattern.
+ * Supports exact matches and wildcards (e.g. "https://*.vercel.app").
+ */
+function matchOrigin(allowedPattern, origin) {
+  if (allowedPattern === origin) return true
+
+  if (allowedPattern.includes('*')) {
+    // Escape special regex characters except '*'
+    const escaped = allowedPattern
+      .replace(/[.+^${}()|[\]\\]/g, '\\$&')
+      .replace(/\*/g, '[^/]*') // match any character in the subdomain/host except '/'
+    const regex = new RegExp(`^${escaped}$`, 'i')
+    return regex.test(origin)
+  }
+
+  return false
+}
+
+/**
  * Express-compatible origin validator.
  *
  * @param {string|undefined} origin - The value of the request `Origin` header.
@@ -26,7 +45,18 @@ function originValidator(origin, callback) {
   // No Origin header → non-browser request; always allow
   if (!origin) return callback(null, true)
 
-  if (env.clientUrls.includes(origin)) {
+  // 1. Check if matches any configured client URL (supporting wildcards)
+  const isAllowed = env.clientUrls.some((pattern) => matchOrigin(pattern, origin))
+  if (isAllowed) {
+    return callback(null, true)
+  }
+
+  // 2. Fallback check for Vercel preview domains of this project
+  // Matches e.g. https://b2-b-marketplace-r6sp8lrkt-shalini-guptas-projects-ccd2dc4c.vercel.app
+  if (
+    /^https:\/\/[a-z0-9-]+-shalini-guptas-projects-ccd2dc4c\.vercel\.app$/i.test(origin) ||
+    /^https:\/\/b2-b-marketplace-.*\.vercel\.app$/i.test(origin)
+  ) {
     return callback(null, true)
   }
 

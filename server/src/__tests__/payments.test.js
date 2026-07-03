@@ -60,7 +60,7 @@ beforeEach(() => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('POST /api/subscriptions/create-order', () => {
-  const RZP_ORDER = { id: 'rzp_order_NEWONE', amount: 499900, currency: 'INR' }
+  const RZP_ORDER = { id: 'rzp_order_NEWONE', amount: 999900, currency: 'INR' }
 
   test('200 – BUYER creates an order for a buyer plan', async () => {
     prisma.user.findUnique.mockResolvedValue(BUYER)
@@ -76,11 +76,11 @@ describe('POST /api/subscriptions/create-order', () => {
     expect(res.status).toBe(200)
     expect(res.body.success).toBe(true)
     expect(res.body.data.razorpayOrderId).toBe('rzp_order_NEWONE')
-    expect(res.body.data.amount).toBe(499900)
+    expect(res.body.data.amount).toBe(999900)
   })
 
   test('200 – SELLER creates an order for a seller plan', async () => {
-    const sellerRzpOrder = { id: 'rzp_order_SELLER01', amount: 199900, currency: 'INR' }
+    const sellerRzpOrder = { id: 'rzp_order_SELLER01', amount: 999900, currency: 'INR' }
 
     prisma.user.findUnique.mockResolvedValue(SELLER)
     prisma.payment.findFirst.mockResolvedValue(null)
@@ -97,7 +97,7 @@ describe('POST /api/subscriptions/create-order', () => {
   })
 
   test('200 – BUYER may purchase a seller plan (both-access checkout)', async () => {
-    const sellerRzpOrder = { id: 'rzp_order_BOTH01', amount: 199900, currency: 'INR' }
+    const sellerRzpOrder = { id: 'rzp_order_BOTH01', amount: 999900, currency: 'INR' }
 
     prisma.user.findUnique.mockResolvedValue(BUYER)
     prisma.payment.findFirst.mockResolvedValue(null)
@@ -114,7 +114,7 @@ describe('POST /api/subscriptions/create-order', () => {
   })
 
   test('200 – BUYER creates a combined BOTH bundle order', async () => {
-    const bundleOrder = { id: 'rzp_order_BOTH01', amount: 699800, currency: 'INR' }
+    const bundleOrder = { id: 'rzp_order_BOTH01', amount: 1999800, currency: 'INR' }
 
     prisma.user.findUnique.mockResolvedValue(BUYER)
     prisma.payment.findFirst.mockResolvedValue(null)
@@ -127,7 +127,7 @@ describe('POST /api/subscriptions/create-order', () => {
       .send({ plan: 'BOTH_STANDARD_MONTH' })
 
     expect(res.status).toBe(200)
-    expect(res.body.data.amount).toBe(699800)
+    expect(res.body.data.amount).toBe(1999800)
     expect(res.body.data.razorpayOrderId).toBe('rzp_order_BOTH01')
   })
 
@@ -163,7 +163,7 @@ describe('POST /api/subscriptions/create-order', () => {
   test('200 – duplicate request within 15 min returns existing order (resumed: true)', async () => {
     const existingPending = makePayment({
       razorpayOrderId: 'rzp_order_EXISTING',
-      amountPaise:     499900,
+      amountPaise:     999900,
       currency:        'INR',
       status:          'PENDING',
     })

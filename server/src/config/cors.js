@@ -51,11 +51,9 @@ function originValidator(origin, callback) {
     return callback(null, true)
   }
 
-  // 2. Fallback check for Vercel preview domains of this project
-  // Matches e.g. https://b2-b-marketplace-r6sp8lrkt-shalini-guptas-projects-ccd2dc4c.vercel.app
+  // 2. Fallback check for Vercel preview/deployment domains of this project
   if (
-    /^https:\/\/[a-z0-9-]+-shalini-guptas-projects-ccd2dc4c\.vercel\.app$/i.test(origin) ||
-    /^https:\/\/b2-b-marketplace-.*\.vercel\.app$/i.test(origin)
+    /^https:\/\/(b2-b-marketplace|b2-b-marketplace-[a-z0-9-]+-shalini-guptas-projects-ccd2dc4c)\.vercel\.app$/i.test(origin)
   ) {
     return callback(null, true)
   }

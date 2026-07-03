@@ -26,6 +26,7 @@
  *   9. errorHandler    — structured error responses + structured error logging
  */
 
+const path           = require('path')
 const express        = require('express')
 const cors           = require('cors')
 const helmet         = require('helmet')
@@ -63,6 +64,15 @@ app.use(metricsMiddleware) // increments counters + records response times
 // ── Body parsing ──────────────────────────────────────────────────────────────
 app.use(express.json({ limit: '1mb' }))
 app.use(cookieParser())
+
+// ── Uploaded contact attachments (images / videos) ───────────────────────────
+app.use(
+  '/api/uploads/contact',
+  express.static(path.join(__dirname, '../uploads/contact'), {
+    fallthrough: false,
+    maxAge: env.isProd ? '7d' : 0,
+  }),
+)
 
 // ── Route namespaces ──────────────────────────────────────────────────────────
 app.use('/api', routes)

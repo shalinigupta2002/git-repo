@@ -1,23 +1,29 @@
 const { prisma }       = require('../config/database.js')
 const { asyncHandler } = require('../utils/asyncHandler.js')
+const { buildContactAttachments } = require('../middleware/contactUpload.js')
 
 // ─── Sender-side (buyer / seller) ─────────────────────────────────────────────
 
-/** POST /api/contact — send a new message to admin */
+/** POST /api/contact — send a new message to admin (optional image/video attachments) */
 const sendMessage = asyncHandler(async (req, res) => {
-  const { subject, message } = req.body
-  if (!subject?.trim()) {
+  const subject = typeof req.body?.subject === 'string' ? req.body.subject : ''
+  const message = typeof req.body?.message === 'string' ? req.body.message : ''
+
+  if (!subject.trim()) {
     return res.status(400).json({ success: false, error: { message: 'subject is required' } })
   }
-  if (!message?.trim()) {
+  if (!message.trim()) {
     return res.status(400).json({ success: false, error: { message: 'message is required' } })
   }
+
+  const attachments = buildContactAttachments(req.files)
 
   const record = await prisma.contactMessage.create({
     data: {
       senderId: req.user.id,
       subject:  subject.trim(),
       message:  message.trim(),
+      attachments,
     },
   })
 

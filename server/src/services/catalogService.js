@@ -167,6 +167,35 @@ async function listProducts({ q, category, brand, cursor, limit } = {}) {
   return { products, nextCursor }
 }
 
+/** Fetch a single catalog product by numeric id. Returns null when not found. */
+async function getProductById(id) {
+  const productId = Number.parseInt(String(id), 10)
+  if (Number.isNaN(productId) || productId <= 0) return null
+
+  const sql = `
+    SELECT
+      p.id,
+      p.title,
+      p.description,
+      p.price,
+      p.image_url,
+      p.created_at,
+      c.slug AS category_slug,
+      c.name AS category_name,
+      b.slug AS brand_slug,
+      b.name AS brand_name
+    FROM catalog.products   p
+    JOIN catalog.categories c      ON c.id = p.category_id
+    LEFT JOIN catalog.categories parent ON parent.id = c.parent_id
+    JOIN catalog.brands     b      ON b.id = p.brand_id
+    WHERE p.id = $1
+    LIMIT 1
+  `
+
+  const { rows } = await query(sql, [productId])
+  return rows[0] ? mapProduct(rows[0]) : null
+}
+
 /** Return all categories ordered alphabetically. */
 async function listCategories() {
   const { rows } = await query(
@@ -185,4 +214,4 @@ async function listBrands() {
   return rows.map(mapBrand)
 }
 
-module.exports = { listProducts, listCategories, listBrands, encodeCursor, decodeCursor }
+module.exports = { listProducts, getProductById, listCategories, listBrands, encodeCursor, decodeCursor }

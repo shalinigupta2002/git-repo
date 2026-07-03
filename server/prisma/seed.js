@@ -23,8 +23,8 @@ const prisma = new PrismaClient()
 
 const PASSWORDS = {
   admin: 'admin123',
-  seller: 'seller123',
-  buyer: 'buyer123',
+  seller123: 'seller123',
+  buyer123: 'buyer123',
 }
 
 const USERS = [
@@ -37,6 +37,18 @@ const USERS = [
   { email: 'buyer2@buyer.test', role: 'BUYER', companyName: 'Contoso Imports', password: PASSWORDS.buyer123 },
   { email: 'buyer3@buyer.test', role: 'BUYER', companyName: 'Fabrikam Distribution', password: PASSWORDS.buyer123 },
   { email: 'buyer4@buyer.test', role: 'BUYER', companyName: 'Apex Wholesale Buyers', password: PASSWORDS.buyer123 },
+  {
+    email: 'buyer.subscribed@buyer.test',
+    role: 'BUYER',
+    companyName: 'Subscribed Test Buyer Co.',
+    password: PASSWORDS.buyer123,
+  },
+  {
+    email: 'buyer.free@buyer.test',
+    role: 'BUYER',
+    companyName: 'Free Test Buyer Co.',
+    password: PASSWORDS.buyer123,
+  },
 ]
 
 const SELLER_EMAILS = USERS.filter((u) => u.role === 'SELLER').map((u) => u.email)
@@ -334,6 +346,7 @@ async function seedSubscriptionsAndPayments(users) {
     { email: 'buyer1@buyer.test', plan: 'BUYER_STANDARD', amount: 499900, expiresAt: null },
     { email: 'buyer2@buyer.test', plan: 'BUYER_LIFETIME', amount: 499900, expiresAt: null },
     { email: 'buyer3@buyer.test', plan: 'BUYER_STANDARD', amount: 499900, expiresAt: null },
+    { email: 'buyer.subscribed@buyer.test', plan: 'BUYER_LIFETIME', amount: 4999900, expiresAt: null },
     { email: 'alpha@seller.test', plan: 'SELLER_LIFETIME', amount: 2999900, expiresAt: null },
     { email: 'bravo@seller.test', plan: 'SELLER_MONTH', amount: 199900, expiresAt: new Date(Date.now() + 30 * 86400_000) },
     { email: 'gamma@seller.test', plan: 'SELLER_LIFETIME', amount: 2999900, expiresAt: null },
@@ -722,7 +735,24 @@ async function seedCatalogSchema() {
   }
 }
 
+const LEGACY_DEMO_EMAILS = ['buyer.free@test', 'buyer.subscribed@test']
+
+async function removeLegacyDemoUsers() {
+  const legacy = await prisma.user.findMany({
+    where: { email: { in: LEGACY_DEMO_EMAILS } },
+    select: { id: true },
+  })
+  if (!legacy.length) return
+  const ids = legacy.map((u) => u.id)
+  await prisma.payment.deleteMany({ where: { userId: { in: ids } } })
+  await prisma.subscription.deleteMany({ where: { userId: { in: ids } } })
+  await prisma.user.deleteMany({ where: { id: { in: ids } } })
+}
+
 async function main() {
+  console.log('[seed] removing legacy demo users (invalid email formats)')
+  await removeLegacyDemoUsers()
+
   console.log('[seed] upserting demo users')
   const users = await upsertUsers()
 
@@ -742,14 +772,16 @@ async function main() {
   console.log('')
   console.log('[seed] Demo credentials')
   console.log('[seed]   admin:  admin@b2b.local      (admin123)')
-  console.log('[seed]   seller: alpha@seller.test    (seller123)')
+  console.log('[seed]   seller: alpha@seller.test    (seller123) — subscribed seller')
   console.log('[seed]   seller: bravo@seller.test    (seller123)')
   console.log('[seed]   seller: gamma@seller.test    (seller123)')
   console.log('[seed]   seller: delta@seller.test    (seller123)')
-  console.log('[seed]   buyer:  buyer1@buyer.test    (buyer123)')
-  console.log('[seed]   buyer:  buyer2@buyer.test    (buyer123)')
-  console.log('[seed]   buyer:  buyer3@buyer.test    (buyer123)')
-  console.log('[seed]   buyer:  buyer4@buyer.test    (buyer123)')
+  console.log('[seed]   buyer:  buyer.subscribed@buyer.test (buyer123) — subscribed (wishlist, negotiate, quotes)')
+  console.log('[seed]   buyer:  buyer.free@buyer.test       (buyer123) — not subscribed (test paywall / alerts)')
+  console.log('[seed]   buyer:  buyer1@buyer.test    (buyer123) — subscribed')
+  console.log('[seed]   buyer:  buyer2@buyer.test    (buyer123) — subscribed')
+  console.log('[seed]   buyer:  buyer3@buyer.test    (buyer123) — subscribed')
+  console.log('[seed]   buyer:  buyer4@buyer.test    (buyer123) — not subscribed')
   console.log('')
   console.log('[seed] Demo summary')
   console.log(`[seed]   catalog categories:    ${catalogStats.categories}`)

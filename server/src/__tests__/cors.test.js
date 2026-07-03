@@ -44,6 +44,22 @@ describe('CORS originValidator', () => {
     const callback2 = jest.fn()
     originValidator('https://b2-b-marketplace-anybranch-shalini-guptas-projects-ccd2dc4c.vercel.app', callback2)
     expect(callback2).toHaveBeenCalledWith(null, true)
+
+    const callback3 = jest.fn()
+    originValidator('https://b2-b-marketplace.vercel.app', callback3)
+    expect(callback3).toHaveBeenCalledWith(null, true)
+  })
+
+  test('rejects arbitrary attacker domains beginning with b2-b-marketplace-', () => {
+    const callback = jest.fn()
+    originValidator('https://b2-b-marketplace-attacker.vercel.app', callback)
+    expect(callback).toHaveBeenCalledWith(expect.any(Error))
+  })
+
+  test('rejects attacker domains targeting the same vercel project scope', () => {
+    const callback = jest.fn()
+    originValidator('https://attacker-shalini-guptas-projects-ccd2dc4c.vercel.app', callback)
+    expect(callback).toHaveBeenCalledWith(expect.any(Error))
   })
 
   test('rejects unrecognized origins', () => {

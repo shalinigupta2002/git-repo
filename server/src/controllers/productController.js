@@ -181,13 +181,58 @@ const update = asyncHandler(async (req, res) => {
 
 const remove = asyncHandler(async (req, res) => {
   const { id } = req.params
-  const product = await prisma.product.findUnique({ where: { id } })
+  const product = await prisma.product.findUnique({
+    where: { id },
+    include: {
+      seller: { select: { id: true, email: true, companyName: true } },
+      _count: { select: { orderItems: true } },
+    },
+  })
   if (!product) throw new AppError('Product not found', 404, 'NOT_FOUND')
   if (req.user.role !== 'ADMIN' && product.sellerId !== req.user.id) {
     throw new AppError('Forbidden', 403, 'FORBIDDEN')
   }
 
-  await prisma.product.delete({ where: { id } })
+  // Products referenced by orders cannot be hard-deleted (FK on order_items).
+  // Deactivate instead so order history stays intact.
+  if (product._count.orderItems > 0) {
+    const updated = await prisma.product.update({
+      where: { id },
+      data: { isActive: false },
+      include: { seller: { select: { id: true, email: true, companyName: true } } },
+    })
+
+    writeAuditLog({
+      actorId: req.user.id,
+      action: 'UPDATE',
+      resource: 'product',
+      resourceId: id,
+      meta: { isActive: false, archived: true, reason: 'removed_with_order_history' },
+      req,
+    }).catch(() => {})
+
+    return res.json({
+      success: true,
+      data: {
+        product: serializeProduct(updated),
+        archived: true,
+        message: 'Product removed from your catalog. Past orders still reference this listing.',
+      },
+    })
+  }
+
+  try {
+    await prisma.product.delete({ where: { id } })
+  } catch (e) {
+    if (e.code === 'P2003') {
+      throw new AppError(
+        'This product is linked to existing orders and cannot be deleted. It has been removed from your active catalog instead.',
+        409,
+        'PRODUCT_HAS_ORDERS',
+      )
+    }
+    throw e
+  }
 
   writeAuditLog({ actorId: req.user.id, action: 'DELETE', resource: 'product', resourceId: id, req }).catch(() => {})
 

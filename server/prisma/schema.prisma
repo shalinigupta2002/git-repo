@@ -315,6 +315,8 @@ model ContactMessage {
   sender         User          @relation(fields: [senderId], references: [id], onDelete: Cascade)
   subject        String        @db.VarChar(300)
   message        String        @db.VarChar(5000)
+  /// [{ type: "image"|"video", url, name, mimeType }]
+  attachments    Json?         @default("[]")
   status         MessageStatus @default(UNREAD)
   adminReply     String?       @map("admin_reply") @db.VarChar(5000)
   repliedAt      DateTime?     @map("replied_at")

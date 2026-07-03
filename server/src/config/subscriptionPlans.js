@@ -4,10 +4,10 @@
  */
 
 const BASE_PLANS = {
-  BUYER_STANDARD:  { amountPaise: 499900,  expiresInDays: null, role: 'BUYER'  },
-  BUYER_LIFETIME:  { amountPaise: 499900,  expiresInDays: null, role: 'BUYER'  },
-  SELLER_MONTH:    { amountPaise: 199900,  expiresInDays: 30,   role: 'SELLER' },
-  SELLER_LIFETIME: { amountPaise: 2999900, expiresInDays: null, role: 'SELLER' },
+  BUYER_STANDARD:  { amountPaise: 999900,  expiresInDays: null, role: 'BUYER'  },
+  BUYER_LIFETIME:  { amountPaise: 4999900, expiresInDays: null, role: 'BUYER'  },
+  SELLER_MONTH:    { amountPaise: 999900,  expiresInDays: 30,   role: 'SELLER' },
+  SELLER_LIFETIME: { amountPaise: 4999900, expiresInDays: null, role: 'SELLER' },
 }
 
 /** @type {Record<string, { amountPaise: number, grants: Array<{ plan: string, expiresInDays: number|null }> }>} */

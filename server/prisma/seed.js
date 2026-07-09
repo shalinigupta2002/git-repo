@@ -57,7 +57,7 @@ const DEMO_EMAILS = USERS.map((u) => u.email)
 
 const CATALOG = [
   {
-    name: 'Mobiles, Computers',
+    name: 'Moblie & accessories',
     slug: 'mobiles',
     brands: ['Apple', 'Samsung', 'OnePlus', 'realme', 'Xiaomi', 'vivo', 'Nokia', 'Motorola'],
     subcategories: ['Smartphones', 'Cases & Covers', 'Screen Protectors', 'Power Banks', 'Tablets', 'Wearables'],

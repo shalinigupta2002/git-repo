@@ -74,6 +74,15 @@ app.use(
   }),
 )
 
+// ── Uploaded product images ───────────────────────────────────────────────────
+app.use(
+  '/api/uploads/products',
+  express.static(path.join(__dirname, '../uploads/products'), {
+    fallthrough: false,
+    maxAge: env.isProd ? '7d' : 0,
+  }),
+)
+
 // ── Route namespaces ──────────────────────────────────────────────────────────
 app.use('/api', routes)
 app.use('/api/catalog', catalogRoutes)

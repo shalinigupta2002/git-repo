@@ -4,6 +4,7 @@ const { AppError } = require('../utils/AppError.js')
 const { asyncHandler } = require('../utils/asyncHandler.js')
 const { serializeProduct } = require('../utils/serialize.js')
 const { writeAuditLog } = require('../utils/audit.js')
+const { buildProductImages } = require('../middleware/productUpload.js')
 
 const list = asyncHandler(async (req, res) => {
   const { page, limit, sellerId, includeInactive, search, mine } = req.query
@@ -80,7 +81,7 @@ const getById = asyncHandler(async (req, res) => {
 
 const create = asyncHandler(async (req, res) => {
   // Role is already enforced by authorize('SELLER', 'ADMIN') in the route.
-  // Subscription is enforced by requireSubscription('SELLER') in the route.
+  // Subscription is not required to create products — sellers can list for free.
   let sellerId = req.user.id
   if (req.user.role === 'ADMIN') {
     if (!req.body.sellerId) {
@@ -90,6 +91,7 @@ const create = asyncHandler(async (req, res) => {
   }
 
   const { sku, name, description, price, moq, currency, isActive, trackInventory, stockQty } = req.body
+  const images = buildProductImages(req.files || [])
 
   try {
     const product = await prisma.$transaction(async (tx) => {
@@ -105,6 +107,7 @@ const create = asyncHandler(async (req, res) => {
           isActive:       isActive !== false,
           trackInventory: trackInventory ?? false,
           stockQty:       stockQty ?? 0,
+          images,
         },
         include: { seller: { select: { id: true, email: true, companyName: true } } },
       })

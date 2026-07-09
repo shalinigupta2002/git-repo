@@ -11,6 +11,27 @@ const PLANS_BY_TYPE = {
   BUYER:  ['BUYER_STANDARD', 'BUYER_LIFETIME'],
 }
 
+async function hasActiveSubscription(userId, type) {
+  const plans = PLANS_BY_TYPE[type]
+  if (!plans) return false
+
+  const now = new Date()
+  const activeSub = await prisma.subscription.findFirst({
+    where: {
+      userId,
+      plan:   { in: plans },
+      status: 'ACTIVE',
+      OR: [
+        { expiresAt: null },
+        { expiresAt: { gt: now } },
+      ],
+    },
+    select: { id: true },
+  })
+
+  return Boolean(activeSub)
+}
+
 /**
  * Middleware factory that enforces an active subscription before allowing
  * a request through.
@@ -31,7 +52,6 @@ function requireSubscription(type) {
     throw new Error(`requireSubscription: unknown type "${type}". Use 'SELLER' or 'BUYER'.`)
   }
 
-  const plans = PLANS_BY_TYPE[type]
   const label = type.charAt(0) + type.slice(1).toLowerCase() // 'Seller' | 'Buyer'
 
   return asyncHandler(async (req, res, next) => {
@@ -44,19 +64,7 @@ function requireSubscription(type) {
     // without holding a buyer or seller plan themselves.
     if (req.user.role === 'ADMIN') return next()
 
-    const now = new Date()
-    const activeSub = await prisma.subscription.findFirst({
-      where: {
-        userId: req.user.id,
-        plan:   { in: plans },
-        status: 'ACTIVE',
-        OR: [
-          { expiresAt: null },          // lifetime / no-expiry plans
-          { expiresAt: { gt: now } },   // plans that haven't expired yet
-        ],
-      },
-      select: { id: true },
-    })
+    const activeSub = await hasActiveSubscription(req.user.id, type)
 
     if (!activeSub) {
       throw new AppError(
@@ -70,4 +78,4 @@ function requireSubscription(type) {
   })
 }
 
-module.exports = { requireSubscription }
+module.exports = { requireSubscription, hasActiveSubscription, PLANS_BY_TYPE }

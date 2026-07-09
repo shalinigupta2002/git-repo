@@ -1,7 +1,7 @@
 const { Router } = require('express')
 const productController = require('../controllers/productController.js')
 const { authenticate, optionalAuth, authorize } = require('../middleware/authenticate.js')
-const { requireSubscription } = require('../middleware/requireSubscription.js')
+const { productUploadMiddleware } = require('../middleware/productUpload.js')
 const { validate } = require('../middleware/validate.js')
 const {
   createProductBody,
@@ -28,13 +28,12 @@ router.get(
   productController.getById,
 )
 
-// Creating a product requires an active SELLER subscription.
-// Admins bypass the subscription check (see requireSubscription).
+// Creating a product is free — sellers can list without a subscription.
 router.post(
   '/',
   authenticate,
   authorize('SELLER', 'ADMIN'),
-  requireSubscription('SELLER'),
+  productUploadMiddleware,
   validate(createProductBody),
   productController.create,
 )

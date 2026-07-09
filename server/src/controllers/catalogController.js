@@ -13,21 +13,53 @@
  */
 
 const { asyncHandler } = require('../utils/asyncHandler.js')
-const catalogService   = require('../services/catalogService.js')
+const catalogService = require('../services/catalogService.js')
+const sellerBrowseService = require('../services/sellerBrowseService.js')
+
+function mergeBrowseProducts(catalogProducts, sellerProducts) {
+  const seen = new Set()
+  const merged = []
+
+  for (const product of [...sellerProducts, ...catalogProducts]) {
+    const key = `${product.source || 'catalog'}:${product.id}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    merged.push(product)
+  }
+
+  return merged.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+}
 
 /**
  * GET /api/catalog/products
  *
- * Query params:
- *   q        — full-text search on title/description
- *   category — category slug
- *   brand    — brand slug or name (case-insensitive)
- *   cursor   — opaque cursor from a previous response's nextCursor
- *   limit    — page size, 1–50 (default 10)
+ * Returns seeded catalog products merged with live seller listings so newly
+ * added seller products appear on the public /products page.
  */
 const listProducts = asyncHandler(async (req, res) => {
   const { q, category, brand, cursor, limit } = req.query
-  const { products, nextCursor } = await catalogService.listProducts({ q, category, brand, cursor, limit })
+  const pageSize = Math.min(Math.max(Number.parseInt(limit, 10) || 12, 1), 50)
+
+  if (cursor) {
+    const { products, nextCursor } = await catalogService.listProducts({
+      q,
+      category,
+      brand,
+      cursor,
+      limit: pageSize,
+    })
+    return res.json({
+      success: true,
+      data: { products, nextCursor },
+    })
+  }
+
+  const [{ products: catalogProducts, nextCursor }, sellerProducts] = await Promise.all([
+    catalogService.listProducts({ q, category, brand, limit: pageSize }),
+    sellerBrowseService.listSellerProducts({ q, category, brand, limit: 200 }),
+  ])
+
+  const products = mergeBrowseProducts(catalogProducts, sellerProducts).slice(0, pageSize)
 
   res.json({
     success: true,
@@ -38,10 +70,14 @@ const listProducts = asyncHandler(async (req, res) => {
 /**
  * GET /api/catalog/products/:id
  *
- * Returns one catalog product for the public product detail page.
+ * Catalog numeric ids first; fall back to seller listing UUIDs.
  */
 const getProduct = asyncHandler(async (req, res) => {
-  const product = await catalogService.getProductById(req.params.id)
+  let product = await catalogService.getProductById(req.params.id)
+  if (!product) {
+    product = await sellerBrowseService.getSellerProductById(req.params.id)
+  }
+
   if (!product) {
     return res.status(404).json({
       success: false,

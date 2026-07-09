@@ -19,8 +19,8 @@ const createProductBody = z.object({
   price:         z.coerce.number().positive().max(1e12),
   moq:           z.coerce.number().int().min(1).max(1e9).optional().default(1),
   currency:      z.string().trim().length(3).optional().default('INR'),
-  isActive:      z.boolean().optional().default(true),
-  trackInventory: z.boolean().optional().default(false),
+  isActive:      queryBool(true),
+  trackInventory: queryBool(false),
   stockQty:      z.coerce.number().int().min(0).optional().default(0),
 })
 

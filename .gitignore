@@ -39,5 +39,13 @@ Thumbs.db
 *.sln
 *.sw?
 
+# ─── Test artifacts ───────────────────────────────────────────────────────────
+server/coverage/
+client/coverage/
+client/playwright-report/
+client/test-results/
+client/blob-report/
+playwright/.cache/
+
 # ─── Prisma ───────────────────────────────────────────────────────────────────
 server/prisma/migrations/*/migration.sql

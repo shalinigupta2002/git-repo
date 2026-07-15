@@ -1,11 +1,25 @@
 const { Prisma } = require('@prisma/client')
+const crypto = require('crypto')
 const { prisma } = require('../config/database.js')
 const { asyncHandler } = require('../utils/asyncHandler.js')
 const { AppError } = require('../utils/AppError.js')
 const { hasActiveSubscription } = require('../middleware/requireSubscription.js')
 const { createOrderFromQuote } = require('../services/quoteOrderService.js')
-const { pickUserCity, mapPublicUser, USER_PUBLIC_SELECT } = require('../services/sellerProfileService.js')
+const { pickUserCity, mapMaskedParty, USER_PUBLIC_SELECT } = require('../services/sellerProfileService.js')
 const { serializeOrder } = require('../utils/serialize.js')
+const { allocateRfqNumber } = require('../services/rfqNumberService.js')
+const {
+  displayRfqRef,
+  listGroupedFromRows,
+  listGroupedFromRegistry,
+  buildComparisonGroup,
+  computeBuyerStats,
+  computeSellerStats,
+} = require('../services/quoteGroupService.js')
+const { buildRfqAttachments, UPLOAD_DIR } = require('../middleware/rfqUpload.js')
+const { sanitizeDisplayFilename } = require('../utils/rfqFileValidation.js')
+const fs = require('fs')
+const path = require('path')
 
 const QUOTE_INCLUDE = {
   buyer: { select: USER_PUBLIC_SELECT },
@@ -27,67 +41,107 @@ function cleanText(value, maxLength) {
   return text ? text.slice(0, maxLength) : null
 }
 
-function rfqRef(id) {
-  return `RFQ-${id.slice(0, 8).toUpperCase()}`
+function rfqRef(requestOrId) {
+  if (typeof requestOrId === 'string') {
+    return `RFQ-${requestOrId.slice(0, 8).toUpperCase()}`
+  }
+  return displayRfqRef(requestOrId)
 }
 
-function buyerDetailsVisible(request, hasFullAccess) {
-  return hasFullAccess && request.status === 'ACCEPTED'
+function parseAttachments(raw) {
+  if (raw == null) return null
+  if (!Array.isArray(raw)) return null
+  return raw.map((item) => ({
+    name: cleanText(item?.name, 255),
+    url: cleanText(item?.url, 2000),
+    mimeType: cleanText(item?.mimeType, 100),
+    sizeBytes: Number.isFinite(Number(item?.sizeBytes)) ? Number(item.sizeBytes) : undefined,
+  })).filter((item) => item.name && item.url)
 }
 
-function sellerVisibleToBuyer(request) {
-  return request.status === 'RESPONDED' || request.status === 'ACCEPTED' || request.status === 'DECLINED'
+function parseExpectedDeliveryDate(raw) {
+  if (!raw) return null
+  const date = new Date(raw)
+  if (Number.isNaN(date.getTime())) return null
+  return date
+}
+
+async function resolveSellerIds(body, product) {
+  const fromArray = Array.isArray(body.sellerIds)
+    ? body.sellerIds.map((id) => cleanText(id, 64)).filter(Boolean)
+    : []
+
+  if (fromArray.length) {
+    return [...new Set(fromArray)]
+  }
+
+  const single = cleanText(body.sellerId, 64)
+  if (single) return [single]
+
+  if (product?.sellerId) return [product.sellerId]
+
+  return []
+}
+
+async function assertSellersExist(sellerIds) {
+  const sellers = await prisma.user.findMany({
+    where: { id: { in: sellerIds }, role: 'SELLER' },
+    select: { id: true },
+  })
+  if (sellers.length !== sellerIds.length) {
+    throw new AppError('One or more sellerIds are invalid', 400, 'VALIDATION_ERROR')
+  }
 }
 
 function withPartyMeta(request) {
   return {
+    rfqGroupId: request.rfqGroupId,
+    rfqNumber: request.rfqNumber,
     sellerId: request.sellerId,
     sellerCity: pickUserCity(request.seller),
     buyerId: request.buyerId,
     buyerCity: pickUserCity(request.buyer),
+    deliveryLocation: request.deliveryLocation,
+    expectedDeliveryDate: request.expectedDeliveryDate,
+    attachments: request.attachments ?? [],
   }
 }
 
 function sanitizeQuoteRequestForSeller(request, hasFullAccess) {
-  const revealBuyer = buyerDetailsVisible(request, hasFullAccess)
-  const base = {
+  return {
     ...request,
     ...withPartyMeta(request),
-    rfqRef: rfqRef(request.id),
+    rfqRef: rfqRef(request),
     locked: !hasFullAccess,
-    buyerHidden: !revealBuyer,
-    seller: mapPublicUser(request.seller),
-    buyer: revealBuyer ? mapPublicUser(request.buyer) : undefined,
+    seller: mapMaskedParty(request.seller),
+    buyer: mapMaskedParty(request.buyer),
   }
-
-  if (!revealBuyer) {
-    delete base.buyer
-  }
-
-  return base
 }
 
 function sanitizeQuoteRequestForBuyer(request) {
   return {
     ...request,
     ...withPartyMeta(request),
-    rfqRef: rfqRef(request.id),
-    sellerHidden: !sellerVisibleToBuyer(request),
-    seller: mapPublicUser(request.seller),
-    buyer: mapPublicUser(request.buyer),
+    rfqRef: rfqRef(request),
+    seller: mapMaskedParty(request.seller),
+    buyer: mapMaskedParty(request.buyer),
   }
 }
 
 function maskQuoteRequestSummary(request) {
   return {
     id: request.id,
-    rfqRef: rfqRef(request.id),
+    rfqGroupId: request.rfqGroupId,
+    rfqNumber: request.rfqNumber,
+    rfqRef: rfqRef(request),
     status: request.status,
     createdAt: request.createdAt,
     productTitle: request.productTitle,
     productCategory: request.productCategory,
     brandName: request.brandName,
     quantity: request.quantity,
+    deliveryLocation: request.deliveryLocation,
+    expectedDeliveryDate: request.expectedDeliveryDate,
     ...withPartyMeta(request),
     locked: true,
     buyerHidden: true,
@@ -97,19 +151,23 @@ function maskQuoteRequestSummary(request) {
 function maskQuoteRequestSummaryForBuyer(request) {
   return {
     id: request.id,
-    rfqRef: rfqRef(request.id),
+    rfqGroupId: request.rfqGroupId,
+    rfqNumber: request.rfqNumber,
+    rfqRef: rfqRef(request),
     status: request.status,
     createdAt: request.createdAt,
     productTitle: request.productTitle,
     productCategory: request.productCategory,
     brandName: request.brandName,
     quantity: request.quantity,
+    deliveryLocation: request.deliveryLocation,
+    expectedDeliveryDate: request.expectedDeliveryDate,
+    attachments: request.attachments ?? [],
     ...withPartyMeta(request),
     sellerUnitPrice: request.status === 'RESPONDED' || request.status === 'ACCEPTED'
       ? request.sellerUnitPrice
       : null,
-    sellerHidden: !sellerVisibleToBuyer(request),
-    seller: mapPublicUser(request.seller),
+    seller: mapMaskedParty(request.seller),
   }
 }
 
@@ -190,7 +248,7 @@ const createRequest = asyncHandler(async (req, res) => {
 
   if (req.user.role !== 'ADMIN' && !(await hasActiveSubscription(req.user.id, 'BUYER'))) {
     throw new AppError(
-      'An active Buyer subscription is required to start negotiations.',
+      'An active Buyer subscription is required to request quotations.',
       403,
       'SUBSCRIPTION_REQUIRED',
     )
@@ -209,11 +267,28 @@ const createRequest = asyncHandler(async (req, res) => {
   const targetPrice = req.body.targetPrice == null || req.body.targetPrice === ''
     ? null
     : new Prisma.Decimal(String(req.body.targetPrice))
-  let sellerId = cleanText(req.body.sellerId, 64)
+  const deliveryLocation = cleanText(req.body.deliveryLocation, 500)
+  if (!deliveryLocation) {
+    return res.status(400).json({
+      success: false,
+      error: { message: 'deliveryLocation is required' },
+    })
+  }
+
+  const expectedDeliveryDate = parseExpectedDeliveryDate(req.body.expectedDeliveryDate)
+  if (!expectedDeliveryDate) {
+    return res.status(400).json({
+      success: false,
+      error: { message: 'expectedDeliveryDate must be a valid date' },
+    })
+  }
+
+  const attachments = parseAttachments(req.body.attachments)
   let productId = cleanText(req.body.productId, 64)
+  let product = null
 
   if (req.body.productId) {
-    const product = await prisma.product.findUnique({
+    product = await prisma.product.findUnique({
       where: { id: String(req.body.productId) },
       select: { id: true, sellerId: true, name: true, isActive: true },
     })
@@ -223,29 +298,89 @@ const createRequest = asyncHandler(async (req, res) => {
         error: { message: 'Product not found' },
       })
     }
-    sellerId = product.sellerId
     productId = product.id
   }
 
-  const request = await prisma.quoteRequest.create({
-    data: {
-      buyerId: req.user.id,
-      sellerId,
-      productId,
-      catalogProductId: cleanText(req.body.catalogProductId, 64),
-      productTitle,
-      productCategory: cleanText(req.body.productCategory, 200),
-      brandName: cleanText(req.body.brandName, 200),
-      quantity: safeQuantity,
-      targetPrice,
-      message: cleanText(req.body.message, 1000),
-    },
-    include: QUOTE_INCLUDE,
-  })
+  const sellerIds = await resolveSellerIds(req.body, product)
+  if (!sellerIds.length) {
+    return res.status(400).json({
+      success: false,
+      error: { message: 'At least one sellerId or sellerIds entry is required' },
+    })
+  }
+
+  await assertSellersExist(sellerIds)
+
+  if (Array.isArray(req.body.productIds) && req.body.productIds.length > 1) {
+    throw new AppError(
+      'Multi-product RFQ is not supported yet. This feature belongs to a future release.',
+      400,
+      'VALIDATION_ERROR',
+    )
+  }
+
+  const rfqGroupId = crypto.randomUUID()
+  const sharedData = {
+    rfqGroupId,
+    buyerId: req.user.id,
+    productId,
+    catalogProductId: cleanText(req.body.catalogProductId, 64),
+    productTitle,
+    productCategory: cleanText(req.body.productCategory, 200),
+    brandName: cleanText(req.body.brandName, 200),
+    quantity: safeQuantity,
+    targetPrice,
+    message: cleanText(req.body.message, 1000),
+    deliveryLocation,
+    expectedDeliveryDate,
+    attachments,
+  }
+
+  let createdRows
+  try {
+    createdRows = await prisma.$transaction(async (tx) => {
+      const rfqNumber = await allocateRfqNumber(tx)
+      await tx.rfqGroup.create({
+        data: {
+          id: rfqGroupId,
+          rfqNumber,
+          buyerId: req.user.id,
+        },
+      })
+      const rows = []
+      for (const sellerId of sellerIds) {
+        const row = await tx.quoteRequest.create({
+          data: { ...sharedData, sellerId, rfqNumber },
+          include: QUOTE_INCLUDE,
+        })
+        rows.push(row)
+      }
+      return rows
+    })
+  } catch (error) {
+    if (error?.code === 'P2002') {
+      const target = error?.meta?.target || []
+      if (target.includes('rfq_number') || target.includes('rfqNumber')) {
+        throw new AppError('RFQ number conflict. Please retry.', 409, 'RFQ_NUMBER_CONFLICT')
+      }
+      throw new AppError('Duplicate seller in the same RFQ group is not allowed.', 409, 'DUPLICATE_SELLER')
+    }
+    throw error
+  }
+
+  const requests = createdRows.map(sanitizeQuoteRequestForBuyer)
 
   res.status(201).json({
     success: true,
-    data: { request: sanitizeQuoteRequestForBuyer(request) },
+    data: {
+      group: {
+        rfqGroupId,
+        rfqNumber: createdRows[0]?.rfqNumber,
+        rfqRef: rfqRef(createdRows[0]),
+        requests,
+      },
+      request: requests[0],
+    },
   })
 })
 
@@ -397,7 +532,7 @@ const respond = asyncHandler(async (req, res) => {
 const sellerReject = asyncHandler(async (req, res) => {
   if (req.user.role !== 'ADMIN' && !(await hasActiveSubscription(req.user.id, 'SELLER'))) {
     throw new AppError(
-      'An active Seller subscription is required to reject negotiations.',
+      'An active Seller subscription is required to decline RFQs.',
       403,
       'SUBSCRIPTION_REQUIRED',
     )
@@ -406,15 +541,15 @@ const sellerReject = asyncHandler(async (req, res) => {
   const existing = await assertSellerCanAccess(req.params.id, req.user)
 
   if (existing.status === 'ACCEPTED') {
-    throw new AppError('This negotiation is already accepted', 409, 'CONFLICT')
+    throw new AppError('This quotation is already accepted', 409, 'CONFLICT')
   }
 
   if (existing.status === 'DECLINED') {
-    throw new AppError('This negotiation is already declined', 409, 'CONFLICT')
+    throw new AppError('This quotation is already declined', 409, 'CONFLICT')
   }
 
   if (existing.status !== 'PENDING') {
-    throw new AppError('Only pending negotiations can be rejected', 400, 'NOT_PENDING')
+    throw new AppError('Only pending RFQs can be declined', 400, 'NOT_PENDING')
   }
 
   const updated = await prisma.quoteRequest.update({
@@ -471,6 +606,24 @@ const buyerAccept = asyncHandler(async (req, res) => {
       throw new AppError('Quote status changed. Please refresh and try again.', 409, 'CONFLICT')
     }
 
+    if (locked.rfqGroupId) {
+      const alreadyAccepted = await tx.quoteRequest.findFirst({
+        where: {
+          rfqGroupId: locked.rfqGroupId,
+          buyerId: locked.buyerId,
+          status: 'ACCEPTED',
+          id: { not: locked.id },
+        },
+      })
+      if (alreadyAccepted) {
+        throw new AppError(
+          'Another quotation in this RFQ group is already accepted.',
+          409,
+          'CONFLICT',
+        )
+      }
+    }
+
     const order = await createOrderFromQuote(tx, locked, req.user.id)
 
     const updated = await tx.quoteRequest.update({
@@ -483,7 +636,24 @@ const buyerAccept = asyncHandler(async (req, res) => {
       include: QUOTE_INCLUDE,
     })
 
-    return { order, request: updated }
+    let declinedSiblingCount = 0
+    if (locked.rfqGroupId) {
+      const declined = await tx.quoteRequest.updateMany({
+        where: {
+          rfqGroupId: locked.rfqGroupId,
+          buyerId: locked.buyerId,
+          id: { not: locked.id },
+          status: { in: ['PENDING', 'RESPONDED'] },
+        },
+        data: {
+          status: 'DECLINED',
+          buyerRejectedAt: new Date(),
+        },
+      })
+      declinedSiblingCount = declined.count
+    }
+
+    return { order, request: updated, declinedSiblingCount }
   })
 
   res.json({
@@ -491,6 +661,7 @@ const buyerAccept = asyncHandler(async (req, res) => {
     data: {
       request: sanitizeQuoteRequestForBuyer(result.request),
       order: serializeOrder(result.order),
+      declinedSiblingCount: result.declinedSiblingCount,
     },
   })
 })
@@ -550,7 +721,7 @@ const listConfirmedBuyers = asyncHandler(async (req, res) => {
   const accepted = await prisma.quoteRequest.findMany({
     where: { ...sellerFilter, status: 'ACCEPTED' },
     include: {
-      buyer: { select: { id: true, email: true, companyName: true } },
+      buyer: { select: USER_PUBLIC_SELECT },
     },
     orderBy: { buyerAcceptedAt: 'desc' },
   })
@@ -571,16 +742,15 @@ const listConfirmedBuyers = asyncHandler(async (req, res) => {
     if (!byBuyer.has(buyerId)) {
       byBuyer.set(buyerId, {
         buyerId,
-        companyName: request.buyer?.companyName || null,
-        email: request.buyer?.email || null,
-        confirmedOrders: 0,
+        buyerCity: pickUserCity(request.buyer),
+        confirmedDeals: 0,
         lastConfirmedAt: null,
         rfqs90d: rfqCountByBuyer.get(buyerId) ?? 0,
       })
     }
 
     const row = byBuyer.get(buyerId)
-    row.confirmedOrders += 1
+    row.confirmedDeals += 1
     const confirmedAt = request.buyerAcceptedAt || request.updatedAt
     if (!row.lastConfirmedAt || confirmedAt > row.lastConfirmedAt) {
       row.lastConfirmedAt = confirmedAt
@@ -600,9 +770,201 @@ const listConfirmedBuyers = asyncHandler(async (req, res) => {
   })
 })
 
+const listGroupedRequests = asyncHandler(async (req, res) => {
+  if (req.user.role !== 'ADMIN' && !(await userHasBuyerWorkspace(req.user))) {
+    throw new AppError('Buyer workspace access required', 403, 'FORBIDDEN')
+  }
+
+  const buyerFilter = req.user.role === 'ADMIN' ? {} : { buyerId: req.user.id }
+  const registry = await prisma.rfqGroup.findMany({
+    where: buyerFilter,
+    include: {
+      requests: {
+        include: QUOTE_INCLUDE,
+        orderBy: { createdAt: 'asc' },
+      },
+    },
+    orderBy: { createdAt: 'desc' },
+    take: 500,
+  })
+
+  const hasFullAccess =
+    req.user.role === 'ADMIN' || await hasActiveSubscription(req.user.id, 'BUYER')
+
+  const grouped = listGroupedFromRegistry(registry, req.query)
+
+  if (!hasFullAccess) {
+    grouped.items = grouped.items.map((group) => ({
+      rfqGroupId: group.rfqGroupId,
+      rfqNumber: group.rfqNumber,
+      rfqRef: group.rfqRef,
+      productTitle: group.productTitle,
+      quantity: group.quantity,
+      aggregateStatus: group.aggregateStatus,
+      sellerCount: group.sellerCount,
+      createdAt: group.createdAt,
+      locked: true,
+    }))
+  }
+
+  res.json({
+    success: true,
+    data: {
+      hasFullAccess,
+      ...grouped,
+    },
+  })
+})
+
+const getGroupComparison = asyncHandler(async (req, res) => {
+  if (req.user.role !== 'ADMIN' && !(await userHasBuyerWorkspace(req.user))) {
+    throw new AppError('Buyer workspace access required', 403, 'FORBIDDEN')
+  }
+
+  const rfqGroupId = req.params.rfqGroupId
+  const registry = await prisma.rfqGroup.findFirst({
+    where: req.user.role === 'ADMIN'
+      ? { id: rfqGroupId }
+      : { id: rfqGroupId, buyerId: req.user.id },
+    include: {
+      requests: {
+        include: QUOTE_INCLUDE,
+        orderBy: { createdAt: 'asc' },
+      },
+    },
+  })
+
+  if (!registry?.requests?.length) {
+    throw new AppError('RFQ group not found', 404, 'NOT_FOUND')
+  }
+
+  const hasFullAccess =
+    req.user.role === 'ADMIN' || await hasActiveSubscription(req.user.id, 'BUYER')
+
+  const group = buildComparisonGroup(registry.requests)
+  if (!hasFullAccess) {
+    return res.json({
+      success: true,
+      data: {
+        hasFullAccess: false,
+        group: {
+          rfqGroupId: group.rfqGroupId,
+          rfqNumber: group.rfqNumber,
+          productTitle: group.productTitle,
+          aggregateStatus: group.aggregateStatus,
+          sellerCount: group.sellerCount,
+          locked: true,
+        },
+      },
+    })
+  }
+
+  res.json({
+    success: true,
+    data: {
+      hasFullAccess: true,
+      group,
+    },
+  })
+})
+
+const getStats = asyncHandler(async (req, res) => {
+  const view = await resolveQuoteListView(req.user, req.query.viewAs)
+
+  if (view === 'buyer') {
+    const rows = await prisma.quoteRequest.findMany({
+      where: { buyerId: req.user.id },
+      select: {
+        id: true,
+        rfqGroupId: true,
+        status: true,
+        quoteValidUntil: true,
+      },
+    })
+    return res.json({
+      success: true,
+      data: {
+        viewAs: 'buyer',
+        stats: computeBuyerStats(rows),
+      },
+    })
+  }
+
+  const where =
+    req.user.role === 'ADMIN'
+      ? {}
+      : { sellerId: req.user.id }
+
+  const rows = await prisma.quoteRequest.findMany({
+    where,
+    select: {
+      id: true,
+      status: true,
+      quoteValidUntil: true,
+    },
+  })
+  res.json({
+    success: true,
+    data: {
+      viewAs: 'seller',
+      stats: computeSellerStats(rows),
+    },
+  })
+})
+
+const uploadAttachments = asyncHandler(async (req, res) => {
+  if (req.user.role !== 'ADMIN' && !(await userHasBuyerWorkspace(req.user))) {
+    throw new AppError('Buyer workspace access required', 403, 'FORBIDDEN')
+  }
+
+  const attachments = await buildRfqAttachments(req.files || [])
+  res.status(201).json({
+    success: true,
+    data: { attachments },
+  })
+})
+
+async function userCanAccessRfqAttachment(user, filename) {
+  if (user.role === 'ADMIN') return true
+
+  const match = await prisma.$queryRaw`
+    SELECT qr.id
+    FROM quote_requests qr
+    WHERE (qr.buyer_id = ${user.id} OR qr.seller_id = ${user.id})
+      AND qr.attachments::text ILIKE ${`%${filename}%`}
+    LIMIT 1
+  `
+
+  return Array.isArray(match) && match.length > 0
+}
+
+const downloadAttachment = asyncHandler(async (req, res) => {
+  const filename = sanitizeDisplayFilename(req.params.filename)
+  if (!/^[a-zA-Z0-9._-]+$/.test(filename)) {
+    throw new AppError('Invalid attachment filename', 400, 'VALIDATION_ERROR')
+  }
+
+  const allowed = await userCanAccessRfqAttachment(req.user, filename)
+  if (!allowed) {
+    throw new AppError('You do not have access to this attachment', 403, 'FORBIDDEN')
+  }
+
+  const filePath = path.join(UPLOAD_DIR, filename)
+  if (!fs.existsSync(filePath)) {
+    throw new AppError('Attachment not found', 404, 'NOT_FOUND')
+  }
+
+  res.sendFile(filePath)
+})
+
 module.exports = {
   createRequest,
   listRequests,
+  listGroupedRequests,
+  getGroupComparison,
+  getStats,
+  uploadAttachments,
+  downloadAttachment,
   getById,
   respond,
   sellerReject,

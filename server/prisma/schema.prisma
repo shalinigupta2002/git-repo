@@ -121,6 +121,7 @@ model User {
   contactMessages      ContactMessage[]
   buyerQuoteRequests   QuoteRequest[]    @relation("BuyerQuoteRequests")
   sellerQuoteRequests  QuoteRequest[]    @relation("SellerQuoteRequests")
+  rfqGroups            RfqGroup[]
 
   @@map("users")
 }
@@ -364,45 +365,81 @@ model CategoryRequest {
 // Quote Request — buyer RFQs from product/catalog browsing to seller workspace
 // ─────────────────────────────────────────────────────────────────────────────
 
-model QuoteRequest {
-  id               String             @id @default(uuid())
-  buyerId          String             @map("buyer_id")
-  buyer            User               @relation("BuyerQuoteRequests", fields: [buyerId], references: [id], onDelete: Cascade)
-  /// Null for public catalog RFQs that should be visible to all sellers.
-  sellerId         String?            @map("seller_id")
-  seller           User?              @relation("SellerQuoteRequests", fields: [sellerId], references: [id], onDelete: SetNull)
-  catalogProductId String?            @map("catalog_product_id") @db.VarChar(64)
-  /// Seller listing linked when buyer RFQ came from a live product.
-  productId        String?            @map("product_id")
-  product          Product?           @relation(fields: [productId], references: [id], onDelete: SetNull)
-  productTitle     String             @map("product_title") @db.VarChar(300)
-  productCategory  String?            @map("product_category") @db.VarChar(200)
-  brandName        String?            @map("brand_name") @db.VarChar(200)
-  quantity         Int                @default(1)
-  targetPrice      Decimal?           @map("target_price") @db.Decimal(12, 2)
-  message          String?            @db.VarChar(1000)
-  status           QuoteRequestStatus @default(PENDING)
-  sellerUnitPrice  Decimal?           @map("seller_unit_price") @db.Decimal(12, 2)
-  sellerCurrency   String?            @map("seller_currency") @db.VarChar(3)
-  taxNote          String?            @map("tax_note") @db.VarChar(500)
-  quoteValidUntil  DateTime?          @map("quote_valid_until")
-  freightNote      String?            @map("freight_note") @db.VarChar(1000)
-  exclusionsNote   String?            @map("exclusions_note") @db.VarChar(1000)
-  sellerRespondedAt DateTime?         @map("seller_responded_at")
-  sellerAcceptedAt  DateTime?         @map("seller_accepted_at")
-  buyerAcceptedAt   DateTime?         @map("buyer_accepted_at")
-  buyerRejectedAt   DateTime?         @map("buyer_rejected_at")
-  orderId           String?           @unique @map("order_id")
-  order             Order?            @relation(fields: [orderId], references: [id], onDelete: SetNull)
-  createdAt        DateTime           @default(now()) @map("created_at")
-  updatedAt        DateTime           @updatedAt @map("updated_at")
+/// Atomic yearly counter for readable RFQ numbers (RFQ-2026-000001).
+model RfqNumberCounter {
+  year      Int @id
+  lastValue Int @default(0) @map("last_value")
+
+  @@map("rfq_number_counters")
+}
+
+/// Registry for RFQ groups — enforces globally unique rfqNumber at database level.
+model RfqGroup {
+  id        String   @id @default(uuid()) @db.Uuid
+  rfqNumber String   @unique @map("rfq_number") @db.VarChar(32)
+  buyerId   String   @map("buyer_id")
+  buyer     User     @relation(fields: [buyerId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now()) @map("created_at")
+  requests  QuoteRequest[]
 
   @@index([buyerId])
+  @@index([createdAt])
+  @@map("rfq_groups")
+}
+
+model QuoteRequest {
+  id                  String             @id @default(uuid())
+  /// Shared across seller rows created in one buyer submission.
+  rfqGroupId          String             @map("rfq_group_id") @db.Uuid
+  rfqGroup            RfqGroup           @relation(fields: [rfqGroupId], references: [id], onDelete: Cascade)
+  /// Denormalized copy of group rfqNumber for list queries (not unique per row).
+  rfqNumber           String?            @map("rfq_number") @db.VarChar(32)
+  buyerId             String             @map("buyer_id")
+  buyer               User               @relation("BuyerQuoteRequests", fields: [buyerId], references: [id], onDelete: Cascade)
+  /// Null for public catalog RFQs that should be visible to all sellers.
+  sellerId            String?            @map("seller_id")
+  seller              User?              @relation("SellerQuoteRequests", fields: [sellerId], references: [id], onDelete: SetNull)
+  catalogProductId    String?            @map("catalog_product_id") @db.VarChar(64)
+  /// Seller listing linked when buyer RFQ came from a live product.
+  productId           String?            @map("product_id")
+  product             Product?           @relation(fields: [productId], references: [id], onDelete: SetNull)
+  productTitle        String             @map("product_title") @db.VarChar(300)
+  productCategory     String?            @map("product_category") @db.VarChar(200)
+  brandName           String?            @map("brand_name") @db.VarChar(200)
+  quantity            Int                @default(1)
+  targetPrice         Decimal?           @map("target_price") @db.Decimal(12, 2)
+  /// Requirement description from buyer.
+  message             String?            @db.VarChar(1000)
+  deliveryLocation    String?            @map("delivery_location") @db.VarChar(500)
+  expectedDeliveryDate DateTime?         @map("expected_delivery_date")
+  attachments         Json?              @map("attachments")
+  status              QuoteRequestStatus @default(PENDING)
+  sellerUnitPrice     Decimal?           @map("seller_unit_price") @db.Decimal(12, 2)
+  sellerCurrency      String?            @map("seller_currency") @db.VarChar(3)
+  taxNote             String?            @map("tax_note") @db.VarChar(500)
+  quoteValidUntil     DateTime?          @map("quote_valid_until")
+  freightNote         String?            @map("freight_note") @db.VarChar(1000)
+  exclusionsNote      String?            @map("exclusions_note") @db.VarChar(1000)
+  sellerRespondedAt   DateTime?          @map("seller_responded_at")
+  sellerAcceptedAt    DateTime?          @map("seller_accepted_at")
+  buyerAcceptedAt     DateTime?          @map("buyer_accepted_at")
+  buyerRejectedAt     DateTime?          @map("buyer_rejected_at")
+  orderId             String?            @unique @map("order_id")
+  order               Order?             @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  createdAt           DateTime           @default(now()) @map("created_at")
+  updatedAt           DateTime           @updatedAt @map("updated_at")
+
+  @@unique([rfqGroupId, sellerId])
+  @@index([buyerId])
   @@index([sellerId])
+  @@index([rfqGroupId])
+  @@index([rfqNumber])
   @@index([productId])
   @@index([orderId])
   @@index([status])
   @@index([createdAt])
+  @@index([buyerId, status])
+  @@index([sellerId, status])
   @@map("quote_requests")
 }
 

@@ -6,7 +6,7 @@
 const fs = require('fs')
 const path = require('path')
 const { prisma } = require('../config/database.js')
-const { USER_PUBLIC_SELECT, pickUserCity, mapPublicUser } = require('./sellerProfileService.js')
+const { USER_PUBLIC_SELECT, pickUserCity, mapMaskedParty } = require('./sellerProfileService.js')
 
 const CATEGORY_SLUG_TO_LABEL = {
   mobiles: 'Moblie & accessories',
@@ -107,13 +107,7 @@ function mapSellerProduct(product) {
       name: brandName,
     },
     source: 'seller',
-    seller: product.seller
-      ? {
-          id: product.seller.id,
-          companyName: product.seller.companyName,
-          city: pickUserCity(product.seller),
-        }
-      : null,
+    seller: product.seller ? mapMaskedParty(product.seller) : null,
     stockQty: product.stockQty,
     moq: product.moq,
     currency: product.currency || 'INR',

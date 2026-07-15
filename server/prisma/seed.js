@@ -777,7 +777,7 @@ async function main() {
   console.log('[seed]   seller: bravo@seller.test    (seller123)')
   console.log('[seed]   seller: gamma@seller.test    (seller123)')
   console.log('[seed]   seller: delta@seller.test    (seller123)')
-  console.log('[seed]   buyer:  buyer.subscribed@buyer.test (buyer123) — subscribed (wishlist, negotiate, quotes)')
+  console.log('[seed]   buyer:  buyer.subscribed@buyer.test (buyer123) — subscribed (wishlist, quotations, RFQs)')
   console.log('[seed]   buyer:  buyer.free@buyer.test       (buyer123) — not subscribed (test paywall / alerts)')
   console.log('[seed]   buyer:  buyer1@buyer.test    (buyer123) — subscribed')
   console.log('[seed]   buyer:  buyer2@buyer.test    (buyer123) — subscribed')

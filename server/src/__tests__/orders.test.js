@@ -42,158 +42,17 @@ beforeEach(() => {
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
-// POST /api/orders
+// POST /api/orders — direct creation disabled (deals created via quotation accept)
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('POST /api/orders', () => {
-  function validBody() {
-    return {
-      items: [{ productId: PRODUCT.id, quantity: 5 }],
-    }
-  }
-
-  test('201 – BUYER with subscription creates order', async () => {
-    prisma.user.findUnique.mockResolvedValue(BUYER)
-    prisma.subscription.findFirst.mockResolvedValue({ id: 'sub-001' }) // active subscription
-    prisma.order.findFirst.mockResolvedValue(null)                     // no idempotency hit
-    // First call: product validation in the transaction
-    // Second call: applyInventoryChanges — return [] because trackInventory=false
-    prisma.product.findMany
-      .mockResolvedValueOnce([PRODUCT])
-      .mockResolvedValueOnce([])
-    prisma.order.create.mockResolvedValue(ORDER)
-    prisma.product.update.mockResolvedValue(PRODUCT)
-    prisma.inventoryLog.create.mockResolvedValue({})
-
+  test('404 – direct buyer order creation is not supported', async () => {
     const res = await agent
       .post('/api/orders')
       .set(cookieFor(buyerToken))
-      .send(validBody())
+      .send({ items: [{ productId: PRODUCT.id, quantity: 5 }] })
 
-    expect(res.status).toBe(201)
-    expect(res.body.success).toBe(true)
-    expect(res.body.data.order).toBeDefined()
-  })
-
-  test('401 – unauthenticated request', async () => {
-    const res = await agent.post('/api/orders').send(validBody())
-
-    expect(res.status).toBe(401)
-  })
-
-  test('403 – SELLER role cannot create orders', async () => {
-    prisma.user.findUnique.mockResolvedValue(SELLER)
-
-    const res = await agent
-      .post('/api/orders')
-      .set(cookieFor(sellerToken))
-      .send(validBody())
-
-    expect(res.status).toBe(403)
-  })
-
-  test('403 – BUYER without subscription is rejected', async () => {
-    prisma.user.findUnique.mockResolvedValue(BUYER)
-    prisma.subscription.findFirst.mockResolvedValue(null) // no active subscription
-
-    const res = await agent
-      .post('/api/orders')
-      .set(cookieFor(buyerToken))
-      .send(validBody())
-
-    expect(res.status).toBe(403)
-    expect(res.body.error.code).toBe('SUBSCRIPTION_REQUIRED')
-  })
-
-  test('400 – duplicate product lines in a single order', async () => {
-    prisma.user.findUnique.mockResolvedValue(BUYER)
-    prisma.subscription.findFirst.mockResolvedValue({ id: 'sub-001' })
-    prisma.order.findFirst.mockResolvedValue(null)
-
-    const res = await agent
-      .post('/api/orders')
-      .set(cookieFor(buyerToken))
-      .send({
-        items: [
-          { productId: PRODUCT.id, quantity: 5 },
-          { productId: PRODUCT.id, quantity: 3 }, // duplicate
-        ],
-      })
-
-    expect(res.status).toBe(400)
-    expect(res.body.error.code).toBe('DUPLICATE_LINES')
-  })
-
-  test('400 – one or more products are inactive / not found', async () => {
-    prisma.user.findUnique.mockResolvedValue(BUYER)
-    prisma.subscription.findFirst.mockResolvedValue({ id: 'sub-001' })
-    prisma.order.findFirst.mockResolvedValue(null)
-    prisma.product.findMany.mockResolvedValue([]) // product not found
-
-    const res = await agent
-      .post('/api/orders')
-      .set(cookieFor(buyerToken))
-      .send(validBody())
-
-    expect(res.status).toBe(400)
-    expect(res.body.error.code).toBe('INVALID_PRODUCTS')
-  })
-
-  test('400 – quantity below product MOQ', async () => {
-    prisma.user.findUnique.mockResolvedValue(BUYER)
-    prisma.subscription.findFirst.mockResolvedValue({ id: 'sub-001' })
-    prisma.order.findFirst.mockResolvedValue(null)
-    prisma.product.findMany.mockResolvedValue([makeProduct({ moq: 10 })]) // MOQ = 10
-
-    const res = await agent
-      .post('/api/orders')
-      .set(cookieFor(buyerToken))
-      .send({ items: [{ productId: PRODUCT.id, quantity: 3 }] }) // 3 < MOQ 10
-
-    expect(res.status).toBe(400)
-    expect(res.body.error.code).toBe('BELOW_MOQ')
-  })
-
-  test('400 – line items from different sellers', async () => {
-    const product1 = makeProduct({ id: IDS.PRODUCT,  sellerId: IDS.SELLER })
-    const product2 = makeProduct({ id: IDS.PRODUCT2, sellerId: IDS.OTHER_SELLER })
-
-    prisma.user.findUnique.mockResolvedValue(BUYER)
-    prisma.subscription.findFirst.mockResolvedValue({ id: 'sub-001' })
-    prisma.order.findFirst.mockResolvedValue(null)
-    prisma.product.findMany.mockResolvedValue([product1, product2])
-
-    const res = await agent
-      .post('/api/orders')
-      .set(cookieFor(buyerToken))
-      .send({
-        items: [
-          { productId: IDS.PRODUCT,  quantity: 1 },
-          { productId: IDS.PRODUCT2, quantity: 1 },
-        ],
-      })
-
-    expect(res.status).toBe(400)
-    expect(res.body.error.code).toBe('SELLER_MISMATCH')
-  })
-
-  test('200 – idempotency key returns existing order without re-creating', async () => {
-    const existingOrder = makeOrder({ idempotencyKey: 'idem-key-abc' })
-
-    prisma.user.findUnique.mockResolvedValue(BUYER)
-    prisma.subscription.findFirst.mockResolvedValue({ id: 'sub-001' })
-    prisma.order.findFirst.mockResolvedValue(existingOrder) // hit the idempotency cache
-
-    const res = await agent
-      .post('/api/orders')
-      .set(cookieFor(buyerToken))
-      .set('X-Idempotency-Key', 'idem-key-abc')
-      .send(validBody())
-
-    expect(res.status).toBe(200)
-    expect(res.body.data.idempotent).toBe(true)
-    // order.create must NOT have been called for the duplicate
-    expect(prisma.order.create).not.toHaveBeenCalled()
+    expect(res.status).toBe(404)
   })
 })
 

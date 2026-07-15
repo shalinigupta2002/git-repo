@@ -14,18 +14,23 @@ function pickUserCity(user) {
   return user?.addresses?.[0]?.city ?? null
 }
 
-function mapPublicUser(user) {
+/** Marketplace-safe party profile: ID and city only (no contact or company). */
+function mapMaskedParty(user) {
   if (!user) return null
   return {
     id: user.id,
-    email: user.email,
-    companyName: user.companyName,
     city: pickUserCity(user),
   }
+}
+
+/** @deprecated Prefer mapMaskedParty for marketplace API responses. */
+function mapPublicUser(user) {
+  return mapMaskedParty(user)
 }
 
 module.exports = {
   USER_PUBLIC_SELECT,
   pickUserCity,
+  mapMaskedParty,
   mapPublicUser,
 }

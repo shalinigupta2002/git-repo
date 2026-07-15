@@ -3,10 +3,14 @@ const ctrl = require('../controllers/quoteRequestController.js')
 const { authenticate } = require('../middleware/authenticate.js')
 const { requireSubscription, authorizeWorkspace } = require('../middleware/requireSubscription.js')
 const { validate } = require('../middleware/validate.js')
+const { rfqUploadMiddleware } = require('../middleware/rfqUpload.js')
 const {
   quoteRequestIdParam,
+  rfqGroupIdParam,
   respondQuoteBody,
   listRequestsQuery,
+  groupedListQuery,
+  statsQuery,
   createQuoteRequestBody,
 } = require('../validators/quoteRequest.validator.js')
 
@@ -15,7 +19,12 @@ const router = Router()
 router.use(authenticate)
 
 router.post('/', authorizeWorkspace('BUYER'), requireSubscription('BUYER'), validate(createQuoteRequestBody), ctrl.createRequest)
+router.post('/attachments', authorizeWorkspace('BUYER'), requireSubscription('BUYER'), rfqUploadMiddleware, ctrl.uploadAttachments)
+router.get('/attachments/file/:filename', ctrl.downloadAttachment)
 router.get('/', validate(listRequestsQuery, 'query'), ctrl.listRequests)
+router.get('/stats', validate(statsQuery, 'query'), ctrl.getStats)
+router.get('/groups', authorizeWorkspace('BUYER'), validate(groupedListQuery, 'query'), ctrl.listGroupedRequests)
+router.get('/groups/:rfqGroupId', authorizeWorkspace('BUYER'), validate(rfqGroupIdParam, 'params'), ctrl.getGroupComparison)
 router.get('/confirmed-buyers', authorizeWorkspace('SELLER'), ctrl.listConfirmedBuyers)
 router.get('/:id', validate(quoteRequestIdParam, 'params'), ctrl.getById)
 router.patch(

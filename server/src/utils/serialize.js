@@ -1,4 +1,4 @@
-const { mapPublicUser } = require('../services/sellerProfileService.js')
+const { mapMaskedParty } = require('../services/sellerProfileService.js')
 
 function serializeDecimal(value) {
   if (value === null || value === undefined) return value
@@ -13,13 +13,13 @@ function serializeProduct(p) {
   return {
     ...p,
     price: serializeDecimal(p.price),
-    seller: p.seller ? mapPublicUser(p.seller) : undefined,
+    seller: p.seller ? mapMaskedParty(p.seller) : undefined,
   }
 }
 
 function serializeOrderParty(party) {
   if (!party) return party
-  return mapPublicUser(party)
+  return mapMaskedParty(party)
 }
 
 function serializeOrder(o) {

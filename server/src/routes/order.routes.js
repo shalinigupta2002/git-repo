@@ -1,10 +1,9 @@
 const { Router } = require('express')
 const orderController = require('../controllers/orderController.js')
 const { authenticate } = require('../middleware/authenticate.js')
-const { requireSubscription, authorizeWorkspace } = require('../middleware/requireSubscription.js')
+const { authorizeWorkspace } = require('../middleware/requireSubscription.js')
 const { validate } = require('../middleware/validate.js')
 const {
-  createOrderBody,
   listOrdersQuery,
   orderIdParam,
   updateOrderStatusBody,
@@ -12,16 +11,8 @@ const {
 
 const router = Router()
 
-// Placing an order requires an active BUYER subscription.
-// Admins bypass the subscription check (see requireSubscription).
-router.post(
-  '/',
-  authenticate,
-  authorizeWorkspace('BUYER'),
-  requireSubscription('BUYER'),
-  validate(createOrderBody),
-  orderController.create,
-)
+// Deal records are created only via quotation acceptance (createOrderFromQuote).
+// Direct buyer order creation is not supported on this marketplace.
 
 // Listing and reading orders — scoped by role in the controller
 router.get(

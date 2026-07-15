@@ -36,6 +36,7 @@ const mockPrisma = {
     update:     jest.fn(),
     updateMany: jest.fn(),
     count:      jest.fn(),
+    aggregate:  jest.fn(),
   },
   orderItem: {
     findMany: jest.fn(),
@@ -69,6 +70,24 @@ const mockPrisma = {
     findMany: jest.fn(),
     count:    jest.fn(),
   },
+  quoteRequest: {
+    findUnique: jest.fn(),
+    findFirst:  jest.fn(),
+    findMany:   jest.fn(),
+    create:     jest.fn(),
+    update:     jest.fn(),
+    updateMany: jest.fn(),
+    groupBy:    jest.fn(),
+  },
+  rfqGroup: {
+    findMany: jest.fn(),
+    findFirst: jest.fn(),
+    create:     jest.fn(),
+  },
+  rfqNumberCounter: {
+    upsert: jest.fn(),
+  },
+  $queryRaw: jest.fn(),
   address: {
     findMany:   jest.fn(),
     findUnique: jest.fn(),

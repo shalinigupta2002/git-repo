@@ -3,7 +3,7 @@ const { Prisma } = require('@prisma/client')
 const { prisma } = require('../config/database.js')
 const { AppError } = require('../utils/AppError.js')
 const { asyncHandler } = require('../utils/asyncHandler.js')
-const { pickUserCity, mapPublicUser, USER_PUBLIC_SELECT } = require('../services/sellerProfileService.js')
+const { USER_PUBLIC_SELECT } = require('../services/sellerProfileService.js')
 const { writeAuditLog } = require('../utils/audit.js')
 const { serializeOrder } = require('../utils/serialize.js')
 
@@ -285,8 +285,8 @@ const list = asyncHandler(async (req, res) => {
         items: {
           include: { product: { select: { id: true, sku: true, name: true } } },
         },
-        buyer:  { select: { id: true, email: true, companyName: true } },
-        seller: { select: { id: true, email: true, companyName: true } },
+        buyer:  { select: USER_PUBLIC_SELECT },
+        seller: { select: USER_PUBLIC_SELECT },
       },
     }),
     prisma.order.count({ where }),

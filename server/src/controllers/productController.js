@@ -2,6 +2,7 @@ const { Prisma } = require('@prisma/client')
 const { prisma } = require('../config/database.js')
 const { AppError } = require('../utils/AppError.js')
 const { asyncHandler } = require('../utils/asyncHandler.js')
+const { USER_PUBLIC_SELECT } = require('../services/sellerProfileService.js')
 const { serializeProduct } = require('../utils/serialize.js')
 const { writeAuditLog } = require('../utils/audit.js')
 const { buildProductImages } = require('../middleware/productUpload.js')
@@ -38,7 +39,7 @@ const list = asyncHandler(async (req, res) => {
       take: limit,
       orderBy: { createdAt: 'desc' },
       include: {
-        seller: { select: { id: true, email: true, companyName: true } },
+        seller: { select: USER_PUBLIC_SELECT },
       },
     }),
     prisma.product.count({ where }),
@@ -63,7 +64,7 @@ const getById = asyncHandler(async (req, res) => {
 
   const product = await prisma.product.findUnique({
     where:   { id },
-    include: { seller: { select: { id: true, email: true, companyName: true } } },
+    include: { seller: { select: USER_PUBLIC_SELECT } },
   })
 
   if (!product) throw new AppError('Product not found', 404, 'NOT_FOUND')
@@ -109,7 +110,7 @@ const create = asyncHandler(async (req, res) => {
           stockQty:       stockQty ?? 0,
           images,
         },
-        include: { seller: { select: { id: true, email: true, companyName: true } } },
+        include: { seller: { select: USER_PUBLIC_SELECT } },
       })
 
       // Log initial stock if inventory is tracked and stock > 0
@@ -148,7 +149,7 @@ const update = asyncHandler(async (req, res) => {
     throw new AppError('Forbidden', 403, 'FORBIDDEN')
   }
 
-  const { sku, name, description, price, moq, currency, isActive, trackInventory } = req.body
+  const { sku, name, description, price, moq, currency, isActive, trackInventory, stockQty } = req.body
 
   const data = {}
   if (sku            !== undefined) data.sku            = sku
@@ -159,6 +160,7 @@ const update = asyncHandler(async (req, res) => {
   if (currency       !== undefined) data.currency       = currency
   if (isActive       !== undefined) data.isActive       = isActive
   if (trackInventory !== undefined) data.trackInventory = trackInventory
+  if (stockQty       !== undefined) data.stockQty       = stockQty
 
   if (Object.keys(data).length === 0) {
     throw new AppError('No fields to update', 400, 'VALIDATION_ERROR')
@@ -168,7 +170,7 @@ const update = asyncHandler(async (req, res) => {
     const updated = await prisma.product.update({
       where:   { id },
       data,
-      include: { seller: { select: { id: true, email: true, companyName: true } } },
+      include: { seller: { select: USER_PUBLIC_SELECT } },
     })
 
     writeAuditLog({ actorId: req.user.id, action: 'UPDATE', resource: 'product', resourceId: id, meta: data, req }).catch(() => {})
@@ -187,7 +189,7 @@ const remove = asyncHandler(async (req, res) => {
   const product = await prisma.product.findUnique({
     where: { id },
     include: {
-      seller: { select: { id: true, email: true, companyName: true } },
+      seller: { select: USER_PUBLIC_SELECT },
       _count: { select: { orderItems: true } },
     },
   })
@@ -202,7 +204,7 @@ const remove = asyncHandler(async (req, res) => {
     const updated = await prisma.product.update({
       where: { id },
       data: { isActive: false },
-      include: { seller: { select: { id: true, email: true, companyName: true } } },
+      include: { seller: { select: USER_PUBLIC_SELECT } },
     })
 
     writeAuditLog({

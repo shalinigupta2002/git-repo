@@ -35,8 +35,23 @@ async function createGrantsForPayment(tx, userId, paymentPlan) {
     throw new AppError('Invalid plan', 400, 'INVALID_PLAN')
   }
 
+  const now = new Date()
   const created = []
   for (const grant of grants) {
+    const existing = await tx.subscription.findFirst({
+      where: {
+        userId,
+        plan: grant.plan,
+        status: 'ACTIVE',
+        OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+      },
+    })
+
+    if (existing) {
+      created.push(existing)
+      continue
+    }
+
     const sub = await tx.subscription.create({
       data: {
         userId,

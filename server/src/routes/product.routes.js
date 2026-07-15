@@ -1,6 +1,7 @@
 const { Router } = require('express')
 const productController = require('../controllers/productController.js')
-const { authenticate, optionalAuth, authorize } = require('../middleware/authenticate.js')
+const { authenticate, optionalAuth } = require('../middleware/authenticate.js')
+const { authorizeWorkspace } = require('../middleware/requireSubscription.js')
 const { productUploadMiddleware } = require('../middleware/productUpload.js')
 const { validate } = require('../middleware/validate.js')
 const {
@@ -32,7 +33,7 @@ router.get(
 router.post(
   '/',
   authenticate,
-  authorize('SELLER', 'ADMIN'),
+  authorizeWorkspace('SELLER'),
   productUploadMiddleware,
   validate(createProductBody),
   productController.create,
@@ -43,7 +44,7 @@ router.post(
 router.patch(
   '/:id',
   authenticate,
-  authorize('SELLER', 'ADMIN'),
+  authorizeWorkspace('SELLER'),
   validate(productIdParam, 'params'),
   validate(updateProductBody),
   productController.update,
@@ -52,7 +53,7 @@ router.patch(
 router.delete(
   '/:id',
   authenticate,
-  authorize('SELLER', 'ADMIN'),
+  authorizeWorkspace('SELLER'),
   validate(productIdParam, 'params'),
   productController.remove,
 )
@@ -63,7 +64,7 @@ router.delete(
 router.post(
   '/:id/stock',
   authenticate,
-  authorize('SELLER', 'ADMIN'),
+  authorizeWorkspace('SELLER'),
   validate(productIdParam, 'params'),
   validate(stockAdjustBody),
   productController.stockAdjust,
@@ -73,7 +74,7 @@ router.post(
 router.get(
   '/:id/inventory-logs',
   authenticate,
-  authorize('SELLER', 'ADMIN'),
+  authorizeWorkspace('SELLER'),
   validate(productIdParam, 'params'),
   productController.inventoryLogs,
 )

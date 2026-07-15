@@ -22,6 +22,7 @@ const listOrdersQuery = z.object({
   status: z
     .enum(['PENDING', 'CONFIRMED', 'SHIPPED', 'DELIVERED', 'CANCELLED'])
     .optional(),
+  scope: z.enum(['buyer', 'seller']).optional(),
 })
 
 const orderIdParam = z.object({

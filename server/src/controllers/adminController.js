@@ -2,6 +2,7 @@ const { prisma } = require('../config/database.js')
 const { query }  = require('../db/pool.js')
 const { asyncHandler } = require('../utils/asyncHandler.js')
 const { serializeOrder } = require('../utils/serialize.js')
+const { resolveParentCategoryLabel } = require('../services/shopCategoryTreeService.js')
 
 function serializeUserSafe(u) {
   if (!u) return u
@@ -376,10 +377,16 @@ const decideCategoryRequest = asyncHandler(async (req, res) => {
     const slug    = slugify(catName)
 
     if (existing.requestType === 'SUBCATEGORY' && existing.parentCategoryName) {
-      // Find the parent category by name (case-insensitive)
+      const parentLabel = resolveParentCategoryLabel(existing.parentCategoryName)
       const { rows: parentRows } = await query(
-        `SELECT id FROM catalog.categories WHERE LOWER(name) = LOWER($1) AND parent_id IS NULL LIMIT 1`,
-        [existing.parentCategoryName],
+        `SELECT id FROM catalog.categories
+         WHERE parent_id IS NULL
+           AND (
+             LOWER(name) = LOWER($1)
+             OR LOWER(name) = LOWER($2)
+           )
+         LIMIT 1`,
+        [existing.parentCategoryName, parentLabel],
       )
       const parentId = parentRows[0]?.id || null
       await query(

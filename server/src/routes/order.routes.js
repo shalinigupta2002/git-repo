@@ -1,7 +1,7 @@
 const { Router } = require('express')
 const orderController = require('../controllers/orderController.js')
-const { authenticate, authorize } = require('../middleware/authenticate.js')
-const { requireSubscription } = require('../middleware/requireSubscription.js')
+const { authenticate } = require('../middleware/authenticate.js')
+const { requireSubscription, authorizeWorkspace } = require('../middleware/requireSubscription.js')
 const { validate } = require('../middleware/validate.js')
 const {
   createOrderBody,
@@ -17,7 +17,7 @@ const router = Router()
 router.post(
   '/',
   authenticate,
-  authorize('BUYER', 'ADMIN'),
+  authorizeWorkspace('BUYER'),
   requireSubscription('BUYER'),
   validate(createOrderBody),
   orderController.create,
@@ -50,7 +50,7 @@ router.get(
 router.patch(
   '/:id/status',
   authenticate,
-  authorize('SELLER', 'ADMIN'),
+  authorizeWorkspace('SELLER'),
   validate(orderIdParam, 'params'),
   validate(updateOrderStatusBody),
   orderController.updateStatus,

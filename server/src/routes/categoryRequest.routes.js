@@ -5,9 +5,10 @@ const { authenticate, authorize } = require('../middleware/authenticate.js')
 const router = Router()
 
 // Seller-only routes (SELLER or ADMIN acting as seller)
-router.use(authenticate, authorize('SELLER', 'ADMIN'))
+router.use(authenticate, authorize('SELLER', 'BUYER', 'ADMIN'))
 
 router.get('/',               ctrl.listMyRequests)
+router.get('/approved',       ctrl.listApproved)
 router.get('/unread-count',   ctrl.unreadCount)
 router.post('/',              ctrl.createRequest)
 router.patch('/:id/read',     ctrl.markRead)

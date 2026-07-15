@@ -3,8 +3,9 @@ const { Prisma } = require('@prisma/client')
 const { prisma } = require('../config/database.js')
 const { AppError } = require('../utils/AppError.js')
 const { asyncHandler } = require('../utils/asyncHandler.js')
-const { serializeOrder } = require('../utils/serialize.js')
+const { pickUserCity, mapPublicUser, USER_PUBLIC_SELECT } = require('../services/sellerProfileService.js')
 const { writeAuditLog } = require('../utils/audit.js')
+const { serializeOrder } = require('../utils/serialize.js')
 
 function generateOrderNumber() {
   return `ORD-${Date.now().toString(36).toUpperCase()}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`
@@ -34,8 +35,8 @@ const ORDER_INCLUDE = {
       product: { select: { id: true, sku: true, name: true } },
     },
   },
-  buyer:   { select: { id: true, email: true, companyName: true } },
-  seller:  { select: { id: true, email: true, companyName: true } },
+  buyer:   { select: USER_PUBLIC_SELECT },
+  seller:  { select: USER_PUBLIC_SELECT },
   history: {
     orderBy:  { createdAt: 'asc' },
     select: {
@@ -258,13 +259,17 @@ const create = asyncHandler(async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const list = asyncHandler(async (req, res) => {
-  const { page, limit, status } = req.query
+  const { page, limit, status, scope } = req.query
   const skip = (page - 1) * limit
 
   const where = {}
   if (status) where.status = status
 
-  if (req.user.role === 'BUYER') {
+  if (scope === 'buyer') {
+    where.buyerId = req.user.id
+  } else if (scope === 'seller') {
+    where.sellerId = req.user.id
+  } else if (req.user.role === 'BUYER') {
     where.buyerId = req.user.id
   } else if (req.user.role === 'SELLER') {
     where.sellerId = req.user.id
@@ -445,4 +450,4 @@ const updateStatus = asyncHandler(async (req, res) => {
   res.json({ success: true, data: { order: serializeOrder(updated) } })
 })
 
-module.exports = { create, list, getById, getHistory, updateStatus }
+module.exports = { create, list, getById, getHistory, updateStatus, applyInventoryChanges }

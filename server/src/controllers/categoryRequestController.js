@@ -92,4 +92,20 @@ const markAllRead = asyncHandler(async (req, res) => {
   res.json({ success: true, data: { message: 'All notifications marked as read' } })
 })
 
-module.exports = { createRequest, listMyRequests, unreadCount, markRead, markAllRead }
+/** GET /api/category-requests/approved — marketplace-wide approved categories */
+const listApproved = asyncHandler(async (_req, res) => {
+  const requests = await prisma.categoryRequest.findMany({
+    where: { status: 'APPROVED' },
+    orderBy: { createdAt: 'asc' },
+    select: {
+      id: true,
+      requestType: true,
+      categoryName: true,
+      parentCategoryName: true,
+    },
+  })
+
+  res.json({ success: true, data: { requests } })
+})
+
+module.exports = { createRequest, listMyRequests, unreadCount, markRead, markAllRead, listApproved }

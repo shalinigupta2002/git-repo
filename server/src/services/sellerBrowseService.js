@@ -6,6 +6,7 @@
 const fs = require('fs')
 const path = require('path')
 const { prisma } = require('../config/database.js')
+const { USER_PUBLIC_SELECT, pickUserCity, mapPublicUser } = require('./sellerProfileService.js')
 
 const CATEGORY_SLUG_TO_LABEL = {
   mobiles: 'Moblie & accessories',
@@ -109,49 +110,57 @@ function mapSellerProduct(product) {
     seller: product.seller
       ? {
           id: product.seller.id,
-          email: product.seller.email,
           companyName: product.seller.companyName,
+          city: pickUserCity(product.seller),
         }
       : null,
     stockQty: product.stockQty,
     moq: product.moq,
-    currency: product.currency,
+    currency: product.currency || 'INR',
   }
+}
+
+function filterSellerProducts(products, { q, category, brand } = {}) {
+  const query = q?.trim().toLowerCase() || ''
+
+  return products.filter((product) => {
+    const meta = parseProductMeta(product.description)
+    if (!categoryMatches(meta.category, category)) return false
+    if (!brandMatches(meta.brand, brand)) return false
+    if (!query) return true
+    const haystack = `${product.title} ${product.description || ''} ${meta.brand || ''}`.toLowerCase()
+    return haystack.includes(query)
+  })
 }
 
 /**
  * List active seller listings for the public products page.
- * Filters mirror the catalog browse API (q, category, brand).
+ * Only seller-added products are returned (no seeded catalog rows).
  */
-async function listSellerProducts({ q, category, brand, limit = 100 } = {}) {
+async function listSellerProducts({ q, category, brand, limit = 12, cursor } = {}) {
+  const pageSize = Math.min(Math.max(Number(limit) || 12, 1), 50)
+  const offset = cursor ? Math.max(Number.parseInt(String(cursor), 10) || 0, 0) : 0
+
   const rows = await prisma.product.findMany({
     where: { isActive: true },
     orderBy: { createdAt: 'desc' },
-    take: Math.min(Math.max(Number(limit) || 100, 1), 500),
     include: {
-      seller: { select: { id: true, email: true, companyName: true } },
+      seller: { select: USER_PUBLIC_SELECT },
     },
   })
 
-  const query = q?.trim().toLowerCase() || ''
+  const filtered = filterSellerProducts(rows.map(mapSellerProduct), { q, category, brand })
+  const products = filtered.slice(offset, offset + pageSize)
+  const nextCursor = offset + pageSize < filtered.length ? String(offset + pageSize) : null
 
-  return rows
-    .map(mapSellerProduct)
-    .filter((product) => {
-      const meta = parseProductMeta(product.description)
-      if (!categoryMatches(meta.category, category)) return false
-      if (!brandMatches(meta.brand, brand)) return false
-      if (!query) return true
-      const haystack = `${product.title} ${product.description || ''} ${meta.brand || ''}`.toLowerCase()
-      return haystack.includes(query)
-    })
+  return { products, nextCursor }
 }
 
 async function getSellerProductById(id) {
   const product = await prisma.product.findUnique({
     where: { id: String(id) },
     include: {
-      seller: { select: { id: true, email: true, companyName: true } },
+      seller: { select: USER_PUBLIC_SELECT },
     },
   })
 

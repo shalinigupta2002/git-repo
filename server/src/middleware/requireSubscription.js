@@ -78,4 +78,32 @@ function requireSubscription(type) {
   })
 }
 
-module.exports = { requireSubscription, hasActiveSubscription, PLANS_BY_TYPE }
+/**
+ * Allow access when the account role matches the workspace, or the user holds
+ * an active subscription for that workspace (e.g. BOTH bundle on one account).
+ */
+function authorizeWorkspace(type) {
+  if (!PLANS_BY_TYPE[type]) {
+    throw new Error(`authorizeWorkspace: unknown type "${type}". Use 'SELLER' or 'BUYER'.`)
+  }
+
+  const roleForType = type
+
+  return asyncHandler(async (req, res, next) => {
+    if (!req.user) {
+      throw new AppError('Authentication required', 401, 'UNAUTHORIZED')
+    }
+
+    if (req.user.role === 'ADMIN') return next()
+    if (req.user.role === roleForType) return next()
+
+    const activeSub = await hasActiveSubscription(req.user.id, type)
+    if (!activeSub) {
+      throw new AppError('Forbidden', 403, 'FORBIDDEN')
+    }
+
+    next()
+  })
+}
+
+module.exports = { requireSubscription, hasActiveSubscription, PLANS_BY_TYPE, authorizeWorkspace }

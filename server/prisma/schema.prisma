@@ -217,6 +217,7 @@ model Product {
 
   orderItems    OrderItem[]
   inventoryLogs InventoryLog[]
+  quoteRequests QuoteRequest[]
 
   @@unique([sellerId, sku])
   @@index([sellerId])
@@ -270,6 +271,7 @@ model Order {
 
   items   OrderItem[]
   history OrderHistory[]
+  quoteRequest QuoteRequest?
 
   @@index([buyerId])
   @@index([sellerId])
@@ -370,6 +372,9 @@ model QuoteRequest {
   sellerId         String?            @map("seller_id")
   seller           User?              @relation("SellerQuoteRequests", fields: [sellerId], references: [id], onDelete: SetNull)
   catalogProductId String?            @map("catalog_product_id") @db.VarChar(64)
+  /// Seller listing linked when buyer RFQ came from a live product.
+  productId        String?            @map("product_id")
+  product          Product?           @relation(fields: [productId], references: [id], onDelete: SetNull)
   productTitle     String             @map("product_title") @db.VarChar(300)
   productCategory  String?            @map("product_category") @db.VarChar(200)
   brandName        String?            @map("brand_name") @db.VarChar(200)
@@ -385,11 +390,17 @@ model QuoteRequest {
   exclusionsNote   String?            @map("exclusions_note") @db.VarChar(1000)
   sellerRespondedAt DateTime?         @map("seller_responded_at")
   sellerAcceptedAt  DateTime?         @map("seller_accepted_at")
+  buyerAcceptedAt   DateTime?         @map("buyer_accepted_at")
+  buyerRejectedAt   DateTime?         @map("buyer_rejected_at")
+  orderId           String?           @unique @map("order_id")
+  order             Order?            @relation(fields: [orderId], references: [id], onDelete: SetNull)
   createdAt        DateTime           @default(now()) @map("created_at")
   updatedAt        DateTime           @updatedAt @map("updated_at")
 
   @@index([buyerId])
   @@index([sellerId])
+  @@index([productId])
+  @@index([orderId])
   @@index([status])
   @@index([createdAt])
   @@map("quote_requests")

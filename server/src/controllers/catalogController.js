@@ -1,65 +1,29 @@
 /**
  * Catalog Controller
  * ──────────────────────────────────────────────────────────────────────────────
- * Handles public (unauthenticated) product browsing via the `catalog` schema.
- *
- * RESPONSIBILITY: Read-only reference catalog for buyer/visitor browsing.
- *   All responses use the same { success, data: { ... } } envelope as the
- *   rest of the API so the frontend has one consistent shape to handle.
- *
- * Related to — but DISTINCT from — the Prisma-managed product system:
- *   Catalog  → GET /api/catalog/*  → browse-only, pre-seeded data
- *   Products → /api/products/*     → seller-owned, transactional, auth-gated
+ * Public product browsing for the marketing /products page.
+ * Returns only live seller listings — no seeded reference catalog rows.
  */
 
 const { asyncHandler } = require('../utils/asyncHandler.js')
-const catalogService = require('../services/catalogService.js')
 const sellerBrowseService = require('../services/sellerBrowseService.js')
-
-function mergeBrowseProducts(catalogProducts, sellerProducts) {
-  const seen = new Set()
-  const merged = []
-
-  for (const product of [...sellerProducts, ...catalogProducts]) {
-    const key = `${product.source || 'catalog'}:${product.id}`
-    if (seen.has(key)) continue
-    seen.add(key)
-    merged.push(product)
-  }
-
-  return merged.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-}
 
 /**
  * GET /api/catalog/products
  *
- * Returns seeded catalog products merged with live seller listings so newly
- * added seller products appear on the public /products page.
+ * Returns active seller listings for the public /products page.
  */
 const listProducts = asyncHandler(async (req, res) => {
   const { q, category, brand, cursor, limit } = req.query
   const pageSize = Math.min(Math.max(Number.parseInt(limit, 10) || 12, 1), 50)
 
-  if (cursor) {
-    const { products, nextCursor } = await catalogService.listProducts({
-      q,
-      category,
-      brand,
-      cursor,
-      limit: pageSize,
-    })
-    return res.json({
-      success: true,
-      data: { products, nextCursor },
-    })
-  }
-
-  const [{ products: catalogProducts, nextCursor }, sellerProducts] = await Promise.all([
-    catalogService.listProducts({ q, category, brand, limit: pageSize }),
-    sellerBrowseService.listSellerProducts({ q, category, brand, limit: 200 }),
-  ])
-
-  const products = mergeBrowseProducts(catalogProducts, sellerProducts).slice(0, pageSize)
+  const { products, nextCursor } = await sellerBrowseService.listSellerProducts({
+    q,
+    category,
+    brand,
+    cursor,
+    limit: pageSize,
+  })
 
   res.json({
     success: true,
@@ -70,13 +34,10 @@ const listProducts = asyncHandler(async (req, res) => {
 /**
  * GET /api/catalog/products/:id
  *
- * Catalog numeric ids first; fall back to seller listing UUIDs.
+ * Seller listing UUID only.
  */
 const getProduct = asyncHandler(async (req, res) => {
-  let product = await catalogService.getProductById(req.params.id)
-  if (!product) {
-    product = await sellerBrowseService.getSellerProductById(req.params.id)
-  }
+  const product = await sellerBrowseService.getSellerProductById(req.params.id)
 
   if (!product) {
     return res.status(404).json({
@@ -91,21 +52,40 @@ const getProduct = asyncHandler(async (req, res) => {
 /**
  * GET /api/catalog/categories
  *
- * Returns all categories, ordered alphabetically.
- * Useful for populating filter/browse UI without an extra round-trip.
+ * Derived from active seller listings (no seeded catalog categories).
  */
 const listCategories = asyncHandler(async (req, res) => {
-  const categories = await catalogService.listCategories()
+  const { products } = await sellerBrowseService.listSellerProducts({ limit: 500 })
+  const seen = new Map()
+
+  for (const product of products) {
+    const name = product.category?.name
+    const slug = product.category?.slug
+    if (!name || !slug || seen.has(slug)) continue
+    seen.set(slug, { id: slug, name, slug })
+  }
+
+  const categories = [...seen.values()].sort((a, b) => a.name.localeCompare(b.name))
   res.json({ success: true, data: { categories } })
 })
 
 /**
  * GET /api/catalog/brands
  *
- * Returns all brands, ordered alphabetically.
+ * Derived from active seller listings (no seeded catalog brands).
  */
 const listBrands = asyncHandler(async (req, res) => {
-  const brands = await catalogService.listBrands()
+  const { products } = await sellerBrowseService.listSellerProducts({ limit: 500 })
+  const seen = new Map()
+
+  for (const product of products) {
+    const name = product.brand?.name
+    const slug = product.brand?.slug
+    if (!name || !slug || seen.has(slug)) continue
+    seen.set(slug, { id: slug, name, slug })
+  }
+
+  const brands = [...seen.values()].sort((a, b) => a.name.localeCompare(b.name))
   res.json({ success: true, data: { brands } })
 })
 

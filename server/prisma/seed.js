@@ -391,12 +391,13 @@ async function seedAddresses(users) {
   ]
 
   let index = 0
-  for (const email of BUYER_EMAILS) {
+  for (const email of [...BUYER_EMAILS, ...SELLER_EMAILS]) {
     const [city, state, postalCode] = cities[index % cities.length]
+    const label = SELLER_EMAILS.includes(email) ? 'Warehouse' : 'Head Office'
     await prisma.address.create({
       data: {
         userId: users[email].id,
-        label: 'Head Office',
+        label,
         line1: `${101 + index}, Demo Trade Park`,
         line2: 'Industrial Area',
         city,

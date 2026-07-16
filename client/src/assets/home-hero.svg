@@ -1,0 +1,72 @@
+<svg width="920" height="640" viewBox="0 0 920 640" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="120" y1="40" x2="860" y2="620" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#EFF6FF"/>
+      <stop offset="0.55" stop-color="#ECFDF5"/>
+      <stop offset="1" stop-color="#FFF7ED"/>
+    </linearGradient>
+    <linearGradient id="card" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#F8FAFC"/>
+    </linearGradient>
+    <filter id="shadow" x="-40" y="-40" width="1000" height="760" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="18" stdDeviation="22" flood-color="#0F172A" flood-opacity="0.10"/>
+      <feDropShadow dx="0" dy="6" stdDeviation="10" flood-color="#0F172A" flood-opacity="0.08"/>
+    </filter>
+    <filter id="soft" x="-80" y="-80" width="1080" height="800" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="18"/>
+    </filter>
+  </defs>
+
+  <!-- background blob -->
+  <path d="M166 170C175 79 291 24 396 54C499 83 531 32 635 42C754 54 872 143 846 265C821 382 719 403 674 476C629 548 617 617 507 625C396 633 345 594 268 548C188 498 156 420 142 344C129 268 158 260 166 170Z" fill="url(#bg)"/>
+  <path d="M728 114C786 114 834 162 834 220C834 278 786 326 728 326C670 326 622 278 622 220C622 162 670 114 728 114Z" fill="#DBEAFE" opacity="0.55" filter="url(#soft)"/>
+  <path d="M226 390C287 390 336 439 336 500C336 561 287 610 226 610C165 610 116 561 116 500C116 439 165 390 226 390Z" fill="#A7F3D0" opacity="0.55" filter="url(#soft)"/>
+
+  <!-- main dashboard card -->
+  <g filter="url(#shadow)">
+    <rect x="260" y="118" width="520" height="360" rx="22" fill="url(#card)"/>
+    <rect x="260" y="118" width="520" height="64" rx="22" fill="#0B1220" opacity="0.92"/>
+    <circle cx="292" cy="150" r="6" fill="#EF4444"/>
+    <circle cx="312" cy="150" r="6" fill="#F59E0B"/>
+    <circle cx="332" cy="150" r="6" fill="#22C55E"/>
+
+    <rect x="292" y="208" width="210" height="12" rx="6" fill="#0F172A" opacity="0.18"/>
+    <rect x="292" y="232" width="280" height="10" rx="5" fill="#0F172A" opacity="0.12"/>
+
+    <!-- metric pills -->
+    <rect x="292" y="272" width="146" height="62" rx="14" fill="#EFF6FF"/>
+    <rect x="452" y="272" width="146" height="62" rx="14" fill="#ECFDF5"/>
+    <rect x="612" y="272" width="146" height="62" rx="14" fill="#FFF7ED"/>
+    <rect x="308" y="292" width="74" height="10" rx="5" fill="#0F172A" opacity="0.16"/>
+    <rect x="308" y="310" width="52" height="10" rx="5" fill="#0F172A" opacity="0.10"/>
+    <rect x="468" y="292" width="74" height="10" rx="5" fill="#0F172A" opacity="0.16"/>
+    <rect x="468" y="310" width="52" height="10" rx="5" fill="#0F172A" opacity="0.10"/>
+    <rect x="628" y="292" width="74" height="10" rx="5" fill="#0F172A" opacity="0.16"/>
+    <rect x="628" y="310" width="52" height="10" rx="5" fill="#0F172A" opacity="0.10"/>
+
+    <!-- list rows -->
+    <rect x="292" y="360" width="466" height="14" rx="7" fill="#0F172A" opacity="0.09"/>
+    <rect x="292" y="388" width="420" height="14" rx="7" fill="#0F172A" opacity="0.07"/>
+    <rect x="292" y="416" width="448" height="14" rx="7" fill="#0F172A" opacity="0.06"/>
+  </g>
+
+  <!-- floating quote card -->
+  <g filter="url(#shadow)">
+    <rect x="116" y="154" width="210" height="124" rx="18" fill="url(#card)"/>
+    <rect x="138" y="182" width="124" height="10" rx="5" fill="#0F172A" opacity="0.16"/>
+    <rect x="138" y="204" width="160" height="10" rx="5" fill="#0F172A" opacity="0.10"/>
+    <rect x="138" y="236" width="78" height="12" rx="6" fill="#2563EB" opacity="0.16"/>
+    <rect x="222" y="236" width="76" height="12" rx="6" fill="#0F766E" opacity="0.16"/>
+  </g>
+
+  <!-- floating order card -->
+  <g filter="url(#shadow)">
+    <rect x="628" y="458" width="226" height="136" rx="18" fill="url(#card)"/>
+    <rect x="650" y="486" width="140" height="10" rx="5" fill="#0F172A" opacity="0.16"/>
+    <rect x="650" y="508" width="184" height="10" rx="5" fill="#0F172A" opacity="0.10"/>
+    <rect x="650" y="542" width="86" height="14" rx="7" fill="#22C55E" opacity="0.18"/>
+    <rect x="744" y="542" width="90" height="14" rx="7" fill="#F59E0B" opacity="0.16"/>
+  </g>
+</svg>
+

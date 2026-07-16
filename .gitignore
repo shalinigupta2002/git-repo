@@ -48,4 +48,5 @@ client/blob-report/
 playwright/.cache/
 
 # ─── Prisma ───────────────────────────────────────────────────────────────────
-server/prisma/migrations/*/migration.sql
+# Migration SQL must be tracked for production deploy (prisma migrate deploy).
+# server/prisma/migrations/*/migration.sql

@@ -8,7 +8,6 @@ const { prisma } = require('../../src/config/database')
 
 const buyerToken = makeToken({ id: IDS.BUYER, role: 'BUYER' })
 const sellerToken = makeToken({ id: IDS.SELLER, role: 'SELLER' })
-const otherSellerToken = makeToken({ id: IDS.OTHER_SELLER, role: 'SELLER' })
 
 const RFQ_ID = '77777777-7777-4777-8777-777777777777'
 const RFQ_GROUP_ID = '88888888-8888-4888-8888-888888888888'

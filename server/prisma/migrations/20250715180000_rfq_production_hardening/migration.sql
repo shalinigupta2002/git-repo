@@ -47,8 +47,8 @@ ON CONFLICT ("id") DO NOTHING;
 -- Legacy standalone rows become single-row groups
 INSERT INTO "rfq_groups" ("id", "rfq_number", "buyer_id", "created_at")
 SELECT
-  qr.id,
-  COALESCE(qr.rfq_number, 'RFQ-LEGACY-' || SUBSTRING(qr.id::text, 1, 8)),
+  qr.id::uuid,
+  COALESCE(qr.rfq_number, 'RFQ-LEGACY-' || SUBSTRING(qr.id, 1, 8)),
   qr.buyer_id,
   qr.created_at
 FROM "quote_requests" qr
@@ -56,7 +56,7 @@ WHERE qr.rfq_group_id IS NULL
 ON CONFLICT ("id") DO NOTHING;
 
 UPDATE "quote_requests"
-SET "rfq_group_id" = "id"
+SET "rfq_group_id" = "id"::uuid
 WHERE "rfq_group_id" IS NULL;
 
 -- Link quote requests to group registry

@@ -10,7 +10,7 @@ test.describe('Product listing', () => {
     const cards = page.locator('.mpCard')
     const count = await cards.count()
     if (count === 0) {
-      await expect(page.locator('.mpEmpty, .mpShell')).toBeVisible()
+      await expect(page.locator('.mpEmpty, .mpShell').first()).toBeVisible()
       return
     }
     await expect(cards.first()).toBeVisible()
@@ -22,7 +22,7 @@ test.describe('Product listing', () => {
     await searchInput.fill('phone')
     await page.locator('.mpSearch__btn').click()
     await page.waitForLoadState('networkidle')
-    await expect(page.locator('.mpShell')).toBeVisible()
+    await expect(page.locator('.mpShell').first()).toBeVisible()
   })
 
   test('category sidebar is interactive', async ({ page }) => {
@@ -31,7 +31,7 @@ test.describe('Product listing', () => {
       await categoryBtn.click()
       await page.waitForLoadState('networkidle')
     }
-    await expect(page.locator('.mpShell')).toBeVisible()
+    await expect(page.locator('.mpShell').first()).toBeVisible()
   })
 
   test('brand filter controls are present', async ({ page }) => {

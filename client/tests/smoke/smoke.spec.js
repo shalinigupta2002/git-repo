@@ -9,15 +9,15 @@ test.describe('Smoke — public marketing shell', () => {
 
   test('pricing page renders plan tabs', async ({ page }) => {
     await page.goto('/pricing')
-    await expect(page.getByRole('heading', { name: /pricing|plans/i }).first()).toBeVisible()
-    await expect(page.getByText('Buyer', { exact: true }).first()).toBeVisible()
-    await expect(page.getByText('Seller', { exact: true }).first()).toBeVisible()
+    await expect(page.getByRole('heading', { name: /choose your plan/i })).toBeVisible()
+    await expect(page.getByRole('tab', { name: /^Buyer$/i })).toBeVisible()
+    await expect(page.getByRole('tab', { name: /^Seller$/i })).toBeVisible()
   })
 
   test('products page loads catalog grid or empty state', async ({ page }) => {
     await page.goto('/products')
     await expect(page.getByRole('link', { name: /Bold and Wise/i })).toBeVisible()
-    await expect(page.locator('.mpCard, .mpEmpty, .mpShell').first()).toBeVisible()
+    await expect(page.locator('.mpShell').first()).toBeVisible()
   })
 
   test('health API responds ok', async ({ request }) => {

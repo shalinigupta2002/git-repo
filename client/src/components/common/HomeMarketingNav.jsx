@@ -21,7 +21,7 @@ export function HomeMarketingNav({ tagline = 'Procurement & supply' }) {
           <span className="subNav__brandTag">{tagline}</span>
         </span>
       </Link>
-      <div className="subNav__links">
+      <nav className="subNav__links" aria-label="Primary">
         <Link to="/" className="subNav__link">
           Home
         </Link>
@@ -46,7 +46,7 @@ export function HomeMarketingNav({ tagline = 'Procurement & supply' }) {
             Sign in
           </Link>
         ) : null}
-      </div>
+      </nav>
     </header>
   )
 }

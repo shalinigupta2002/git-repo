@@ -1,7 +1,27 @@
+import fs from 'fs'
+import path from 'path'
+import { fileURLToPath } from 'url'
 import { defineConfig, devices } from '@playwright/test'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+
+/** Use CI Postgres when set; otherwise fall back to server/.env for local E2E runs. */
+function resolveDatabaseUrl() {
+  if (process.env.DATABASE_URL) return process.env.DATABASE_URL
+  try {
+    const envPath = path.resolve(__dirname, '../server/.env')
+    const content = fs.readFileSync(envPath, 'utf8')
+    const match = content.match(/^DATABASE_URL=(.+)$/m)
+    if (match) return match[1].replace(/^["']|["']$/g, '').trim()
+  } catch {
+    /* local server/.env optional */
+  }
+  return 'postgresql://test:test@127.0.0.1:5432/test_db'
+}
 
 const baseURL = process.env.PLAYWRIGHT_BASE_URL || 'http://127.0.0.1:5173'
 const apiURL = process.env.PLAYWRIGHT_API_URL || 'http://127.0.0.1:3001'
+const databaseUrl = resolveDatabaseUrl()
 
 export default defineConfig({
   testDir: './tests',
@@ -68,7 +88,7 @@ export default defineConfig({
           env: {
             NODE_ENV: 'test',
             PORT: '3001',
-            DATABASE_URL: process.env.DATABASE_URL || 'postgresql://test:test@127.0.0.1:5432/test_db',
+            DATABASE_URL: databaseUrl,
             JWT_SECRET: process.env.JWT_SECRET || 'test-jwt-secret-at-least-32-characters-long!',
             CLIENT_URL: 'http://127.0.0.1:5173',
             RAZORPAY_KEY_ID: 'rzp_test_TESTID',

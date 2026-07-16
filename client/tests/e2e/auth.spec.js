@@ -5,7 +5,7 @@ import { TEST_USERS } from '../fixtures/test-users.js'
 test.describe('Homepage', () => {
   test('shows marketplace value proposition', async ({ page }) => {
     await page.goto('/')
-    await expect(page.getByText('B2B marketplace')).toBeVisible()
+    await expect(page.locator('.homeLanding__eyebrow')).toHaveText('B2B marketplace')
     await expect(page.getByRole('navigation', { name: 'Primary' })).toBeVisible()
   })
 })

@@ -18,7 +18,7 @@ for (const vp of viewports) {
     test('products page remains usable', async ({ page }) => {
       await page.goto('/products')
       await expect(page.getByRole('link', { name: /Bold and Wise/i })).toBeVisible()
-      await expect(page.locator('.mpShell')).toBeVisible()
+      await expect(page.locator('.mpShell').first()).toBeVisible()
     })
   })
 }

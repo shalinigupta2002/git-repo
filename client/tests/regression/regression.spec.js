@@ -32,7 +32,8 @@ test.describe('Regression — end-to-end marketplace journeys', () => {
   })
 
   test('catalog API returns masked seller identity', async ({ request }) => {
-    const res = await request.get('/api/catalog/products?limit=5')
+    const apiURL = process.env.PLAYWRIGHT_API_URL || 'http://127.0.0.1:3001'
+    const res = await request.get(`${apiURL}/api/catalog/products?limit=5`)
     expect(res.ok()).toBeTruthy()
     const body = await res.json()
     const product = body.data?.products?.[0]

@@ -1,9 +1,10 @@
 import { api } from './api.js'
 import { throwFriendly } from '../utils/apiError.js'
+import { buildCreateQuoteRequestPayload } from '../utils/quoteRequestPayload.js'
 
 export async function createQuoteRequest(payload) {
   try {
-    const { data } = await api.post('/quote-requests', payload)
+    const { data } = await api.post('/quote-requests', buildCreateQuoteRequestPayload(payload))
     if (!data?.success) throw new Error(data?.error?.message || 'Failed to send quote request')
     return data.data
   } catch (e) {

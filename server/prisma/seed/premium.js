@@ -194,4 +194,6 @@ module.exports = {
   seedPremiumSubscriptions,
   seedAutomationSellerProducts,
   buildAutomationProductSpecs,
+  upsertPremiumSubscription,
+  syncMarketplaceIdentity,
 }

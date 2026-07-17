@@ -182,6 +182,139 @@ describe('RFQ / quote-request APIs', () => {
     expect(res.status).toBe(400)
   })
 
+  test('201 – RFQ without attachments', async () => {
+    mockSubscribedBuyer()
+    prisma.product.findUnique.mockResolvedValue(makeProduct())
+    prisma.user.findMany.mockResolvedValue([{ id: IDS.SELLER }])
+    prisma.quoteRequest.create.mockResolvedValue(makeQuoteRow())
+
+    const res = await agent
+      .post('/api/quote-requests')
+      .set(cookieFor(buyerToken))
+      .send({
+        ...baseCreatePayload,
+        productId: IDS.PRODUCT,
+      })
+
+    expect(res.status).toBe(201)
+  })
+
+  test('201 – RFQ with uploaded relative attachment URL', async () => {
+    mockSubscribedBuyer()
+    prisma.product.findUnique.mockResolvedValue(makeProduct())
+    prisma.user.findMany.mockResolvedValue([{ id: IDS.SELLER }])
+    prisma.quoteRequest.create.mockResolvedValue(makeQuoteRow({
+      attachments: [{
+        name: 'spec.pdf',
+        url: '/api/quote-requests/attachments/file/1700000000000-deadbeef.pdf',
+      }],
+    }))
+
+    const res = await agent
+      .post('/api/quote-requests')
+      .set(cookieFor(buyerToken))
+      .send({
+        ...baseCreatePayload,
+        productId: IDS.PRODUCT,
+        attachments: [{
+          name: 'spec.pdf',
+          url: '/api/quote-requests/attachments/file/1700000000000-deadbeef.pdf',
+          mimeType: 'application/pdf',
+          sizeBytes: 1024,
+        }],
+      })
+
+    expect(res.status).toBe(201)
+  })
+
+  test('201 – RFQ with multiple attachment URLs', async () => {
+    mockSubscribedBuyer()
+    prisma.product.findUnique.mockResolvedValue(makeProduct())
+    prisma.user.findMany.mockResolvedValue([{ id: IDS.SELLER }])
+    prisma.quoteRequest.create.mockResolvedValue(makeQuoteRow())
+
+    const res = await agent
+      .post('/api/quote-requests')
+      .set(cookieFor(buyerToken))
+      .send({
+        ...baseCreatePayload,
+        productId: IDS.PRODUCT,
+        attachments: [
+          { name: 'a.pdf', url: '/api/quote-requests/attachments/file/a.pdf' },
+          { name: 'b.pdf', url: 'https://cdn.example.com/b.pdf' },
+        ],
+      })
+
+    expect(res.status).toBe(201)
+  })
+
+  test('201 – empty attachments array is accepted', async () => {
+    mockSubscribedBuyer()
+    prisma.product.findUnique.mockResolvedValue(makeProduct())
+    prisma.user.findMany.mockResolvedValue([{ id: IDS.SELLER }])
+    prisma.quoteRequest.create.mockResolvedValue(makeQuoteRow())
+
+    const res = await agent
+      .post('/api/quote-requests')
+      .set(cookieFor(buyerToken))
+      .send({
+        ...baseCreatePayload,
+        productId: IDS.PRODUCT,
+        attachments: [],
+      })
+
+    expect(res.status).toBe(201)
+  })
+
+  test('400 – invalid attachment URL rejected', async () => {
+    mockSubscribedBuyer()
+
+    const res = await agent
+      .post('/api/quote-requests')
+      .set(cookieFor(buyerToken))
+      .send({
+        ...baseCreatePayload,
+        productId: IDS.PRODUCT,
+        attachments: [{ name: 'bad.pdf', url: 'not-a-url' }],
+      })
+
+    expect(res.status).toBe(400)
+    expect(res.body.error.details.fieldErrors.attachments).toContain('Invalid url')
+  })
+
+  test('400 – blob attachment URL rejected', async () => {
+    mockSubscribedBuyer()
+
+    const res = await agent
+      .post('/api/quote-requests')
+      .set(cookieFor(buyerToken))
+      .send({
+        ...baseCreatePayload,
+        productId: IDS.PRODUCT,
+        attachments: [{ name: 'blob.pdf', url: 'blob:http://localhost/abc' }],
+      })
+
+    expect(res.status).toBe(400)
+  })
+
+  test('201 – empty-string attachment entries are dropped', async () => {
+    mockSubscribedBuyer()
+    prisma.product.findUnique.mockResolvedValue(makeProduct())
+    prisma.user.findMany.mockResolvedValue([{ id: IDS.SELLER }])
+    prisma.quoteRequest.create.mockResolvedValue(makeQuoteRow())
+
+    const res = await agent
+      .post('/api/quote-requests')
+      .set(cookieFor(buyerToken))
+      .send({
+        ...baseCreatePayload,
+        productId: IDS.PRODUCT,
+        attachments: [{ name: 'empty.pdf', url: '' }],
+      })
+
+    expect(res.status).toBe(201)
+  })
+
   test('GET /groups – buyer receives grouped RFQ list', async () => {
     mockSubscribedBuyer()
     prisma.rfqGroup.findMany.mockResolvedValue([

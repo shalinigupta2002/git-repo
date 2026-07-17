@@ -8,9 +8,40 @@ const rfqGroupIdParam = z.object({
   rfqGroupId: z.string().uuid(),
 })
 
+const RFQ_ATTACHMENT_PATH_RE = /^\/api\/quote-requests\/attachments\/file\/[A-Za-z0-9._-]+$/
+
+/** Uploaded RFQ files are served from this API path; absolute https URLs are also allowed. */
+function isValidAttachmentUrl(value) {
+  const trimmed = String(value || '').trim()
+  if (!trimmed) return false
+  if (trimmed.startsWith('blob:')) return false
+  if (RFQ_ATTACHMENT_PATH_RE.test(trimmed)) return true
+  try {
+    const parsed = new URL(trimmed)
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
+function normalizeAttachmentsInput(raw) {
+  if (raw == null) return undefined
+  if (!Array.isArray(raw)) return undefined
+  const items = raw
+    .filter((item) => item && typeof item === 'object')
+    .map((item) => ({
+      name: typeof item.name === 'string' ? item.name.trim() : '',
+      url: typeof item.url === 'string' ? item.url.trim() : '',
+      mimeType: item.mimeType ?? null,
+      sizeBytes: item.sizeBytes,
+    }))
+    .filter((item) => item.name && item.url)
+  return items.length ? items : undefined
+}
+
 const attachmentItem = z.object({
   name: z.string().trim().min(1).max(255),
-  url: z.string().trim().url().max(2000),
+  url: z.string().trim().min(1).max(2000).refine(isValidAttachmentUrl, { message: 'Invalid url' }),
   mimeType: z.string().trim().max(100).optional().nullable(),
   sizeBytes: z.coerce.number().int().min(0).optional().nullable(),
 })
@@ -76,7 +107,7 @@ const createQuoteRequestBody = z.object({
   message: z.string().trim().min(1).max(1000),
   deliveryLocation: z.string().trim().min(1).max(500),
   expectedDeliveryDate: z.string().trim().min(1),
-  attachments: z.array(attachmentItem).max(5).optional().nullable(),
+  attachments: z.preprocess(normalizeAttachmentsInput, z.array(attachmentItem).max(5).optional()),
 }).superRefine((data, ctx) => {
   if (Array.isArray(data.productIds) && data.productIds.length > 1) {
     ctx.addIssue({
@@ -97,4 +128,6 @@ module.exports = {
   notificationsQuery,
   markNotificationsReadBody,
   createQuoteRequestBody,
+  isValidAttachmentUrl,
+  normalizeAttachmentsInput,
 }

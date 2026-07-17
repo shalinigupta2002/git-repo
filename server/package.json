@@ -21,6 +21,7 @@
     "db:migrate:deploy": "prisma migrate deploy",
     "db:push": "prisma db push",
     "db:seed": "node prisma/seed.js",
+    "db:seed:qa-sellers-2-3": "node prisma/seed/upsert-qa-sellers-2-3.js",
     "db:ci:setup": "prisma generate && prisma migrate deploy && node prisma/seed.js && npm run catalog:migrate && npm run catalog:seed",
     "db:seed:prod": "NODE_ENV=production node prisma/seed.js",
     "db:studio": "prisma studio",

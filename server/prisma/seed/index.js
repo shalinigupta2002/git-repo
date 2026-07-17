@@ -12,6 +12,8 @@ const {
   PREMIUM_AUTOMATION_USERS,
   PREMIUM_QA_BUYER,
   PREMIUM_QA_SELLER,
+  PREMIUM_QA_SELLER_2,
+  PREMIUM_QA_SELLER_3,
   PREMIUM_QA_USERS,
   PLAN_AMOUNTS_PAISE,
   shouldSeedQaUsers,
@@ -185,8 +187,8 @@ async function verifyBootstrap(users) {
 
   if (seedQa) {
     checks.push({
-      name: 'Premium subscriptions only (4)',
-      ok: empty.subscriptions === 4 && empty.payments === 4,
+      name: 'Premium subscriptions only (6)',
+      ok: empty.subscriptions === 6 && empty.payments === 6,
     })
     checks.push({
       name: 'Automation seller products only (8–10 total)',
@@ -204,19 +206,21 @@ async function verifyBootstrap(users) {
 
 function printReport(legacyRemoved, catalogStats, counts, verification) {
   const { checks, seedQa } = verification
-  const userTotal = seedQa ? 15 : 11
+  const userTotal = seedQa ? 15 : 9
 
   console.log('')
   console.log('=== Production bootstrap report ===')
   console.log('')
   console.log(`Users (${userTotal} total):`)
   console.log(`  Admin:                    ${ADMIN.email}`)
-  console.log('  MANUAL_ONBOARDING:        buyer1–5@test.com, seller1–5@test.com (no subscription, no ID)')
+  console.log('  MANUAL_ONBOARDING:        buyer1–5@test.com, seller1@test.com, seller4–5@test.com (no subscription, no ID)')
   if (seedQa) {
     console.log(`  PREMIUM_AUTOMATION buyer: ${PREMIUM_AUTOMATION_BUYER.email} (${PREMIUM_AUTOMATION_BUYER.memberId})`)
     console.log(`  PREMIUM_AUTOMATION seller:${PREMIUM_AUTOMATION_SELLER.email} (${PREMIUM_AUTOMATION_SELLER.memberId}, 10 products)`)
     console.log(`  PREMIUM_QA buyer:         ${PREMIUM_QA_BUYER.email} (${PREMIUM_QA_BUYER.memberId}, fresh account)`)
     console.log(`  PREMIUM_QA seller:        ${PREMIUM_QA_SELLER.email} (${PREMIUM_QA_SELLER.memberId}, fresh account)`)
+    console.log(`  PREMIUM_QA seller 2:      ${PREMIUM_QA_SELLER_2.email} (${PREMIUM_QA_SELLER_2.memberId}, fresh account)`)
+    console.log(`  PREMIUM_QA seller 3:      ${PREMIUM_QA_SELLER_3.email} (${PREMIUM_QA_SELLER_3.memberId}, fresh account)`)
   } else {
     console.log('  PREMIUM_* groups:         skipped (NODE_ENV=production, set SEED_QA=true to include)')
   }
@@ -242,12 +246,14 @@ function printReport(legacyRemoved, catalogStats, counts, verification) {
   console.log('')
   console.log('=== Login credentials ===')
   console.log(`  Admin:              ${ADMIN.email} / ${PASSWORDS.admin}`)
-  console.log('  Onboarding flow:    buyer1–5@test.com, seller1–5@test.com / Buyer@123, Seller@123')
+  console.log('  Onboarding flow:    buyer1–5@test.com, seller1@test.com, seller4–5@test.com / Buyer@123, Seller@123')
   if (seedQa) {
     console.log(`  Playwright / CI:    ${PREMIUM_AUTOMATION_BUYER.email} / ${PASSWORDS.buyer}`)
     console.log(`                      ${PREMIUM_AUTOMATION_SELLER.email} / ${PASSWORDS.seller}`)
     console.log(`  Manual QA (fresh):  ${PREMIUM_QA_BUYER.email} / ${PASSWORDS.buyer}`)
     console.log(`                      ${PREMIUM_QA_SELLER.email} / ${PASSWORDS.seller}`)
+    console.log(`                      ${PREMIUM_QA_SELLER_2.email} / ${PASSWORDS.seller2}`)
+    console.log(`                      ${PREMIUM_QA_SELLER_3.email} / ${PASSWORDS.seller3}`)
   }
   console.log('')
   console.log('Subscription plans (code — server/src/config/subscriptionPlans.js):')

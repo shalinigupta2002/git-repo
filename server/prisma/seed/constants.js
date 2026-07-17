@@ -10,6 +10,8 @@ const PASSWORDS = {
   admin: 'Admin@123',
   buyer: 'Buyer@123',
   seller: 'Seller@123',
+  seller2: 'Ks9#mPq2vWx7nRj4',
+  seller3: 'Ln8@wYb5Fc3hKm9',
 }
 
 function shouldSeedQaUsers() {
@@ -37,8 +39,6 @@ const BUYERS = [
 
 const SELLERS = [
   { email: 'seller1@test.com', companyName: 'Alpha Industrial Co.' },
-  { email: 'seller2@test.com', companyName: 'Bravo Tech Traders' },
-  { email: 'seller3@test.com', companyName: 'Gamma Wholesale Ltd.' },
   { email: 'seller4@test.com', companyName: 'Delta Home & Lifestyle' },
   { email: 'seller5@test.com', companyName: 'Echo Engineering Supplies' },
 ].map((u) => ({ ...u, role: 'SELLER', password: PASSWORDS.seller, group: 'MANUAL_ONBOARDING' }))
@@ -122,7 +122,49 @@ const PREMIUM_QA_SELLER = {
   },
 }
 
-const PREMIUM_QA_USERS = [PREMIUM_QA_BUYER, PREMIUM_QA_SELLER]
+/** Subscribed seller QA accounts — manual RFQ / quotation workflow testing */
+const PREMIUM_QA_SELLER_2 = {
+  email: 'seller2@test.com',
+  role: 'SELLER',
+  password: PASSWORDS.seller2,
+  group: 'PREMIUM_QA',
+  memberId: 'SEL-DEMO-000003',
+  companyName: 'Test Seller 2',
+  address: {
+    label: 'Warehouse',
+    line1: '22, QA Seller Hub Block B',
+    line2: 'Sector 62',
+    city: 'Noida',
+    state: 'Uttar Pradesh',
+    postalCode: '201301',
+    phone: '9876530002',
+  },
+}
+
+const PREMIUM_QA_SELLER_3 = {
+  email: 'seller3@test.com',
+  role: 'SELLER',
+  password: PASSWORDS.seller3,
+  group: 'PREMIUM_QA',
+  memberId: 'SEL-DEMO-000004',
+  companyName: 'Test Seller 3',
+  address: {
+    label: 'Warehouse',
+    line1: '9, QA Seller Logistics Park',
+    line2: 'HITEC City',
+    city: 'Hyderabad',
+    state: 'Telangana',
+    postalCode: '500081',
+    phone: '9876530003',
+  },
+}
+
+const PREMIUM_QA_USERS = [
+  PREMIUM_QA_BUYER,
+  PREMIUM_QA_SELLER,
+  PREMIUM_QA_SELLER_2,
+  PREMIUM_QA_SELLER_3,
+]
 
 const PREMIUM_USERS = [...PREMIUM_AUTOMATION_USERS, ...PREMIUM_QA_USERS]
 const PREMIUM_USER_EMAILS = PREMIUM_USERS.map((u) => u.email)
@@ -147,6 +189,16 @@ const PREMIUM_SUBSCRIPTION_SPECS = [
     email: PREMIUM_QA_SELLER.email,
     plan: 'SELLER_LIFETIME',
     paymentKey: 'bootstrap_premium2_seller_sub',
+  },
+  {
+    email: PREMIUM_QA_SELLER_2.email,
+    plan: 'SELLER_LIFETIME',
+    paymentKey: 'bootstrap_premium_qa_seller2_sub',
+  },
+  {
+    email: PREMIUM_QA_SELLER_3.email,
+    plan: 'SELLER_LIFETIME',
+    paymentKey: 'bootstrap_premium_qa_seller3_sub',
   },
 ]
 
@@ -284,6 +336,8 @@ module.exports = {
   PREMIUM_AUTOMATION_USERS,
   PREMIUM_QA_BUYER,
   PREMIUM_QA_SELLER,
+  PREMIUM_QA_SELLER_2,
+  PREMIUM_QA_SELLER_3,
   PREMIUM_QA_USERS,
   PREMIUM_USERS,
   PREMIUM_USER_EMAILS,

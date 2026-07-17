@@ -3,6 +3,7 @@ import toast from 'react-hot-toast'
 import { createQuoteRequest } from '../../services/quoteRequest.service.js'
 import { SellerIdentity } from '../common/SellerIdentity.jsx'
 import { formatProductPrice } from '../../utils/formatPrice.js'
+import { sanitizeQuoteRequestAttachments } from '../../utils/quoteRequestPayload.js'
 import { RfqAttachmentPicker } from './RfqAttachmentPicker.jsx'
 
 export function RequestQuoteModal({
@@ -90,7 +91,7 @@ export function RequestQuoteModal({
         message: requirement,
         deliveryLocation: deliveryLocation.trim(),
         expectedDeliveryDate,
-        attachments: attachments.length ? attachments : undefined,
+        attachments: sanitizeQuoteRequestAttachments(attachments),
       }
 
       if (sellerListings.length > 1) {

@@ -78,6 +78,8 @@ enum QuoteRequestStatus {
   RESPONDED
   ACCEPTED
   DECLINED
+  NOT_SELECTED
+  CANCELLED
 }
 
 enum CategoryRequestType {
@@ -100,12 +102,28 @@ enum AuditAction {
 // Core models
 // ─────────────────────────────────────────────────────────────────────────────
 
+/// Atomic counter for marketplace member IDs (BUY-000001 / SEL-000001).
+model MarketplaceIdCounter {
+  type      String @id @db.VarChar(16)
+  lastValue Int    @default(0) @map("last_value")
+
+  @@map("marketplace_id_counters")
+}
+
 model User {
   id           String   @id @default(uuid())
   email        String   @unique
   passwordHash String   @map("password_hash")
   role         Role
   companyName  String?  @map("company_name")
+  buyerMarketplaceId              String?             @unique @map("buyer_marketplace_id") @db.VarChar(32)
+  buyerSubscriptionStatus         SubscriptionStatus? @map("buyer_subscription_status")
+  buyerSubscriptionPlan           SubscriptionPlan?   @map("buyer_subscription_plan")
+  buyerSubscriptionActivatedAt    DateTime?           @map("buyer_subscription_activated_at")
+  sellerMarketplaceId             String?             @unique @map("seller_marketplace_id") @db.VarChar(32)
+  sellerSubscriptionStatus        SubscriptionStatus? @map("seller_subscription_status")
+  sellerSubscriptionPlan          SubscriptionPlan?   @map("seller_subscription_plan")
+  sellerSubscriptionActivatedAt   DateTime?           @map("seller_subscription_activated_at")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
@@ -122,6 +140,7 @@ model User {
   buyerQuoteRequests   QuoteRequest[]    @relation("BuyerQuoteRequests")
   sellerQuoteRequests  QuoteRequest[]    @relation("SellerQuoteRequests")
   rfqGroups            RfqGroup[]
+  rfqNotifications     RfqNotificationEvent[]
 
   @@map("users")
 }
@@ -424,8 +443,12 @@ model QuoteRequest {
   sellerAcceptedAt    DateTime?          @map("seller_accepted_at")
   buyerAcceptedAt     DateTime?          @map("buyer_accepted_at")
   buyerRejectedAt     DateTime?          @map("buyer_rejected_at")
+  buyerCancelledAt    DateTime?          @map("buyer_cancelled_at")
+  revisionCount       Int                @default(0) @map("revision_count")
   orderId             String?            @unique @map("order_id")
   order               Order?             @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  revisions           QuoteRevision[]
+  notifications       RfqNotificationEvent[]
   createdAt           DateTime           @default(now()) @map("created_at")
   updatedAt           DateTime           @updatedAt @map("updated_at")
 
@@ -441,6 +464,44 @@ model QuoteRequest {
   @@index([buyerId, status])
   @@index([sellerId, status])
   @@map("quote_requests")
+}
+
+/// Immutable snapshot each time a seller submits or revises a quotation.
+model QuoteRevision {
+  id              String       @id @default(uuid())
+  quoteRequestId  String       @map("quote_request_id")
+  quoteRequest    QuoteRequest @relation(fields: [quoteRequestId], references: [id], onDelete: Cascade)
+  revisionNumber  Int          @map("revision_number")
+  sellerUnitPrice Decimal      @map("seller_unit_price") @db.Decimal(12, 2)
+  sellerCurrency  String       @default("INR") @map("seller_currency") @db.VarChar(3)
+  taxNote         String?      @map("tax_note") @db.VarChar(500)
+  quoteValidUntil DateTime?    @map("quote_valid_until")
+  freightNote     String?      @map("freight_note") @db.VarChar(1000)
+  exclusionsNote  String?      @map("exclusions_note") @db.VarChar(1000)
+  createdById     String       @map("created_by_id")
+  createdAt       DateTime     @default(now()) @map("created_at")
+
+  @@unique([quoteRequestId, revisionNumber])
+  @@index([quoteRequestId])
+  @@map("quote_revisions")
+}
+
+/// Polling-friendly notification feed — same emitter can push to WebSocket/SSE later.
+model RfqNotificationEvent {
+  id              String    @id @default(uuid())
+  recipientUserId String    @map("recipient_user_id")
+  recipient       User      @relation(fields: [recipientUserId], references: [id], onDelete: Cascade)
+  quoteRequestId  String?   @map("quote_request_id")
+  quoteRequest    QuoteRequest? @relation(fields: [quoteRequestId], references: [id], onDelete: SetNull)
+  rfqGroupId      String?   @map("rfq_group_id") @db.Uuid
+  eventType       String    @map("event_type") @db.VarChar(64)
+  payload         Json?
+  readAt          DateTime? @map("read_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  @@index([recipientUserId, readAt])
+  @@index([recipientUserId, createdAt])
+  @@map("rfq_notification_events")
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

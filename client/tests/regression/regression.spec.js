@@ -38,8 +38,9 @@ test.describe('Regression — end-to-end marketplace journeys', () => {
     const body = await res.json()
     const product = body.data?.products?.[0]
     if (product?.seller) {
-      expect(product.seller).toHaveProperty('id')
+      expect(product.seller).toHaveProperty('marketplaceId')
       expect(product.seller).toHaveProperty('city')
+      expect(product.seller.id).toBeUndefined()
       expect(product.seller.email).toBeUndefined()
       expect(product.seller.companyName).toBeUndefined()
     }

@@ -2,6 +2,7 @@ const { verifyToken } = require('../utils/jwt.js')
 const { AppError } = require('../utils/AppError.js')
 const { prisma } = require('../config/database.js')
 const { COOKIE_NAME } = require('../config/cookies.js')
+const { USER_SELECT } = require('../utils/serializeUser.js')
 
 /**
  * Extract the JWT from the httpOnly cookie set by the auth endpoints.
@@ -29,7 +30,7 @@ async function authenticate(req, res, next) {
     }
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, email: true, role: true, companyName: true },
+      select: USER_SELECT,
     })
     if (!user) {
       throw new AppError('User no longer exists', 401, 'USER_NOT_FOUND')
@@ -55,7 +56,7 @@ async function optionalAuth(req, res, next) {
     if (!userId) return next()
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, email: true, role: true, companyName: true },
+      select: USER_SELECT,
     })
     if (user) req.user = user
   } catch {

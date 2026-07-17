@@ -1,5 +1,5 @@
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import toast from 'react-hot-toast'
 import { BrandLogo } from '../../components/common/BrandLogo.jsx'
 import { MyDashboardMenu } from '../../components/common/MyDashboardMenu.jsx'
@@ -11,7 +11,7 @@ import { PageLoader } from '../../components/ui/PageLoader.jsx'
 import { useAuth } from '../../hooks/useAuth.js'
 import { useAppSelector } from '../../hooks/redux.js'
 import { selectHasBuyerSubscription } from '../../store/slices/subscriptionSlice.js'
-import { fetchCatalogProduct } from '../../services/catalog.service.js'
+import { fetchCatalogProduct, fetchAlternativeSellerListings } from '../../services/catalog.service.js'
 import { addWishlistItem, getWishlistIds } from '../../utils/wishlistStorage.js'
 import { canAccessBuyerWorkspace } from '../../utils/portalNav.js'
 import { formatProductPrice } from '../../utils/formatPrice.js'
@@ -41,6 +41,8 @@ export function ProductDetailPage() {
   const [wishlistSubscribeAlertOpen, setWishlistSubscribeAlertOpen] = useState(false)
   const [quoteModalOpen, setQuoteModalOpen] = useState(false)
   const [quoteSubscribeAlertOpen, setQuoteSubscribeAlertOpen] = useState(false)
+  const [alternativeSellers, setAlternativeSellers] = useState([])
+  const [selectedAlternativeIds, setSelectedAlternativeIds] = useState(() => new Set())
 
   const loadProduct = useCallback(async () => {
     setLoading(true)
@@ -69,6 +71,42 @@ export function ProductDetailPage() {
       setWishlisted(getWishlistIds().has(String(product.id)))
     }
   }, [product?.id])
+
+  useEffect(() => {
+    if (!product?.id || product.source !== 'seller') {
+      setAlternativeSellers([])
+      setSelectedAlternativeIds(new Set())
+      return
+    }
+    let alive = true
+    fetchAlternativeSellerListings(product.id)
+      .then((items) => {
+        if (!alive) return
+        setAlternativeSellers(items)
+        setSelectedAlternativeIds(new Set())
+      })
+      .catch(() => {
+        if (alive) setAlternativeSellers([])
+      })
+    return () => {
+      alive = false
+    }
+  }, [product?.id, product?.source])
+
+  const rfqProducts = useMemo(() => {
+    if (!product) return []
+    const extras = alternativeSellers.filter((item) => selectedAlternativeIds.has(item.id))
+    return [product, ...extras]
+  }, [product, alternativeSellers, selectedAlternativeIds])
+
+  function toggleAlternativeSeller(id) {
+    setSelectedAlternativeIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
 
   const handleWishlist = useCallback(() => {
     if (!isAuthenticated) {
@@ -113,7 +151,12 @@ export function ProductDetailPage() {
 
   const handleQuoteSuccess = useCallback(
     (data) => {
+      const groupId = data?.group?.rfqGroupId
       const requestId = data?.request?.id || data?.group?.requests?.[0]?.id
+      if (groupId && (data?.group?.requests?.length || 0) > 1) {
+        navigate(`/buyer/quotations/group/${groupId}`)
+        return
+      }
       if (requestId) navigate(`/buyer/quotations/${requestId}`)
     },
     [navigate],
@@ -246,6 +289,33 @@ export function ProductDetailPage() {
                     <div><dt>Listing ID</dt><dd>{product.id}</dd></div>
                   </dl>
                 </section>
+
+                {product.source === 'seller' && alternativeSellers.length ? (
+                  <section className="pdPanel">
+                    <h2>Request quote from multiple sellers</h2>
+                    <p className="panelSub">
+                      Include other sellers offering similar products in the same RFQ for side-by-side comparison.
+                    </p>
+                    <ul className="pdAltSellers">
+                      {alternativeSellers.map((item) => (
+                        <li key={item.id} className="pdAltSellers__item">
+                          <label className="pdAltSellers__label">
+                            <input
+                              type="checkbox"
+                              checked={selectedAlternativeIds.has(item.id)}
+                              onChange={() => toggleAlternativeSeller(item.id)}
+                            />
+                            <span>
+                              <SellerIdentity seller={item.seller} compact showLabel />
+                              {' · '}
+                              {formatMoney(item.price, item.currency || 'INR')}
+                            </span>
+                          </label>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                ) : null}
               </div>
             </>
           ) : null}
@@ -254,7 +324,7 @@ export function ProductDetailPage() {
 
       <RequestQuoteModal
         open={quoteModalOpen}
-        product={product}
+        products={rfqProducts}
         onClose={() => setQuoteModalOpen(false)}
         onSuccess={handleQuoteSuccess}
       />

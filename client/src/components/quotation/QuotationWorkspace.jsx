@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { SellerIdentity } from '../common/SellerIdentity.jsx'
+import { SellerIdentity, BuyerIdentity } from '../common/SellerIdentity.jsx'
 import { SubscribeFeatureAlert } from '../common/SubscribeFeatureAlert.jsx'
 import { PageLoader } from '../ui/PageLoader.jsx'
 import { Spinner } from '../ui/Spinner.jsx'
 import {
   acceptQuote,
+  cancelQuoteRequest,
   fetchRfqStats,
   getQuoteRequest,
   listGroupedRfqs,
@@ -15,11 +16,14 @@ import {
   rejectQuoteBySeller,
   respondToQuote,
 } from '../../services/quoteRequest.service.js'
+import { useRfqNotifications } from '../../hooks/useRfqNotifications.js'
 import {
   QUOTE_STATUS_BADGE,
   QUOTE_STATUS_LABELS,
   formatQuotationDate,
   formatQuoteMoney,
+  getQuoteStatusDisplay,
+  isBuyerQuotationActionable,
   isQuoteExpired,
   quoteLineTotal,
 } from '../../utils/quotationHelpers.js'
@@ -31,6 +35,7 @@ const BUYER_FILTERS = [
   { id: 'RESPONDED', label: 'Responses' },
   { id: 'ACCEPTED', label: 'Accepted' },
   { id: 'DECLINED', label: 'Rejected' },
+  { id: 'CANCELLED', label: 'Cancelled' },
   { id: 'expired', label: 'Expired' },
 ]
 
@@ -39,15 +44,16 @@ const SELLER_FILTERS = [
   { id: 'PENDING', label: 'Pending' },
   { id: 'RESPONDED', label: 'Responded' },
   { id: 'ACCEPTED', label: 'Accepted' },
+  { id: 'NOT_SELECTED', label: 'Not selected' },
   { id: 'DECLINED', label: 'Rejected' },
+  { id: 'CANCELLED', label: 'Cancelled' },
   { id: 'expired', label: 'Expired' },
 ]
 
 const PAGE_SIZE = 10
 
-function StatusBadge({ status, expired = false }) {
-  const label = expired && status === 'RESPONDED' ? 'Expired' : (QUOTE_STATUS_LABELS[status] || status)
-  const badge = expired && status === 'RESPONDED' ? 'b2bBadge--grey' : (QUOTE_STATUS_BADGE[status] || 'b2bBadge--grey')
+function StatusBadge({ status, expired = false, mode = 'buyer' }) {
+  const { label, badge } = getQuoteStatusDisplay(status, { expired, mode })
   return <span className={`b2bBadge ${badge}`}>{label}</span>
 }
 
@@ -195,13 +201,14 @@ function SellerQuotationForm({ request, onSubmitted }) {
   const [submitting, setSubmitting] = useState('')
 
   useEffect(() => {
-    setUnitPrice('')
-    setValidUntil('')
-    setTaxNote('')
-    setFreightNote('')
-    setExclusionsNote('')
+    if (!request) return
+    setUnitPrice(request.sellerUnitPrice != null ? String(request.sellerUnitPrice) : '')
+    setValidUntil(request.quoteValidUntil ? new Date(request.quoteValidUntil).toISOString().slice(0, 16) : '')
+    setTaxNote(request.taxNote || '')
+    setFreightNote(request.freightNote || '')
+    setExclusionsNote(request.exclusionsNote || '')
     setSubmitting('')
-  }, [request?.id])
+  }, [request?.id, request?.revisionCount, request?.sellerUnitPrice])
 
   async function handleSubmit(event) {
     event.preventDefault()
@@ -220,7 +227,7 @@ function SellerQuotationForm({ request, onSubmitted }) {
         freightNote: freightNote.trim() || null,
         exclusionsNote: exclusionsNote.trim() || null,
       })
-      toast.success('Final quotation sent to buyer.')
+      toast.success(request?.status === 'RESPONDED' ? 'Quotation updated.' : 'Final quotation sent to buyer.')
       onSubmitted?.()
     } catch (error) {
       toast.error(error?.message || 'Could not send quotation.')
@@ -244,7 +251,9 @@ function SellerQuotationForm({ request, onSubmitted }) {
 
   return (
     <div className="quoteRespond panel">
-      <h3 className="quoteRespond__title">Send final quotation</h3>
+      <h3 className="quoteRespond__title">
+        {request?.status === 'RESPONDED' ? 'Revise quotation' : 'Send final quotation'}
+      </h3>
       {request?.targetPrice != null ? (
         <div className="quoteBudgetHighlight">
           <p className="quoteBudgetHighlight__label">Buyer indicative budget (unit)</p>
@@ -280,13 +289,44 @@ function SellerQuotationForm({ request, onSubmitted }) {
         </label>
         <div className="quoteBuyerActions__buttons">
           <button type="submit" className="btn btn--primary" disabled={Boolean(submitting)}>
-            {submitting === 'send' ? 'Sending…' : 'Send quotation'}
+            {submitting === 'send' ? 'Sending…' : request?.status === 'RESPONDED' ? 'Update quotation' : 'Send quotation'}
           </button>
-          <button type="button" className="btn btn--ghost" disabled={Boolean(submitting)} onClick={handleReject}>
-            {submitting === 'reject' ? 'Declining…' : 'Decline RFQ'}
-          </button>
+          {request?.status === 'PENDING' ? (
+            <button type="button" className="btn btn--ghost" disabled={Boolean(submitting)} onClick={handleReject}>
+              {submitting === 'reject' ? 'Declining…' : 'Decline RFQ'}
+            </button>
+          ) : null}
         </div>
       </form>
+    </div>
+  )
+}
+
+function BuyerPendingActions({ request, onUpdated }) {
+  const [busy, setBusy] = useState('')
+
+  async function handleCancel() {
+    setBusy('cancel')
+    try {
+      await cancelQuoteRequest(request.id)
+      toast.success('RFQ cancelled for this seller.')
+      onUpdated?.()
+    } catch (error) {
+      toast.error(error?.message || 'Could not cancel RFQ.')
+    } finally {
+      setBusy('')
+    }
+  }
+
+  return (
+    <div className="quoteBuyerActions panel">
+      <h3 className="quoteRespond__title">Pending seller response</h3>
+      <p className="quoteLockedCopy">
+        You can cancel this seller-specific RFQ while it is still awaiting a quotation.
+      </p>
+      <button type="button" className="btn btn--ghost" disabled={Boolean(busy)} onClick={handleCancel}>
+        {busy === 'cancel' ? 'Cancelling…' : 'Cancel RFQ for this seller'}
+      </button>
     </div>
   )
 }
@@ -295,6 +335,7 @@ function BuyerActions({ request, onUpdated }) {
   const [busy, setBusy] = useState('')
   const navigate = useNavigate()
   const expired = isQuoteExpired(request)
+  const actionable = isBuyerQuotationActionable(request)
 
   async function handleAccept() {
     setBusy('accept')
@@ -326,8 +367,12 @@ function BuyerActions({ request, onUpdated }) {
   return (
     <div className="quoteBuyerActions panel">
       <h3 className="quoteRespond__title">Review seller quotation</h3>
-      {expired ? (
-        <p className="quoteLockedCopy">This quotation has expired. Request a new RFQ from the seller.</p>
+      {expired || !actionable ? (
+        <p className="quoteLockedCopy">
+          {request?.status === 'NOT_SELECTED' || request?.buyerDisplayStatus === 'EXPIRED'
+            ? 'This quotation is no longer available because you finalized another seller.'
+            : 'This quotation has expired. Request a new RFQ from the seller.'}
+        </p>
       ) : (
         <div className="quoteBuyerActions__buttons">
           <button type="button" className="btn btn--primary" disabled={Boolean(busy)} onClick={handleAccept}>
@@ -359,6 +404,7 @@ export function QuotationWorkspace({ mode, basePath }) {
   const [searchInput, setSearchInput] = useState('')
   const [page, setPage] = useState(1)
   const [subscribeAlertOpen, setSubscribeAlertOpen] = useState(false)
+  const { unreadCount } = useRfqNotifications({ enabled: hasFullAccess })
 
   const viewAs = mode
   const filters = mode === 'buyer' ? BUYER_FILTERS : SELLER_FILTERS
@@ -389,8 +435,16 @@ export function QuotationWorkspace({ mode, basePath }) {
         setPagination(data?.pagination || { page: 1, totalPages: 0, total: 0 })
         setHasFullAccess(Boolean(data?.hasFullAccess))
       } else {
-        const data = await listQuoteRequests({ viewAs })
+        const data = await listQuoteRequests({
+          viewAs,
+          page,
+          limit: PAGE_SIZE,
+          q: search || undefined,
+          status: filter === 'all' || filter === 'expired' ? undefined : filter,
+          expired: filter === 'expired' ? true : undefined,
+        })
         setRequests(Array.isArray(data?.requests) ? data.requests : [])
+        setPagination(data?.pagination || { page: 1, totalPages: 0, total: data?.total || 0 })
         setHasFullAccess(Boolean(data?.hasFullAccess))
       }
     } catch (error) {
@@ -432,37 +486,7 @@ export function QuotationWorkspace({ mode, basePath }) {
     return () => clearTimeout(timer)
   }, [searchInput])
 
-  const filteredSellerRequests = useMemo(() => {
-    let rows = requests
-    if (filter === 'expired') {
-      rows = rows.filter((item) => item.status === 'RESPONDED' && isQuoteExpired(item))
-    } else if (filter !== 'all') {
-      rows = rows.filter((item) => item.status === filter)
-    }
-    if (search) {
-      const needle = search.toLowerCase()
-      rows = rows.filter((item) => [
-        item.productTitle,
-        item.rfqRef,
-        item.rfqNumber,
-        item.productCategory,
-        item.brandName,
-        item.deliveryLocation,
-      ].filter(Boolean).join(' ').toLowerCase().includes(needle))
-    }
-    return rows
-  }, [filter, requests, search])
-
-  const sellerPagination = useMemo(() => {
-    const total = filteredSellerRequests.length
-    const totalPages = Math.ceil(total / PAGE_SIZE) || 0
-    const safePage = Math.min(Math.max(page, 1), Math.max(totalPages, 1))
-    const start = (safePage - 1) * PAGE_SIZE
-    return {
-      items: filteredSellerRequests.slice(start, start + PAGE_SIZE),
-      pagination: { page: safePage, totalPages, total },
-    }
-  }, [filteredSellerRequests, page])
+  const inboxCount = pagination.total
 
   function selectBuyerGroup(group) {
     if (group.sellerCount > 1) {
@@ -486,7 +510,6 @@ export function QuotationWorkspace({ mode, basePath }) {
     if (requestId) await loadDetail(requestId)
   }
 
-  const inboxCount = mode === 'buyer' ? pagination.total : sellerPagination.pagination.total
   const pageTitle = mode === 'buyer' ? 'RFQs & quotations' : 'Incoming RFQs'
 
   return (
@@ -527,7 +550,7 @@ export function QuotationWorkspace({ mode, basePath }) {
       <div className="quoteWorkspace__shell">
         <aside className="quoteInbox panel panel--flush">
           <div className="quoteInbox__head">
-            <h2 className="quoteInbox__title">Inbox</h2>
+            <h2 className="quoteInbox__title">Inbox{unreadCount ? ` (${unreadCount} new)` : ''}</h2>
             <span className="quoteInbox__count">{inboxCount}</span>
           </div>
 
@@ -574,7 +597,7 @@ export function QuotationWorkspace({ mode, basePath }) {
                       <button type="button" className="quoteInboxItem" onClick={() => selectBuyerGroup(group)}>
                         <div className="quoteInboxItem__top">
                           <strong>{group.productTitle}</strong>
-                          <StatusBadge status={group.aggregateStatus} expired={group.hasExpiredQuotation} />
+                          <StatusBadge status={group.aggregateStatus} expired={group.hasExpiredQuotation} mode={mode} />
                         </div>
                         <p className="quoteInboxItem__meta">
                           {group.rfqNumber || group.rfqRef} · Qty {group.quantity} · {group.sellerCount} seller{group.sellerCount === 1 ? '' : 's'}
@@ -593,7 +616,7 @@ export function QuotationWorkspace({ mode, basePath }) {
                 ) : null}
               </>
             )
-          ) : sellerPagination.items.length === 0 ? (
+          ) : requests.length === 0 ? (
             <div className="quoteInbox__empty">
               <p>No RFQs yet.</p>
               <p className="quoteLockedCopy">Buyer RFQs will appear here when they request quotations.</p>
@@ -601,15 +624,17 @@ export function QuotationWorkspace({ mode, basePath }) {
           ) : (
             <>
               <ul className="quoteInbox__list">
-                {sellerPagination.items.map((item) => {
+                {requests.map((item) => {
                   const active = item.id === requestId
-                  const expired = item.status === 'RESPONDED' && isQuoteExpired(item)
+                  const expired = mode === 'buyer'
+                    ? isQuoteExpired(item)
+                    : item.status === 'RESPONDED' && isQuoteExpired(item)
                   return (
                     <li key={item.id}>
                       <button type="button" className={`quoteInboxItem${active ? ' quoteInboxItem--active' : ''}`} onClick={() => selectRequest(item.id)}>
                         <div className="quoteInboxItem__top">
                           <strong>{item.productTitle}</strong>
-                          <StatusBadge status={item.status} expired={expired} />
+                          <StatusBadge status={item.status} expired={expired} mode={mode} />
                         </div>
                         <p className="quoteInboxItem__meta">{item.rfqNumber || item.rfqRef} · Qty {item.quantity}</p>
                         <span className="quoteInboxItem__date">{formatQuotationDate(item.createdAt)}</span>
@@ -618,11 +643,11 @@ export function QuotationWorkspace({ mode, basePath }) {
                   )
                 })}
               </ul>
-              {sellerPagination.pagination.totalPages > 1 ? (
+              {pagination.totalPages > 1 ? (
                 <div className="quoteInbox__pagination">
                   <button type="button" className="btn btn--ghost" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>Previous</button>
-                  <span>Page {sellerPagination.pagination.page} of {sellerPagination.pagination.totalPages}</span>
-                  <button type="button" className="btn btn--ghost" disabled={page >= sellerPagination.pagination.totalPages} onClick={() => setPage((p) => p + 1)}>Next</button>
+                  <span>Page {pagination.page} of {pagination.totalPages}</span>
+                  <button type="button" className="btn btn--ghost" disabled={page >= pagination.totalPages} onClick={() => setPage((p) => p + 1)}>Next</button>
                 </div>
               ) : null}
             </>
@@ -658,7 +683,11 @@ export function QuotationWorkspace({ mode, basePath }) {
                     </Link>
                   ) : null}
                 </div>
-                <StatusBadge status={selected.status} expired={selected.status === 'RESPONDED' && isQuoteExpired(selected)} />
+                <StatusBadge
+                  status={selected.status}
+                  expired={isQuoteExpired(selected)}
+                  mode={mode}
+                />
               </div>
 
               <div className="quoteDetail__grid">
@@ -680,13 +709,13 @@ export function QuotationWorkspace({ mode, basePath }) {
                     {mode === 'seller' ? (
                       <div>
                         <dt>Buyer</dt>
-                        <dd>Buyer ID: <code>{selected.buyerId || selected.buyer?.id || '—'}</code> · City: {selected.buyerCity || selected.buyer?.city || '—'}</dd>
+                        <dd><BuyerIdentity buyer={selected.buyer} buyerMarketplaceId={selected.buyerMarketplaceId} city={selected.buyerCity} compact showLabel /></dd>
                       </div>
                     ) : null}
                     {mode === 'buyer' ? (
                       <div>
                         <dt>Seller</dt>
-                        <dd><SellerIdentity seller={selected.seller} sellerId={selected.sellerId} city={selected.sellerCity} compact showLabel /></dd>
+                        <dd><SellerIdentity seller={selected.seller} sellerMarketplaceId={selected.sellerMarketplaceId} city={selected.sellerCity} compact showLabel /></dd>
                       </div>
                     ) : null}
                     {selected.order?.orderNumber ? (
@@ -694,10 +723,31 @@ export function QuotationWorkspace({ mode, basePath }) {
                     ) : null}
                   </dl>
                   <RfqAttachmentsList attachments={selected.attachments} />
+                  {selected.revisions?.length ? (
+                    <div className="quoteRevisionHistory">
+                      <h4>Quotation revision history</h4>
+                      <ol>
+                        {selected.revisions.map((revision) => (
+                          <li key={revision.id}>
+                            v{revision.revisionNumber}: {formatQuoteMoney(revision.sellerUnitPrice, revision.sellerCurrency)}
+                            {' · '}
+                            valid until {formatQuotationDate(revision.quoteValidUntil)}
+                          </li>
+                        ))}
+                      </ol>
+                    </div>
+                  ) : null}
                 </aside>
               </div>
 
-              {mode === 'seller' && selected.status === 'PENDING' && hasFullAccess ? (
+              {mode === 'seller' && selected.status === 'NOT_SELECTED' ? (
+                <div className="quoteLockedBanner panel">
+                  <p className="quoteLockedCopy">
+                    Not selected — the buyer accepted another seller&apos;s quotation for this RFQ group.
+                  </p>
+                </div>
+              ) : null}
+              {mode === 'seller' && (selected.status === 'PENDING' || selected.status === 'RESPONDED') && hasFullAccess ? (
                 <SellerQuotationForm request={selected} onSubmitted={refreshAll} />
               ) : null}
               {mode === 'seller' && selected.status === 'PENDING' && !hasFullAccess ? (
@@ -706,8 +756,20 @@ export function QuotationWorkspace({ mode, basePath }) {
                   <button type="button" className="btn btn--primary" onClick={() => setSubscribeAlertOpen(true)}>Unlock seller quotations</button>
                 </div>
               ) : null}
-              {mode === 'buyer' && selected.status === 'RESPONDED' && hasFullAccess ? (
+              {mode === 'buyer' && selected.status === 'PENDING' && hasFullAccess && isBuyerQuotationActionable(selected) ? (
+                <BuyerPendingActions request={selected} onUpdated={refreshAll} />
+              ) : null}
+              {mode === 'buyer' && selected.status === 'RESPONDED' && hasFullAccess && isBuyerQuotationActionable(selected) ? (
                 <BuyerActions request={selected} onUpdated={refreshAll} />
+              ) : null}
+              {mode === 'buyer' && (selected.status === 'RESPONDED' || selected.status === 'NOT_SELECTED') && (isQuoteExpired(selected) || selected.actionsLocked) && hasFullAccess ? (
+                <div className="quoteLockedBanner panel">
+                  <p className="quoteLockedCopy">
+                    {selected.status === 'NOT_SELECTED' || selected.buyerDisplayStatus === 'EXPIRED'
+                      ? 'This quotation is no longer available because you finalized another seller.'
+                      : 'This quotation has expired.'}
+                  </p>
+                </div>
               ) : null}
               {mode === 'buyer' && selected.status === 'RESPONDED' && !hasFullAccess ? (
                 <div className="quoteLockedBanner panel">

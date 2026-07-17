@@ -87,8 +87,8 @@ export function ManageBuyer() {
                   </thead>
                   <tbody>
                     {buyers.map((buyer) => (
-                      <tr key={buyer.buyerId}>
-                        <td><code>{buyer.buyerId}</code></td>
+                      <tr key={buyer.buyerMarketplaceId || buyer.buyer?.marketplaceId || buyer.confirmedDeals}>
+                        <td><code>{buyer.buyerMarketplaceId || buyer.buyer?.marketplaceId || '—'}</code></td>
                         <td>{buyer.buyerCity || '—'}</td>
                         <td>{buyer.confirmedDeals}</td>
                         <td>{formatDate(buyer.lastConfirmedAt)}</td>

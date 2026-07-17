@@ -197,6 +197,7 @@ export function UserPortalLayout() {
 
   function primaryActive(item) {
     if (item.to === PORTAL_HOME) return pathname === PORTAL_HOME
+    if (item.to === '/portal/profile') return pathname === '/portal/profile'
     if (item.section === 'buyer') return inBuyer
     if (item.section === 'seller') return inSeller
     if (item.to === '/pricing') return false
@@ -323,7 +324,7 @@ export function UserPortalLayout() {
                 </span>
               ) : null}
             </NavLink>
-            <div className="userChip">
+            <Link to="/portal/profile" className="userChip" style={{ textDecoration: 'none', color: 'inherit' }}>
               <span className="userChip__avatar" aria-hidden>
                 {initials}
               </span>
@@ -331,7 +332,7 @@ export function UserPortalLayout() {
                 <span className="userChip__name">{user?.companyName || 'Account'}</span>
                 <span className="userChip__role">{user?.email || user?.role || ''}</span>
               </div>
-            </div>
+            </Link>
           </div>
         </header>
 

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { SellerWorkflowChrome } from '../../layouts/SellerWorkflowChrome.jsx'
 import { createProduct } from '../../services/product.service.js'
@@ -14,6 +14,7 @@ const INITIAL = {
   brand: '',
   uom: 'MT',
   price: '',
+  moq: '1',
   currency: 'INR',
   delivery: '',
   availableStocks: '',
@@ -151,6 +152,11 @@ export function AddNewProduct() {
       setError('Available stocks must be a whole number of 0 or more')
       return
     }
+    const moqNum = form.moq === '' ? 1 : Number(form.moq)
+    if (!Number.isInteger(moqNum) || moqNum < 1) {
+      setError('MOQ must be a whole number of 1 or more')
+      return
+    }
 
     const categoryLabel = selectedCategoryNode?.label ?? form.category
     const subcatLabel = subcategoryOptions.find((n) => n.id === form.subcategory)?.label ?? form.subcategory
@@ -171,13 +177,13 @@ export function AddNewProduct() {
         name: form.name.trim(),
         description,
         price: priceNum,
-        moq: 1,
+        moq: moqNum,
         currency: form.currency || 'INR',
         isActive: true,
         trackInventory: stockNum > 0,
         stockQty: stockNum,
       }, imageFiles)
-      toast.success('Product listed successfully')
+      toast.success('Product published — now live in the catalog')
       navigate('/seller/products')
     } catch (err) {
       setError(err.message || 'Failed to create product')
@@ -197,7 +203,7 @@ export function AddNewProduct() {
     <SellerWorkflowChrome
       fullWidth
       title="Add new product"
-      subtitle="Create a wholesale listing with SKU, category, and commercial terms. Buyers see this in search and the catalog."
+      subtitle="Create a wholesale listing with SKU, category, and commercial terms. Publishing makes it immediately visible to buyers — no admin approval required."
       activeStepId="add"
       prevTo="/seller/dashboard"
       prevLabel="Back to dashboard"
@@ -213,7 +219,7 @@ export function AddNewProduct() {
                 Required fields mirror a typical B2B catalog.
               </p>
             </div>
-            <span className="b2bBadge b2bBadge--amber">Draft</span>
+            <span className="b2bBadge b2bBadge--green">Live on publish</span>
           </div>
           <div className="b2bCard__bd">
             <form className="b2bForm" onSubmit={onSubmit}>
@@ -258,6 +264,13 @@ export function AddNewProduct() {
                       </option>
                     ))}
                   </select>
+                  <p className="panelSub" style={{ margin: '6px 0 0', fontSize: 13 }}>
+                    Category missing?{' '}
+                    <Link to="/seller/category-request" style={{ color: 'var(--brand)', fontWeight: 600 }}>
+                      Request a new category
+                    </Link>
+                    {' '}— admin will review; approved categories appear here immediately.
+                  </p>
                 </div>
                 <div>
                   <label className="b2bLabel" htmlFor="subcategory">Subcategory</label>
@@ -349,6 +362,23 @@ export function AddNewProduct() {
                     required
                   />
                 </div>
+                <div>
+                  <label className="b2bLabel" htmlFor="moq">Minimum order quantity (MOQ)</label>
+                  <input
+                    id="moq"
+                    type="number"
+                    className="b2bInput"
+                    placeholder="e.g. 10"
+                    min={1}
+                    step={1}
+                    value={form.moq}
+                    onChange={(e) => updateField('moq', e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="b2bFormRow2">
                 <div>
                   <label className="b2bLabel" htmlFor="currency">Currency</label>
                   <select
@@ -532,8 +562,8 @@ export function AddNewProduct() {
                 color: 'var(--text)',
               }}
             >
-              <strong style={{ color: 'var(--text-h)' }}>Tip:</strong> After
-              publishing you can see, edit or delete the product under{' '}
+              <strong style={{ color: 'var(--text-h)' }}>Tip:</strong> Publishing goes live immediately in the catalog and marketplace search. After
+              publishing you can activate, deactivate, edit, or delete the product under{' '}
               <em>List products</em>.
             </div>
           </div>

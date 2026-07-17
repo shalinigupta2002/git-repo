@@ -10,10 +10,8 @@ RUN npm ci
 
 COPY . .
 
-# VITE_API_BASE_URL is left empty intentionally: in the container stack nginx
-# proxies /api/* to the backend service, so the browser uses the same origin.
-# Override this build arg if your deployment routes API calls to a different domain.
-ARG VITE_API_BASE_URL=""
+# Same-origin API when nginx proxies /api to the backend container.
+ARG VITE_API_BASE_URL="/api"
 ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
 
 RUN npm run build

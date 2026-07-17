@@ -15,6 +15,10 @@ const attachmentItem = z.object({
   sizeBytes: z.coerce.number().int().min(0).optional().nullable(),
 })
 
+const productEntry = z.object({
+  productId: z.string().uuid(),
+})
+
 const respondQuoteBody = z.object({
   sellerUnitPrice: z.coerce.number().positive().max(1e12),
   sellerCurrency:  z.string().trim().length(3).optional().default('INR'),
@@ -26,12 +30,17 @@ const respondQuoteBody = z.object({
 
 const listRequestsQuery = z.object({
   viewAs: z.enum(['buyer', 'seller']).optional(),
+  page: z.coerce.number().int().min(1).optional(),
+  limit: z.coerce.number().int().min(1).max(100).optional(),
+  status: z.enum(['all', 'PENDING', 'RESPONDED', 'ACCEPTED', 'DECLINED', 'NOT_SELECTED', 'CANCELLED']).optional(),
+  q: z.string().trim().max(200).optional(),
+  expired: z.coerce.boolean().optional(),
 })
 
 const groupedListQuery = z.object({
   page: z.coerce.number().int().min(1).optional(),
   limit: z.coerce.number().int().min(1).max(100).optional(),
-  status: z.enum(['all', 'PENDING', 'RESPONDED', 'ACCEPTED', 'DECLINED']).optional(),
+  status: z.enum(['all', 'PENDING', 'RESPONDED', 'ACCEPTED', 'DECLINED', 'NOT_SELECTED', 'CANCELLED']).optional(),
   q: z.string().trim().max(200).optional(),
   expired: z.coerce.boolean().optional(),
 })
@@ -40,10 +49,22 @@ const statsQuery = z.object({
   viewAs: z.enum(['buyer', 'seller']).optional(),
 })
 
+const notificationsQuery = z.object({
+  since: z.string().trim().optional(),
+  unreadOnly: z.coerce.boolean().optional(),
+  limit: z.coerce.number().int().min(1).max(100).optional(),
+})
+
+const markNotificationsReadBody = z.object({
+  ids: z.array(z.string().uuid()).optional(),
+  markAll: z.coerce.boolean().optional(),
+})
+
 const createQuoteRequestBody = z.object({
   productTitle: z.string().trim().min(1).max(300),
   productId: z.string().uuid().optional(),
   productIds: z.array(z.string().uuid()).optional(),
+  productEntries: z.array(productEntry).min(1).max(50).optional(),
   catalogProductId: z.string().max(64).optional(),
   sellerId: z.string().uuid().optional(),
   sellerIds: z.array(z.string().uuid()).min(1).max(50).optional(),
@@ -52,10 +73,10 @@ const createQuoteRequestBody = z.object({
   quantity: z.coerce.number().int().min(1).max(100000).optional().default(1),
   /** Optional indicative budget only — non-binding, informational for sellers. */
   targetPrice: z.coerce.number().positive().max(1e12).optional().nullable(),
-  message: z.string().trim().max(1000).optional().nullable(),
+  message: z.string().trim().min(1).max(1000),
   deliveryLocation: z.string().trim().min(1).max(500),
   expectedDeliveryDate: z.string().trim().min(1),
-  attachments: z.array(attachmentItem).max(10).optional().nullable(),
+  attachments: z.array(attachmentItem).max(5).optional().nullable(),
 }).superRefine((data, ctx) => {
   if (Array.isArray(data.productIds) && data.productIds.length > 1) {
     ctx.addIssue({
@@ -73,5 +94,7 @@ module.exports = {
   listRequestsQuery,
   groupedListQuery,
   statsQuery,
+  notificationsQuery,
+  markNotificationsReadBody,
   createQuoteRequestBody,
 }

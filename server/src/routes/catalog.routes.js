@@ -11,6 +11,9 @@ const catalogController = require('../controllers/catalogController.js')
 
 const router = Router()
 
+// GET /api/catalog/products/:id/alternative-sellers
+router.get('/products/:id/alternative-sellers', catalogController.listAlternativeSellers)
+
 // GET /api/catalog/products/:id
 router.get('/products/:id', catalogController.getProduct)
 

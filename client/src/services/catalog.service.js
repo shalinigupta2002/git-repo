@@ -56,6 +56,21 @@ export async function fetchCatalogProducts({
   }
 }
 
+/** Fetch alternative seller listings for multi-seller RFQ. */
+export async function fetchAlternativeSellerListings(productId, { limit = 12, signal } = {}) {
+  try {
+    const { data } = await api.get(
+      `/catalog/products/${encodeURIComponent(productId)}/alternative-sellers`,
+      { params: { limit }, signal },
+    )
+    if (!data?.success) throw new Error(data?.error?.message || 'Failed to load alternative sellers')
+    return Array.isArray(data.data?.products) ? data.data.products : []
+  } catch (e) {
+    if (isCanceledError(e)) throw e
+    throwFriendly(e, 'Failed to load alternative sellers')
+  }
+}
+
 /** Fetch one catalog product by id for the detail page. */
 export async function fetchCatalogProduct(id, { signal } = {}) {
   try {

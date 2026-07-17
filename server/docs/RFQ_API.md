@@ -206,6 +206,7 @@ Returns group detail plus `comparison[]` for side-by-side quotation review:
 | `responded` | Status RESPONDED |
 | `acceptedDeals` | Status ACCEPTED |
 | `rejected` | Status DECLINED |
+| `notSelected` | Status NOT_SELECTED (buyer accepted another seller in the group) |
 | `expired` | RESPONDED past `quoteValidUntil` |
 
 ---
@@ -220,9 +221,11 @@ Existing behaviour preserved:
 - Validates RESPONDED status and quote validity
 - Creates an `Order` via `createOrderFromQuote()` (deal tracking)
 
-**New behaviour:**
+**New behaviour (multi-seller RFQ group):**
 
-- Inside a DB transaction, all **other** rows in the same `rfqGroupId` with status `PENDING` or `RESPONDED` are set to `DECLINED` with `buyerRejectedAt`
+- Inside a DB transaction, all **other** rows in the same `rfqGroupId` with status `PENDING` or `RESPONDED` are set to **`NOT_SELECTED`** (not `DECLINED`)
+- Only one quotation per RFQ group can be accepted; a second accept returns **409**
+- Notifications: accepted seller, not-selected sellers, and buyer (polling feed)
 
 ### Response `200`
 
@@ -232,21 +235,29 @@ Existing behaviour preserved:
   "data": {
     "request": { /* accepted QuoteRequest */ },
     "order": { /* created Order */ },
-    "declinedSiblingCount": 2
+    "notSelectedSiblingCount": 2
   }
 }
 ```
 
+Buyer-facing list/comparison payloads include `expired`, `buyerDisplayStatus`, and `actionsLocked` on non-winning quotations after acceptance.
+
 ---
 
-## Other existing routes (unchanged)
+## Other routes
 
 | Method | Path | Role |
 |--------|------|------|
 | `GET` | `/:id` | Buyer or seller party |
-| `PATCH` | `/:id/respond` | Seller — submit quotation |
+| `PATCH` | `/:id/respond` | Seller — submit or revise quotation |
 | `PATCH` | `/:id/reject` | Buyer — reject one quotation |
+| `PATCH` | `/:id/cancel` | Buyer — cancel pending per-seller RFQ |
 | `PATCH` | `/:id/seller-reject` | Seller — decline RFQ |
+| `GET` | `/groups` | Buyer — grouped RFQ list |
+| `GET` | `/groups/:rfqGroupId` | Buyer — quotation comparison |
+| `GET` | `/stats` | Buyer or seller stats |
+| `GET` | `/notifications` | Polling notification feed |
+| `PATCH` | `/notifications/read` | Mark notifications read |
 | `GET` | `/confirmed-buyers` | Seller — confirmed buyer list |
 
 ---
@@ -282,4 +293,4 @@ cd server
 npm test
 ```
 
-Result: **94 tests passed** (includes 7 new/updated RFQ tests).
+Result: **123 tests passed** (server Jest suite).

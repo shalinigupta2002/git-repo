@@ -1,65 +1,50 @@
 ## B2B Marketplace Frontend (Vite + React)
 
-This frontend is set up for a production-style B2B ecommerce UI:
-
-- **Routing**: React Router with **lazy-loaded** route chunks (`src/routes/AppRoutes.jsx`)
-- **API integration**: Axios client with `baseURL`, auth header injection, and 401 handling (`src/services/api.js`)
-- **Global state**: Redux Toolkit (`src/app/store.js`, `src/store/slices/authSlice.js`)
-- **Auth flow**: Login/Register pages with **Formik + Yup**, JWT persisted in localStorage (`src/pages/auth/*`, `src/lib/authStorage.js`)
-- **Role-based access**: Protected routes for `BUYER`, `SELLER`, `ADMIN` (`ProtectedRoute`, `RequireAdminAuth`)
-- **Toasts**: `react-hot-toast` globally configured (`src/app/providers.jsx`)
-- **Build optimization**: manual vendor chunks in `vite.config.js`
+Production B2B marketplace UI: React 19, React Router 7, Redux Toolkit, Axios, React Hook Form + Yup.
 
 ### Environment variables
 
-Create a `.env` in this folder (or use the example):
+Copy the example and adjust for your environment:
 
 ```bash
 cp .env.example .env
 ```
 
-Required:
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `VITE_API_BASE_URL` | Production builds | Full API URL (`https://host.onrender.com/api`) or `/api` for Docker/nginx proxy |
+| `VITE_API_URL` | No | Legacy alias for `VITE_API_BASE_URL` |
+| `VITE_BACKEND_URL` | Dev only | Vite dev-server proxy target (default `http://localhost:3001`) |
 
-- **`VITE_API_URL`**: backend base URL (must include `/api` if your server mounts routes under `/api`)
+**Local development** — no `.env` required; Vite proxies `/api` to `localhost:3001`.
 
-Example:
-
-```env
-VITE_API_URL=http://localhost:3001/api
-```
-
-### Run locally
+**Production build** — `client/.env.production` defaults to `http://localhost:3001/api`. Override in CI/Vercel/Docker:
 
 ```bash
-npm install
-npm run dev
+VITE_API_BASE_URL=https://your-api.onrender.com/api npm run build
 ```
 
-### Production build
+### Scripts
 
 ```bash
-npm run build
-npm run preview
+npm run dev          # Vite dev server (port 5173)
+npm run build        # Production bundle → dist/
+npm run preview      # Preview production build
+npm run test         # Vitest unit tests
+npm run test:e2e     # Playwright E2E
+npm run lint         # ESLint
 ```
 
-### Deployment notes
+### Architecture notes
 
-- Set `VITE_API_URL` in your deployment environment (Vercel/Netlify/etc).
-- Ensure your backend CORS allows the deployed frontend origin.
+- **Routing:** lazy-loaded routes in `src/router/AppRoutes.jsx`
+- **API:** all HTTP via `src/services/api.js` (cookie auth, `withCredentials: true`)
+- **Auth:** JWT in httpOnly cookie; Redux auth slice in `src/store/slices/authSlice.js`
+- **Protected routes:** `src/router/ProtectedRoute.jsx` (role, workspace, subscription guards)
 
-# React + Vite
+### Deployment
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+- **Vercel:** set `VITE_API_BASE_URL` to your Render API URL (must end with `/api`). Rebuild after changing env vars.
+- **Docker:** build with `VITE_API_BASE_URL=/api`; nginx proxies `/api` to the backend service.
 
-Currently, two official plugins are available:
-
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+Ensure backend CORS allows your frontend origin (`CLIENT_URL` on the server).

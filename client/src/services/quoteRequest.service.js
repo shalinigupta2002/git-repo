@@ -119,6 +119,36 @@ export async function rejectQuote(requestId) {
   }
 }
 
+export async function cancelQuoteRequest(requestId) {
+  try {
+    const { data } = await api.patch(`/quote-requests/${requestId}/cancel`)
+    if (!data?.success) throw new Error(data?.error?.message || 'Failed to cancel RFQ')
+    return data.data
+  } catch (e) {
+    throwFriendly(e, 'Failed to cancel RFQ')
+  }
+}
+
+export async function fetchRfqNotifications(params = {}) {
+  try {
+    const { data } = await api.get('/quote-requests/notifications', { params })
+    if (!data?.success) throw new Error(data?.error?.message || 'Failed to load notifications')
+    return data.data
+  } catch (e) {
+    throwFriendly(e, 'Failed to load notifications')
+  }
+}
+
+export async function markRfqNotificationsRead(payload = {}) {
+  try {
+    const { data } = await api.patch('/quote-requests/notifications/read', payload)
+    if (!data?.success) throw new Error(data?.error?.message || 'Failed to update notifications')
+    return data.data
+  } catch (e) {
+    throwFriendly(e, 'Failed to update notifications')
+  }
+}
+
 /** Seller: buyers who completed at least one accepted quotation. */
 export async function fetchConfirmedBuyers() {
   try {

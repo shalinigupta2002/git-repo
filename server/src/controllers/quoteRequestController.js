@@ -1,13 +1,27 @@
 const { Prisma } = require('@prisma/client')
-const crypto = require('crypto')
 const { prisma } = require('../config/database.js')
 const { asyncHandler } = require('../utils/asyncHandler.js')
 const { AppError } = require('../utils/AppError.js')
 const { hasActiveSubscription } = require('../middleware/requireSubscription.js')
 const { createOrderFromQuote } = require('../services/quoteOrderService.js')
-const { pickUserCity, mapMaskedParty, USER_PUBLIC_SELECT } = require('../services/sellerProfileService.js')
+const { createQuoteRequests } = require('../services/rfqCreateService.js')
+const {
+  assertTransition,
+  isRevisionTransition,
+  defaultQuoteValidUntil,
+  assertGroupOpenForSellerAction,
+  assertGroupOpenForBuyerAction,
+} = require('../services/rfqLifecycleService.js')
+const {
+  emitRfqNotification,
+  emitToMany,
+  RFQ_EVENT_TYPES,
+  buildNotificationSummary,
+} = require('../services/rfqNotificationService.js')
+const { recordQuoteRevision, listQuoteRevisions, serializeRevision } = require('../services/quoteRevisionService.js')
+const { pickUserCity, mapMaskedParty, USER_PUBLIC_SELECT, buildPartyMetaFromRequest } = require('../services/sellerProfileService.js')
+const { serializeCounterpartyUser } = require('../services/counterpartyProfileService.js')
 const { serializeOrder } = require('../utils/serialize.js')
-const { allocateRfqNumber } = require('../services/rfqNumberService.js')
 const {
   displayRfqRef,
   listGroupedFromRows,
@@ -15,6 +29,9 @@ const {
   buildComparisonGroup,
   computeBuyerStats,
   computeSellerStats,
+  filterSellerRows,
+  paginate,
+  isBuyerQuotationExpired,
 } = require('../services/quoteGroupService.js')
 const { buildRfqAttachments, UPLOAD_DIR } = require('../middleware/rfqUpload.js')
 const { sanitizeDisplayFilename } = require('../utils/rfqFileValidation.js')
@@ -93,38 +110,87 @@ async function assertSellersExist(sellerIds) {
   }
 }
 
-function withPartyMeta(request) {
+const PRE_DEAL_PRIVACY = { dealAccepted: false, dealChargesPaid: false }
+
+function pickQuotePublicFields(request) {
   return {
+    id: request.id,
     rfqGroupId: request.rfqGroupId,
     rfqNumber: request.rfqNumber,
-    sellerId: request.sellerId,
-    sellerCity: pickUserCity(request.seller),
-    buyerId: request.buyerId,
-    buyerCity: pickUserCity(request.buyer),
-    deliveryLocation: request.deliveryLocation,
-    expectedDeliveryDate: request.expectedDeliveryDate,
-    attachments: request.attachments ?? [],
+    catalogProductId: request.catalogProductId,
+    productId: request.productId,
+    productTitle: request.productTitle,
+    productCategory: request.productCategory,
+    brandName: request.brandName,
+    quantity: request.quantity,
+    targetPrice: request.targetPrice,
+    message: request.message,
+    status: request.status,
+    sellerUnitPrice: request.sellerUnitPrice,
+    sellerCurrency: request.sellerCurrency,
+    taxNote: request.taxNote,
+    quoteValidUntil: request.quoteValidUntil,
+    freightNote: request.freightNote,
+    exclusionsNote: request.exclusionsNote,
+    sellerRespondedAt: request.sellerRespondedAt,
+    sellerAcceptedAt: request.sellerAcceptedAt,
+    buyerAcceptedAt: request.buyerAcceptedAt,
+    buyerRejectedAt: request.buyerRejectedAt,
+    buyerCancelledAt: request.buyerCancelledAt,
+    revisionCount: request.revisionCount ?? 0,
+    orderId: request.orderId,
+    createdAt: request.createdAt,
+    updatedAt: request.updatedAt,
+    product: request.product,
+    order: request.order,
+  }
+}
+
+function withPartyMeta(request) {
+  const meta = buildPartyMetaFromRequest(request, PRE_DEAL_PRIVACY)
+  return {
+    rfqGroupId: meta.rfqGroupId,
+    rfqNumber: meta.rfqNumber,
+    buyerMarketplaceId: meta.buyerMarketplaceId,
+    buyerCity: meta.buyerCity,
+    sellerMarketplaceId: meta.sellerMarketplaceId,
+    sellerCity: meta.sellerCity,
+    deliveryLocation: meta.deliveryLocation,
+    expectedDeliveryDate: meta.expectedDeliveryDate,
+    attachments: meta.attachments ?? [],
   }
 }
 
 function sanitizeQuoteRequestForSeller(request, hasFullAccess) {
+  const meta = buildPartyMetaFromRequest(request, PRE_DEAL_PRIVACY)
   return {
-    ...request,
+    ...pickQuotePublicFields(request),
     ...withPartyMeta(request),
     rfqRef: rfqRef(request),
     locked: !hasFullAccess,
-    seller: mapMaskedParty(request.seller),
-    buyer: mapMaskedParty(request.buyer),
+    buyer: meta.buyer,
+    seller: meta.seller,
   }
 }
 
 function sanitizeQuoteRequestForBuyer(request) {
+  const meta = buildPartyMetaFromRequest(request, PRE_DEAL_PRIVACY)
+  const expired = isBuyerQuotationExpired(request)
+  const actionsLocked = expired
+    || request.status === 'NOT_SELECTED'
+    || request.status === 'ACCEPTED'
+    || request.status === 'DECLINED'
+    || request.status === 'CANCELLED'
+
   return {
-    ...request,
+    ...pickQuotePublicFields(request),
     ...withPartyMeta(request),
     rfqRef: rfqRef(request),
-    seller: mapMaskedParty(request.seller),
-    buyer: mapMaskedParty(request.buyer),
+    seller: meta.seller,
+    buyer: meta.buyer,
+    expired,
+    buyerDisplayStatus: request.status === 'NOT_SELECTED' ? 'EXPIRED' : request.status,
+    actionsLocked,
   }
 }
 
@@ -167,7 +233,7 @@ function maskQuoteRequestSummaryForBuyer(request) {
     sellerUnitPrice: request.status === 'RESPONDED' || request.status === 'ACCEPTED'
       ? request.sellerUnitPrice
       : null,
-    seller: mapMaskedParty(request.seller),
+    seller: mapMaskedParty(request.seller, 'SELLER', PRE_DEAL_PRIVACY),
   }
 }
 
@@ -238,6 +304,15 @@ async function resolveQuoteListView(user, viewAs) {
   return 'buyer'
 }
 
+function attachRevisions(request, revisions) {
+  const base = request
+  if (!revisions?.length) return base
+  return {
+    ...base,
+    revisions: revisions.map(serializeRevision),
+  }
+}
+
 const createRequest = asyncHandler(async (req, res) => {
   if (req.user.role !== 'ADMIN' && !(await userHasBuyerWorkspace(req.user))) {
     return res.status(403).json({
@@ -259,6 +334,14 @@ const createRequest = asyncHandler(async (req, res) => {
     return res.status(400).json({
       success: false,
       error: { message: 'productTitle is required' },
+    })
+  }
+
+  const message = cleanText(req.body.message, 1000)
+  if (!message) {
+    return res.status(400).json({
+      success: false,
+      error: { message: 'message is required' },
     })
   }
 
@@ -284,32 +367,6 @@ const createRequest = asyncHandler(async (req, res) => {
   }
 
   const attachments = parseAttachments(req.body.attachments)
-  let productId = cleanText(req.body.productId, 64)
-  let product = null
-
-  if (req.body.productId) {
-    product = await prisma.product.findUnique({
-      where: { id: String(req.body.productId) },
-      select: { id: true, sellerId: true, name: true, isActive: true },
-    })
-    if (!product || !product.isActive) {
-      return res.status(404).json({
-        success: false,
-        error: { message: 'Product not found' },
-      })
-    }
-    productId = product.id
-  }
-
-  const sellerIds = await resolveSellerIds(req.body, product)
-  if (!sellerIds.length) {
-    return res.status(400).json({
-      success: false,
-      error: { message: 'At least one sellerId or sellerIds entry is required' },
-    })
-  }
-
-  await assertSellersExist(sellerIds)
 
   if (Array.isArray(req.body.productIds) && req.body.productIds.length > 1) {
     throw new AppError(
@@ -319,54 +376,15 @@ const createRequest = asyncHandler(async (req, res) => {
     )
   }
 
-  const rfqGroupId = crypto.randomUUID()
-  const sharedData = {
-    rfqGroupId,
+  const { rfqGroupId, rfqNumber, rows: createdRows } = await createQuoteRequests({
     buyerId: req.user.id,
-    productId,
-    catalogProductId: cleanText(req.body.catalogProductId, 64),
-    productTitle,
-    productCategory: cleanText(req.body.productCategory, 200),
-    brandName: cleanText(req.body.brandName, 200),
-    quantity: safeQuantity,
-    targetPrice,
-    message: cleanText(req.body.message, 1000),
-    deliveryLocation,
-    expectedDeliveryDate,
+    body: req.body,
     attachments,
-  }
-
-  let createdRows
-  try {
-    createdRows = await prisma.$transaction(async (tx) => {
-      const rfqNumber = await allocateRfqNumber(tx)
-      await tx.rfqGroup.create({
-        data: {
-          id: rfqGroupId,
-          rfqNumber,
-          buyerId: req.user.id,
-        },
-      })
-      const rows = []
-      for (const sellerId of sellerIds) {
-        const row = await tx.quoteRequest.create({
-          data: { ...sharedData, sellerId, rfqNumber },
-          include: QUOTE_INCLUDE,
-        })
-        rows.push(row)
-      }
-      return rows
-    })
-  } catch (error) {
-    if (error?.code === 'P2002') {
-      const target = error?.meta?.target || []
-      if (target.includes('rfq_number') || target.includes('rfqNumber')) {
-        throw new AppError('RFQ number conflict. Please retry.', 409, 'RFQ_NUMBER_CONFLICT')
-      }
-      throw new AppError('Duplicate seller in the same RFQ group is not allowed.', 409, 'DUPLICATE_SELLER')
-    }
-    throw error
-  }
+    expectedDeliveryDate,
+    targetPrice,
+    quantity: safeQuantity,
+    productTitle,
+  })
 
   const requests = createdRows.map(sanitizeQuoteRequestForBuyer)
 
@@ -375,7 +393,7 @@ const createRequest = asyncHandler(async (req, res) => {
     data: {
       group: {
         rfqGroupId,
-        rfqNumber: createdRows[0]?.rfqNumber,
+        rfqNumber,
         rfqRef: rfqRef(createdRows[0]),
         requests,
       },
@@ -416,27 +434,31 @@ const listRequests = asyncHandler(async (req, res) => {
       ? {}
       : { sellerId: req.user.id }
 
-  const requests = await prisma.quoteRequest.findMany({
+  const allRows = await prisma.quoteRequest.findMany({
     where,
     include: QUOTE_INCLUDE,
     orderBy: { createdAt: 'desc' },
-    take: 100,
+    take: 2000,
   })
 
   const hasFullAccess =
     req.user.role === 'ADMIN' ||
     await hasActiveSubscription(req.user.id, 'SELLER')
 
+  const filtered = filterSellerRows(allRows, req.query)
+  const paged = paginate(filtered, req.query.page, req.query.limit)
+
   const visibleRequests = hasFullAccess
-    ? requests.map((request) => sanitizeQuoteRequestForSeller(request, true))
-    : requests.map(maskQuoteRequestSummary)
+    ? paged.items.map((request) => sanitizeQuoteRequestForSeller(request, true))
+    : paged.items.map(maskQuoteRequestSummary)
 
   res.json({
     success: true,
     data: {
       hasFullAccess,
       requests: visibleRequests,
-      total: visibleRequests.length,
+      pagination: paged.pagination,
+      total: paged.pagination.total,
     },
   })
 })
@@ -461,14 +483,16 @@ const getById = asyncHandler(async (req, res) => {
   if (isBuyerParty) {
     const hasFullAccess =
       req.user.role === 'ADMIN' || await hasActiveSubscription(req.user.id, 'BUYER')
+    const revisions = await listQuoteRevisions(prisma, request.id)
+    const sanitized = hasFullAccess
+      ? attachRevisions(sanitizeQuoteRequestForBuyer(request), revisions)
+      : maskQuoteRequestSummaryForBuyer(request)
 
     return res.json({
       success: true,
       data: {
         hasFullAccess,
-        request: hasFullAccess
-          ? sanitizeQuoteRequestForBuyer(request)
-          : maskQuoteRequestSummaryForBuyer(request),
+        request: sanitized,
       },
     })
   }
@@ -476,12 +500,16 @@ const getById = asyncHandler(async (req, res) => {
   const hasFullAccess =
     req.user.role === 'ADMIN' ||
     await hasActiveSubscription(req.user.id, 'SELLER')
+  const revisions = await listQuoteRevisions(prisma, request.id)
 
   res.json({
     success: true,
     data: {
       hasFullAccess,
-      request: sanitizeQuoteRequestForSeller(request, hasFullAccess),
+      request: attachRevisions(
+        sanitizeQuoteRequestForSeller(request, hasFullAccess),
+        revisions,
+      ),
     },
   })
 })
@@ -496,35 +524,68 @@ const respond = asyncHandler(async (req, res) => {
   }
 
   const existing = await assertSellerCanAccess(req.params.id, req.user)
+  const nextStatus = 'RESPONDED'
+  assertTransition(existing.status, nextStatus, req.user.role)
 
-  if (existing.status === 'ACCEPTED' || existing.status === 'DECLINED') {
-    throw new AppError('This quote request is already closed', 409, 'CONFLICT')
-  }
-
-  const validUntil = req.body.quoteValidUntil ? new Date(req.body.quoteValidUntil) : null
-  if (validUntil && Number.isNaN(validUntil.getTime())) {
+  let validUntil = req.body.quoteValidUntil ? new Date(req.body.quoteValidUntil) : defaultQuoteValidUntil()
+  if (req.body.quoteValidUntil && Number.isNaN(validUntil.getTime())) {
     throw new AppError('quoteValidUntil must be a valid date', 400, 'VALIDATION_ERROR')
   }
 
-  const updated = await prisma.quoteRequest.update({
-    where: { id: existing.id },
-    data: {
-      sellerUnitPrice: new Prisma.Decimal(String(req.body.sellerUnitPrice)),
-      sellerCurrency: req.body.sellerCurrency || 'INR',
-      taxNote: cleanText(req.body.taxNote, 500),
-      quoteValidUntil: validUntil,
-      freightNote: cleanText(req.body.freightNote, 1000),
-      exclusionsNote: cleanText(req.body.exclusionsNote, 1000),
-      sellerRespondedAt: new Date(),
-      status: 'RESPONDED',
-    },
-    include: QUOTE_INCLUDE,
+  const quoteFields = {
+    sellerUnitPrice: new Prisma.Decimal(String(req.body.sellerUnitPrice)),
+    sellerCurrency: req.body.sellerCurrency || 'INR',
+    taxNote: cleanText(req.body.taxNote, 500),
+    quoteValidUntil: validUntil,
+    freightNote: cleanText(req.body.freightNote, 1000),
+    exclusionsNote: cleanText(req.body.exclusionsNote, 1000),
+  }
+
+  const updated = await prisma.$transaction(async (tx) => {
+    await assertGroupOpenForSellerAction(tx, existing)
+
+    const revision = await recordQuoteRevision(tx, existing.id, req.user.id, {
+      sellerUnitPrice: quoteFields.sellerUnitPrice,
+      sellerCurrency: quoteFields.sellerCurrency,
+      taxNote: quoteFields.taxNote,
+      quoteValidUntil: quoteFields.quoteValidUntil,
+      freightNote: quoteFields.freightNote,
+      exclusionsNote: quoteFields.exclusionsNote,
+    })
+
+    const row = await tx.quoteRequest.update({
+      where: { id: existing.id },
+      data: {
+        ...quoteFields,
+        sellerRespondedAt: new Date(),
+        status: nextStatus,
+      },
+      include: QUOTE_INCLUDE,
+    })
+
+    await emitRfqNotification(tx, {
+      recipientUserId: existing.buyerId,
+      eventType: isRevisionTransition(existing.status, nextStatus)
+        ? RFQ_EVENT_TYPES.QUOTE_REVISED
+        : RFQ_EVENT_TYPES.QUOTE_RECEIVED,
+      quoteRequestId: existing.id,
+      rfqGroupId: existing.rfqGroupId,
+      payload: {
+        rfqNumber: existing.rfqNumber,
+        productTitle: existing.productTitle,
+        revisionNumber: revision.revisionNumber,
+      },
+    })
+
+    return row
   })
+
+  const revisions = await listQuoteRevisions(prisma, updated.id)
 
   res.json({
     success: true,
     data: {
-      request: sanitizeQuoteRequestForSeller(updated, true),
+      request: attachRevisions(sanitizeQuoteRequestForSeller(updated, true), revisions),
     },
   })
 })
@@ -539,26 +600,30 @@ const sellerReject = asyncHandler(async (req, res) => {
   }
 
   const existing = await assertSellerCanAccess(req.params.id, req.user)
+  assertTransition(existing.status, 'DECLINED', req.user.role)
 
-  if (existing.status === 'ACCEPTED') {
-    throw new AppError('This quotation is already accepted', 409, 'CONFLICT')
-  }
+  const updated = await prisma.$transaction(async (tx) => {
+    const row = await tx.quoteRequest.update({
+      where: { id: existing.id },
+      data: {
+        status: 'DECLINED',
+        sellerRespondedAt: new Date(),
+      },
+      include: QUOTE_INCLUDE,
+    })
 
-  if (existing.status === 'DECLINED') {
-    throw new AppError('This quotation is already declined', 409, 'CONFLICT')
-  }
+    await emitRfqNotification(tx, {
+      recipientUserId: existing.buyerId,
+      eventType: RFQ_EVENT_TYPES.QUOTE_DECLINED,
+      quoteRequestId: existing.id,
+      rfqGroupId: existing.rfqGroupId,
+      payload: {
+        rfqNumber: existing.rfqNumber,
+        productTitle: existing.productTitle,
+      },
+    })
 
-  if (existing.status !== 'PENDING') {
-    throw new AppError('Only pending RFQs can be declined', 400, 'NOT_PENDING')
-  }
-
-  const updated = await prisma.quoteRequest.update({
-    where: { id: existing.id },
-    data: {
-      status: 'DECLINED',
-      sellerRespondedAt: new Date(),
-    },
-    include: QUOTE_INCLUDE,
+    return row
   })
 
   res.json({
@@ -579,18 +644,7 @@ const buyerAccept = asyncHandler(async (req, res) => {
   }
 
   const existing = await assertBuyerCanAccess(req.params.id, req.user)
-
-  if (existing.status === 'ACCEPTED') {
-    throw new AppError('This quote is already accepted', 409, 'CONFLICT')
-  }
-
-  if (existing.status === 'DECLINED') {
-    throw new AppError('This quote was declined', 409, 'CONFLICT')
-  }
-
-  if (existing.status !== 'RESPONDED') {
-    throw new AppError('Seller must respond with a price before you can accept', 400, 'NOT_RESPONDED')
-  }
+  assertTransition(existing.status, 'ACCEPTED', req.user.role)
 
   if (!existing.sellerUnitPrice) {
     throw new AppError('Seller has not provided a unit price', 400, 'NO_QUOTE_PRICE')
@@ -636,9 +690,9 @@ const buyerAccept = asyncHandler(async (req, res) => {
       include: QUOTE_INCLUDE,
     })
 
-    let declinedSiblingCount = 0
+    let notSelectedSiblingCount = 0
     if (locked.rfqGroupId) {
-      const declined = await tx.quoteRequest.updateMany({
+      const notSelected = await tx.quoteRequest.updateMany({
         where: {
           rfqGroupId: locked.rfqGroupId,
           buyerId: locked.buyerId,
@@ -646,22 +700,68 @@ const buyerAccept = asyncHandler(async (req, res) => {
           status: { in: ['PENDING', 'RESPONDED'] },
         },
         data: {
-          status: 'DECLINED',
-          buyerRejectedAt: new Date(),
+          status: 'NOT_SELECTED',
         },
       })
-      declinedSiblingCount = declined.count
+      notSelectedSiblingCount = notSelected.count
+
+      const notSelectedRows = await tx.quoteRequest.findMany({
+        where: {
+          rfqGroupId: locked.rfqGroupId,
+          buyerId: locked.buyerId,
+          status: 'NOT_SELECTED',
+          id: { not: locked.id },
+        },
+        select: { id: true, sellerId: true },
+      })
+
+      await emitToMany(tx, notSelectedRows.map((row) => row.sellerId), {
+        eventType: RFQ_EVENT_TYPES.QUOTE_NOT_SELECTED,
+        quoteRequestId: null,
+        rfqGroupId: locked.rfqGroupId,
+        payload: {
+          message: 'Quotation not selected.',
+          rfqNumber: locked.rfqNumber,
+          productTitle: locked.productTitle,
+        },
+      })
     }
 
-    return { order, request: updated, declinedSiblingCount }
-  })
+    await emitRfqNotification(tx, {
+      recipientUserId: locked.sellerId,
+      eventType: RFQ_EVENT_TYPES.QUOTE_ACCEPTED,
+      quoteRequestId: updated.id,
+      rfqGroupId: locked.rfqGroupId,
+      payload: {
+        message: 'Your quotation has been accepted.',
+        rfqNumber: locked.rfqNumber,
+        productTitle: locked.productTitle,
+        orderId: order.id,
+      },
+    })
+
+    await emitRfqNotification(tx, {
+      recipientUserId: locked.buyerId,
+      eventType: RFQ_EVENT_TYPES.BUYER_QUOTATION_ACCEPTED,
+      quoteRequestId: updated.id,
+      rfqGroupId: locked.rfqGroupId,
+      payload: {
+        message: 'Quotation accepted successfully.',
+        rfqNumber: locked.rfqNumber,
+        productTitle: locked.productTitle,
+        orderId: order.id,
+      },
+    })
+
+    return { order, request: updated, notSelectedSiblingCount }
+  }, { timeout: 15_000 })
 
   res.json({
     success: true,
     data: {
       request: sanitizeQuoteRequestForBuyer(result.request),
       order: serializeOrder(result.order),
-      declinedSiblingCount: result.declinedSiblingCount,
+      notSelectedSiblingCount: result.notSelectedSiblingCount,
     },
   })
 })
@@ -676,26 +776,32 @@ const buyerReject = asyncHandler(async (req, res) => {
   }
 
   const existing = await assertBuyerCanAccess(req.params.id, req.user)
+  assertTransition(existing.status, 'DECLINED', req.user.role)
 
-  if (existing.status === 'ACCEPTED') {
-    throw new AppError('This quote is already accepted', 409, 'CONFLICT')
-  }
+  const updated = await prisma.$transaction(async (tx) => {
+    await assertGroupOpenForBuyerAction(tx, existing)
 
-  if (existing.status === 'DECLINED') {
-    throw new AppError('This quote is already declined', 409, 'CONFLICT')
-  }
+    const row = await tx.quoteRequest.update({
+      where: { id: existing.id },
+      data: {
+        status: 'DECLINED',
+        buyerRejectedAt: new Date(),
+      },
+      include: QUOTE_INCLUDE,
+    })
 
-  if (existing.status !== 'RESPONDED') {
-    throw new AppError('Only responded quotes can be rejected', 400, 'NOT_RESPONDED')
-  }
+    await emitRfqNotification(tx, {
+      recipientUserId: existing.sellerId,
+      eventType: RFQ_EVENT_TYPES.QUOTE_REJECTED_BY_BUYER,
+      quoteRequestId: existing.id,
+      rfqGroupId: existing.rfqGroupId,
+      payload: {
+        rfqNumber: existing.rfqNumber,
+        productTitle: existing.productTitle,
+      },
+    })
 
-  const updated = await prisma.quoteRequest.update({
-    where: { id: existing.id },
-    data: {
-      status: 'DECLINED',
-      buyerRejectedAt: new Date(),
-    },
-    include: QUOTE_INCLUDE,
+    return row
   })
 
   res.json({
@@ -703,6 +809,118 @@ const buyerReject = asyncHandler(async (req, res) => {
     data: {
       request: sanitizeQuoteRequestForBuyer(updated),
     },
+  })
+})
+
+const buyerCancel = asyncHandler(async (req, res) => {
+  if (req.user.role !== 'ADMIN' && !(await hasActiveSubscription(req.user.id, 'BUYER'))) {
+    throw new AppError(
+      'An active Buyer subscription is required to cancel RFQs.',
+      403,
+      'SUBSCRIPTION_REQUIRED',
+    )
+  }
+
+  const existing = await assertBuyerCanAccess(req.params.id, req.user)
+  assertTransition(existing.status, 'CANCELLED', req.user.role)
+
+  const updated = await prisma.$transaction(async (tx) => {
+    await assertGroupOpenForBuyerAction(tx, existing)
+
+    const row = await tx.quoteRequest.update({
+      where: { id: existing.id },
+      data: {
+        status: 'CANCELLED',
+        buyerCancelledAt: new Date(),
+      },
+      include: QUOTE_INCLUDE,
+    })
+
+    if (existing.sellerId) {
+      await emitRfqNotification(tx, {
+        recipientUserId: existing.sellerId,
+        eventType: RFQ_EVENT_TYPES.RFQ_CANCELLED,
+        quoteRequestId: existing.id,
+        rfqGroupId: existing.rfqGroupId,
+        payload: {
+          rfqNumber: existing.rfqNumber,
+          productTitle: existing.productTitle,
+        },
+      })
+    }
+
+    return row
+  })
+
+  res.json({
+    success: true,
+    data: {
+      request: sanitizeQuoteRequestForBuyer(updated),
+    },
+  })
+})
+
+const listNotifications = asyncHandler(async (req, res) => {
+  const limit = Math.min(Math.max(Number.parseInt(String(req.query.limit), 10) || 20, 1), 100)
+  const since = req.query.since ? new Date(req.query.since) : null
+  if (req.query.since && Number.isNaN(since.getTime())) {
+    throw new AppError('since must be a valid ISO date', 400, 'VALIDATION_ERROR')
+  }
+
+  const where = {
+    recipientUserId: req.user.id,
+    ...(req.query.unreadOnly ? { readAt: null } : {}),
+    ...(since ? { createdAt: { gt: since } } : {}),
+  }
+
+  const [events, unreadCount] = await Promise.all([
+    prisma.rfqNotificationEvent.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+    }),
+    prisma.rfqNotificationEvent.count({
+      where: { recipientUserId: req.user.id, readAt: null },
+    }),
+  ])
+
+  res.json({
+    success: true,
+    data: {
+      notifications: events.map(buildNotificationSummary),
+      unreadCount,
+    },
+  })
+})
+
+const markNotificationsRead = asyncHandler(async (req, res) => {
+  const now = new Date()
+  const where = { recipientUserId: req.user.id, readAt: null }
+
+  if (req.body.markAll) {
+    const result = await prisma.rfqNotificationEvent.updateMany({
+      where,
+      data: { readAt: now },
+    })
+    return res.json({
+      success: true,
+      data: { marked: result.count },
+    })
+  }
+
+  const ids = Array.isArray(req.body.ids) ? req.body.ids : []
+  if (!ids.length) {
+    throw new AppError('ids or markAll is required', 400, 'VALIDATION_ERROR')
+  }
+
+  const result = await prisma.rfqNotificationEvent.updateMany({
+    where: { ...where, id: { in: ids } },
+    data: { readAt: now },
+  })
+
+  res.json({
+    success: true,
+    data: { marked: result.count },
   })
 })
 
@@ -738,18 +956,20 @@ const listConfirmedBuyers = asyncHandler(async (req, res) => {
 
   const byBuyer = new Map()
   for (const request of accepted) {
-    const buyerId = request.buyerId
-    if (!byBuyer.has(buyerId)) {
-      byBuyer.set(buyerId, {
-        buyerId,
-        buyerCity: pickUserCity(request.buyer),
+    const buyerKey = request.buyerId
+    const buyerParty = serializeCounterpartyUser(request.buyer, 'BUYER', PRE_DEAL_PRIVACY)
+    if (!byBuyer.has(buyerKey)) {
+      byBuyer.set(buyerKey, {
+        buyerMarketplaceId: buyerParty?.marketplaceId ?? null,
+        buyerCity: buyerParty?.city ?? null,
+        buyer: buyerParty,
         confirmedDeals: 0,
         lastConfirmedAt: null,
-        rfqs90d: rfqCountByBuyer.get(buyerId) ?? 0,
+        rfqs90d: rfqCountByBuyer.get(buyerKey) ?? 0,
       })
     }
 
-    const row = byBuyer.get(buyerId)
+    const row = byBuyer.get(buyerKey)
     row.confirmedDeals += 1
     const confirmedAt = request.buyerAcceptedAt || request.updatedAt
     if (!row.lastConfirmedAt || confirmedAt > row.lastConfirmedAt) {
@@ -970,5 +1190,8 @@ module.exports = {
   sellerReject,
   buyerAccept,
   buyerReject,
+  buyerCancel,
+  listNotifications,
+  markNotificationsRead,
   listConfirmedBuyers,
 }

@@ -15,13 +15,14 @@ import {
   QUOTE_STATUS_LABELS,
   formatQuotationDate,
   formatQuoteMoney,
+  getQuoteStatusDisplay,
+  isBuyerQuotationActionable,
   isQuoteExpired,
 } from '../../utils/quotationHelpers.js'
 import { RfqAttachmentsList } from './RfqAttachmentsList.jsx'
 
-function StatusBadge({ status, expired = false }) {
-  const label = expired && status === 'RESPONDED' ? 'Expired' : (QUOTE_STATUS_LABELS[status] || status)
-  const badge = expired && status === 'RESPONDED' ? 'b2bBadge--grey' : (QUOTE_STATUS_BADGE[status] || 'b2bBadge--grey')
+function StatusBadge({ status, expired = false, mode = 'buyer' }) {
+  const { label, badge } = getQuoteStatusDisplay(status, { expired, mode })
   return <span className={`b2bBadge ${badge}`}>{label}</span>
 }
 
@@ -177,16 +178,20 @@ export function RfqComparisonView({ basePath = '/buyer/quotations' }) {
             {comparison.map((row) => {
               const quotationId = row.quotationId || row.id
               const status = row.status
-              const expired = row.expired || (
+              const expired = row.expired || row.buyerDisplayStatus === 'EXPIRED' || (
                 status === 'RESPONDED' && (
                   (row.validity && new Date() > new Date(row.validity))
                   || isQuoteExpired({ quoteValidUntil: row.validity || row.quoteValidUntil })
                 )
-              )
-              const canAct = hasFullAccess && status === 'RESPONDED' && !expired
+              ) || status === 'NOT_SELECTED'
+              const canAct = hasFullAccess
+                && status === 'RESPONDED'
+                && !expired
+                && !row.actionsLocked
+                && isBuyerQuotationActionable({ status, expired, actionsLocked: row.actionsLocked })
               return (
                 <tr key={quotationId}>
-                  <td><code>{row.sellerId || '—'}</code></td>
+                  <td><code>{row.sellerMarketplaceId || row.seller?.marketplaceId || '—'}</code></td>
                   <td>{row.sellerCity || '—'}</td>
                   <td>{formatQuoteMoney(row.finalUnitPrice || row.sellerUnitPrice, row.currency || row.sellerCurrency || 'INR')}</td>
                   <td>{row.deliveryTime || row.freightNote || '—'}</td>

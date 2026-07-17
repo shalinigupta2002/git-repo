@@ -3,7 +3,7 @@ import { TEST_USERS } from './test-users.js'
 
 /**
  * Sign in through the UI and wait for post-login navigation.
- * Requires a running API with seeded demo users (see server/prisma/seed.js).
+ * Default credentials are PREMIUM_AUTOMATION users (subscribed) from server/prisma/seed.js.
  */
 export async function loginViaUi(page, { email, password } = TEST_USERS.buyer) {
   await page.goto('/login')

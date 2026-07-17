@@ -1,7 +1,7 @@
 const { Router } = require('express')
 const productController = require('../controllers/productController.js')
 const { authenticate, optionalAuth } = require('../middleware/authenticate.js')
-const { authorizeWorkspace } = require('../middleware/requireSubscription.js')
+const { authorizeWorkspace, requireSubscription } = require('../middleware/requireSubscription.js')
 const { productUploadMiddleware } = require('../middleware/productUpload.js')
 const { validate } = require('../middleware/validate.js')
 const {
@@ -29,11 +29,12 @@ router.get(
   productController.getById,
 )
 
-// Creating a product is free — sellers can list without a subscription.
+// Publishing a new listing requires an active seller subscription.
 router.post(
   '/',
   authenticate,
   authorizeWorkspace('SELLER'),
+  requireSubscription('SELLER'),
   productUploadMiddleware,
   validate(createProductBody),
   productController.create,

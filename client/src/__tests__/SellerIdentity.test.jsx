@@ -3,15 +3,15 @@ import { render, screen } from '@testing-library/react'
 import { SellerIdentity } from '../components/common/SellerIdentity.jsx'
 
 describe('SellerIdentity', () => {
-  it('renders seller id and city only', () => {
+  it('renders seller marketplace id and city only', () => {
     render(
       <SellerIdentity
-        seller={{ id: 'seller-uuid-123', city: 'Mumbai' }}
+        seller={{ marketplaceId: 'SEL-DEMO-000001', city: 'Mumbai' }}
       />,
     )
 
     expect(screen.getByText('Seller ID')).toBeInTheDocument()
-    expect(screen.getByText('seller-uuid-123')).toBeInTheDocument()
+    expect(screen.getByText('SEL-DEMO-000001')).toBeInTheDocument()
     expect(screen.getByText('City')).toBeInTheDocument()
     expect(screen.getByText('Mumbai')).toBeInTheDocument()
   })
@@ -19,7 +19,7 @@ describe('SellerIdentity', () => {
   it('compact mode shows id and city labels', () => {
     render(
       <SellerIdentity
-        seller={{ id: 'abc', city: 'Delhi' }}
+        seller={{ marketplaceId: 'SEL-DEMO-000002', city: 'Delhi' }}
         compact
         showLabel
       />,
@@ -28,5 +28,6 @@ describe('SellerIdentity', () => {
     expect(screen.getByText(/Seller ID:/)).toBeInTheDocument()
     expect(screen.getByText(/City:/)).toBeInTheDocument()
     expect(screen.getByText('Delhi')).toBeInTheDocument()
+    expect(screen.getByText('SEL-DEMO-000002')).toBeInTheDocument()
   })
 })

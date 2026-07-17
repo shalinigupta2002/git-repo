@@ -6,15 +6,20 @@ const { PrismaClient } = require('@prisma/client')
 const {
   PASSWORDS,
   ADMIN,
-  BUYERS,
-  SELLERS,
-  LOGIN_EMAILS,
-  CATALOG,
+  MANUAL_ONBOARDING_USERS,
+  PREMIUM_AUTOMATION_BUYER,
+  PREMIUM_AUTOMATION_SELLER,
+  PREMIUM_AUTOMATION_USERS,
+  PREMIUM_QA_BUYER,
+  PREMIUM_QA_SELLER,
+  PREMIUM_QA_USERS,
   PLAN_AMOUNTS_PAISE,
+  shouldSeedQaUsers,
 } = require('./constants.js')
 const { runCleanup } = require('./cleanup.js')
 const { upsertUsers, upsertAddresses } = require('./users.js')
 const { seedMasterCatalog } = require('./catalog.js')
+const { seedPremiumSubscriptions, seedAutomationSellerProducts } = require('./premium.js')
 
 const prisma = new PrismaClient()
 
@@ -75,78 +80,177 @@ async function countRows() {
   }
 }
 
-async function verifyBootstrap(users) {
-  const checks = []
-
-  const admin = users[ADMIN.email]
-  if (admin && await bcrypt.compare(PASSWORDS.admin, admin.passwordHash)) {
-    checks.push({ name: 'Admin login', ok: true })
-  } else {
-    checks.push({ name: 'Admin login', ok: false })
+async function refreshUsers(users) {
+  const refreshed = await prisma.user.findMany({
+    where: { email: { in: Object.keys(users) } },
+  })
+  for (const u of refreshed) {
+    users[u.email] = u
   }
+}
 
-  for (const spec of [...BUYERS, ...SELLERS]) {
+function marketplaceIdFor(user, role) {
+  return role === 'BUYER' ? user.buyerMarketplaceId : user.sellerMarketplaceId
+}
+
+async function verifyManualOnboarding(users, checks) {
+  for (const spec of MANUAL_ONBOARDING_USERS) {
     const u = users[spec.email]
-    const ok = u && await bcrypt.compare(spec.password, u.passwordHash)
-    checks.push({ name: `${spec.email} login`, ok: Boolean(ok) })
+    checks.push({
+      name: `${spec.email} login`,
+      ok: Boolean(u && await bcrypt.compare(spec.password, u.passwordHash)),
+    })
+    checks.push({
+      name: `${spec.email} no marketplace ID`,
+      ok: !u?.buyerMarketplaceId && !u?.sellerMarketplaceId,
+    })
     const subs = await prisma.subscription.count({
       where: { userId: u?.id, status: 'ACTIVE' },
     })
+    checks.push({ name: `${spec.email} no subscription`, ok: subs === 0 })
+  }
+}
+
+async function verifyPremiumGroup(users, groupSpecs, checks, { expectProducts = false, productCountRange } = {}) {
+  for (const spec of groupSpecs) {
+    const u = users[spec.email]
     checks.push({
-      name: `${spec.email} no subscription`,
-      ok: subs === 0,
+      name: `${spec.email} login`,
+      ok: Boolean(u && await bcrypt.compare(spec.password, u.passwordHash)),
     })
+    checks.push({
+      name: `${spec.email} marketplace ID ${spec.memberId}`,
+      ok: marketplaceIdFor(u, spec.role) === spec.memberId,
+    })
+    checks.push({
+      name: `${spec.email} companyName is clean`,
+      ok: u?.companyName === spec.companyName,
+    })
+    const sub = await prisma.subscription.findFirst({
+      where: { userId: u?.id, status: 'ACTIVE' },
+    })
+    checks.push({
+      name: `${spec.email} ACTIVE subscription`,
+      ok: Boolean(sub),
+    })
+    const addr = await prisma.address.findFirst({
+      where: { userId: u?.id, isDefault: true },
+    })
+    checks.push({
+      name: `${spec.email} city ${spec.address.city}`,
+      ok: addr?.city === spec.address.city,
+    })
+
+    if (spec.role === 'SELLER') {
+      const productCount = await prisma.product.count({ where: { sellerId: u?.id } })
+      if (expectProducts && productCountRange) {
+        checks.push({
+          name: `${spec.email} product count (${productCountRange.min}–${productCountRange.max})`,
+          ok: productCount >= productCountRange.min && productCount <= productCountRange.max,
+        })
+      } else {
+        checks.push({
+          name: `${spec.email} no products`,
+          ok: productCount === 0,
+        })
+      }
+    }
+  }
+}
+
+async function verifyBootstrap(users) {
+  const checks = []
+  const seedQa = shouldSeedQaUsers()
+
+  const admin = users[ADMIN.email]
+  checks.push({
+    name: 'Admin login',
+    ok: Boolean(admin && await bcrypt.compare(PASSWORDS.admin, admin.passwordHash)),
+  })
+
+  await verifyManualOnboarding(users, checks)
+
+  if (seedQa) {
+    await verifyPremiumGroup(users, PREMIUM_AUTOMATION_USERS, checks, {
+      expectProducts: true,
+      productCountRange: { min: 8, max: 10 },
+    })
+    await verifyPremiumGroup(users, PREMIUM_QA_USERS, checks)
   }
 
   const empty = await countRows()
-  checks.push({ name: 'No seller products', ok: empty.products === 0 })
   checks.push({ name: 'No orders/deals', ok: empty.orders === 0 })
-  checks.push({ name: 'No RFQs', ok: empty.rfqGroups === 0 && empty.quoteRequests === 0 })
-  checks.push({ name: 'No payments', ok: empty.payments === 0 })
+  checks.push({ name: 'No RFQs/quotes', ok: empty.rfqGroups === 0 && empty.quoteRequests === 0 })
   checks.push({ name: 'No catalog browse products', ok: Number(empty.catalog.products) === 0 })
 
-  return checks
+  if (seedQa) {
+    checks.push({
+      name: 'Premium subscriptions only (4)',
+      ok: empty.subscriptions === 4 && empty.payments === 4,
+    })
+    checks.push({
+      name: 'Automation seller products only (8–10 total)',
+      ok: empty.products >= 8 && empty.products <= 10,
+    })
+  } else {
+    checks.push({
+      name: 'Production: no subscriptions or products',
+      ok: empty.subscriptions === 0 && empty.payments === 0 && empty.products === 0,
+    })
+  }
+
+  return { checks, counts: empty, seedQa }
 }
 
-function printReport(legacyRemoved, catalogStats, counts, checks) {
+function printReport(legacyRemoved, catalogStats, counts, verification) {
+  const { checks, seedQa } = verification
+  const userTotal = seedQa ? 15 : 11
+
   console.log('')
   console.log('=== Production bootstrap report ===')
   console.log('')
-  console.log('Removed demo entities (this run):')
-  console.log('  • All products, inventory logs')
-  console.log('  • All RFQ groups, quote requests, RFQ counters')
-  console.log('  • All orders, order items, order history')
-  console.log('  • All subscriptions, payments')
-  console.log('  • All contact messages, category requests, audit logs')
-  console.log('  • All catalog.products (browse demo SKUs)')
-  if (legacyRemoved.removed) {
-    console.log(`  • Legacy demo users removed: ${legacyRemoved.emails.join(', ')}`)
+  console.log(`Users (${userTotal} total):`)
+  console.log(`  Admin:                    ${ADMIN.email}`)
+  console.log('  MANUAL_ONBOARDING:        buyer1–5@test.com, seller1–5@test.com (no subscription, no ID)')
+  if (seedQa) {
+    console.log(`  PREMIUM_AUTOMATION buyer: ${PREMIUM_AUTOMATION_BUYER.email} (${PREMIUM_AUTOMATION_BUYER.memberId})`)
+    console.log(`  PREMIUM_AUTOMATION seller:${PREMIUM_AUTOMATION_SELLER.email} (${PREMIUM_AUTOMATION_SELLER.memberId}, 10 products)`)
+    console.log(`  PREMIUM_QA buyer:         ${PREMIUM_QA_BUYER.email} (${PREMIUM_QA_BUYER.memberId}, fresh account)`)
+    console.log(`  PREMIUM_QA seller:        ${PREMIUM_QA_SELLER.email} (${PREMIUM_QA_SELLER.memberId}, fresh account)`)
   } else {
-    console.log('  • No legacy demo users found')
+    console.log('  PREMIUM_* groups:         skipped (NODE_ENV=production, set SEED_QA=true to include)')
   }
   console.log('')
-  console.log('Remaining seed data counts:')
-  console.log(`  users:                 ${counts.users}`)
-  console.log(`  addresses:             ${counts.addresses}`)
-  console.log(`  subscriptions:         ${counts.subscriptions}`)
-  console.log(`  payments:              ${counts.payments}`)
-  console.log(`  seller products:       ${counts.products}`)
-  console.log(`  orders:                ${counts.orders}`)
-  console.log(`  rfq_groups:            ${counts.rfqGroups}`)
-  console.log(`  quote_requests:        ${counts.quoteRequests}`)
-  console.log(`  contact_messages:      ${counts.contactMessages}`)
-  console.log(`  category_requests:     ${counts.categoryRequests}`)
-  console.log(`  catalog top categories:${counts.catalog.top_categories ?? catalogStats.topCategories}`)
-  console.log(`  catalog subcategories: ${counts.catalog.subcategories ?? catalogStats.subcategories}`)
-  console.log(`  catalog brands:        ${counts.catalog.brands ?? catalogStats.brands}`)
-  console.log(`  catalog products:      ${counts.catalog.products ?? catalogStats.products}`)
+  if (legacyRemoved.removed) {
+    console.log(`Legacy demo users removed: ${legacyRemoved.emails.join(', ')}`)
+  }
+  if (legacyRemoved.premiumRemoved) {
+    console.log(`Premium QA users removed: ${legacyRemoved.premiumEmails.join(', ')}`)
+  }
+  console.log('')
+  console.log('Row counts:')
+  console.log(`  users:              ${counts.users}`)
+  console.log(`  addresses:          ${counts.addresses}`)
+  console.log(`  subscriptions:      ${counts.subscriptions}`)
+  console.log(`  payments:           ${counts.payments}`)
+  console.log(`  seller products:    ${counts.products}`)
+  console.log(`  orders:             ${counts.orders}`)
+  console.log(`  rfq_groups:         ${counts.rfqGroups}`)
+  console.log(`  quote_requests:     ${counts.quoteRequests}`)
+  console.log(`  catalog categories: ${counts.catalog.top_categories ?? catalogStats.topCategories} top / ${counts.catalog.subcategories ?? catalogStats.subcategories} sub`)
+  console.log(`  catalog brands:     ${counts.catalog.brands ?? catalogStats.brands}`)
   console.log('')
   console.log('=== Login credentials ===')
-  console.log(`  Admin:   ${ADMIN.email} / ${PASSWORDS.admin}`)
-  console.log('  Buyers:  buyer1@test.com … buyer5@test.com / Buyer@123')
-  console.log('  Sellers: seller1@test.com … seller5@test.com / Seller@123')
+  console.log(`  Admin:              ${ADMIN.email} / ${PASSWORDS.admin}`)
+  console.log('  Onboarding flow:    buyer1–5@test.com, seller1–5@test.com / Buyer@123, Seller@123')
+  if (seedQa) {
+    console.log(`  Playwright / CI:    ${PREMIUM_AUTOMATION_BUYER.email} / ${PASSWORDS.buyer}`)
+    console.log(`                      ${PREMIUM_AUTOMATION_SELLER.email} / ${PASSWORDS.seller}`)
+    console.log(`  Manual QA (fresh):  ${PREMIUM_QA_BUYER.email} / ${PASSWORDS.buyer}`)
+    console.log(`                      ${PREMIUM_QA_SELLER.email} / ${PASSWORDS.seller}`)
+  }
   console.log('')
-  console.log('Subscription plans (code config — server/src/config/subscriptionPlans.js):')
+  console.log('Subscription plans (code — server/src/config/subscriptionPlans.js):')
   Object.entries(PLAN_AMOUNTS_PAISE).forEach(([plan, paise]) => {
     console.log(`  ${plan}: ₹${(paise / 100).toLocaleString('en-IN')}`)
   })
@@ -157,37 +261,49 @@ function printReport(legacyRemoved, catalogStats, counts, checks) {
   }
   console.log('')
   console.log('Notes:')
-  console.log(`  • KYC / verified flags not in schema — profile = companyName + address`)
-  console.log(`  • No BUY-/SEL- member IDs until subscription is purchased`)
-  console.log(`  • Marketplace is empty — ready for manual subscription & listing tests`)
-  console.log(`  • Master taxonomy: ${CATALOG.length} top-level categories`)
+  console.log('  • Marketplace IDs live in buyer_marketplace_id / seller_marketplace_id columns')
+  console.log('  • MANUAL_ONBOARDING users test subscription purchase and onboarding flows')
+  if (seedQa) {
+    console.log('  • PREMIUM_AUTOMATION: Playwright/CI with seller catalog, no RFQs/orders')
+    console.log('  • PREMIUM_QA: subscribed fresh accounts for daily manual workflow testing')
+  }
 }
 
 async function main() {
-  console.log('[bootstrap] Production marketplace bootstrap (login accounts + master data only)')
+  const seedQa = shouldSeedQaUsers()
+  console.log(`[bootstrap] Production bootstrap${seedQa ? ' + QA testing groups' : ' (QA groups skipped)'}`)
 
   const legacyRemoved = await runCleanup(prisma)
-  console.log('[bootstrap] Transactional demo data purged')
+  console.log('[bootstrap] Transactional data purged')
 
   const users = await upsertUsers(prisma)
-  console.log('[bootstrap] Login accounts upserted (11 users)')
+  console.log(`[bootstrap] Login accounts upserted (${Object.keys(users).length} users)`)
 
   await upsertAddresses(prisma, users)
-  console.log('[bootstrap] Addresses upserted (10 non-admin users)')
+  console.log('[bootstrap] Addresses upserted')
+
+  if (seedQa) {
+    await seedPremiumSubscriptions(prisma, users)
+    console.log('[bootstrap] Premium subscriptions upserted (automation + QA)')
+
+    const automationProducts = await seedAutomationSellerProducts(prisma, users)
+    console.log(`[bootstrap] Automation seller products upserted (${automationProducts.length})`)
+
+    await refreshUsers(users)
+  }
 
   const catalogStats = await seedMasterCatalog(prisma)
-  console.log('[bootstrap] Master catalog taxonomy upserted (categories + brands)')
+  console.log('[bootstrap] Master catalog taxonomy upserted')
 
-  const counts = await countRows()
-  const checks = await verifyBootstrap(users)
-  printReport(legacyRemoved, catalogStats, counts, checks)
+  const verification = await verifyBootstrap(users)
+  printReport(legacyRemoved, catalogStats, verification.counts, verification)
 
-  const failed = checks.filter((c) => !c.ok)
+  const failed = verification.checks.filter((c) => !c.ok)
   if (failed.length) {
     console.error(`[bootstrap] Verification failed: ${failed.length} check(s)`)
     process.exitCode = 1
   } else {
-    console.log('[bootstrap] Done — idempotent, marketplace clean')
+    console.log('[bootstrap] Done — idempotent')
   }
 }
 

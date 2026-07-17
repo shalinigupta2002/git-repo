@@ -4,6 +4,7 @@ const { asyncHandler } = require('../utils/asyncHandler.js')
 const { hashPassword, comparePassword } = require('../utils/password.js')
 const { signToken } = require('../utils/jwt.js')
 const { COOKIE_NAME, authCookieOptions, clearAuthCookieOptions } = require('../config/cookies.js')
+const { serializeUser, USER_SELECT } = require('../utils/serializeUser.js')
 
 /** Mint a JWT and write it as an httpOnly cookie. */
 function setAuthCookie(res, payload) {
@@ -28,27 +29,21 @@ const register = asyncHandler(async (req, res) => {
       role,
       companyName: companyName || null,
     },
-    select: {
-      id: true,
-      email: true,
-      role: true,
-      companyName: true,
-      createdAt: true,
-    },
+    select: USER_SELECT,
   })
 
   setAuthCookie(res, { sub: user.id, email: user.email, role: user.role })
 
   res.status(201).json({
     success: true,
-    data: { user },
+    data: { user: serializeUser(user) },
   })
 })
 
 const login = asyncHandler(async (req, res) => {
   const { email, password } = req.body
 
-  const user = await prisma.user.findUnique({ where: { email } })
+  const user = await prisma.user.findUnique({ where: { email }, select: { ...USER_SELECT, passwordHash: true } })
   if (!user) {
     throw new AppError('Invalid email or password', 401, 'INVALID_CREDENTIALS')
   }
@@ -58,26 +53,20 @@ const login = asyncHandler(async (req, res) => {
     throw new AppError('Invalid email or password', 401, 'INVALID_CREDENTIALS')
   }
 
-  const safeUser = {
-    id: user.id,
-    email: user.email,
-    role: user.role,
-    companyName: user.companyName,
-    createdAt: user.createdAt,
-  }
+  const { passwordHash: _ignored, ...safeUser } = user
 
   setAuthCookie(res, { sub: user.id, email: user.email, role: user.role })
 
   res.json({
     success: true,
-    data: { user: safeUser },
+    data: { user: serializeUser(safeUser) },
   })
 })
 
 const me = asyncHandler(async (req, res) => {
   res.json({
     success: true,
-    data: { user: req.user },
+    data: { user: serializeUser(req.user) },
   })
 })
 
@@ -92,4 +81,3 @@ const logout = asyncHandler(async (req, res) => {
 })
 
 module.exports = { register, login, me, logout }
-

@@ -11,6 +11,7 @@ export const SELLER_DASHBOARD_PATH = '/seller/dashboard'
 /** Top-level portal sidebar (always visible when signed in). */
 export const PORTAL_PRIMARY_NAV = Object.freeze([
   { to: PORTAL_HOME, label: 'Home', end: true },
+  { to: '/portal/profile', label: 'Profile', end: true },
   { to: BUYER_DASHBOARD_PATH, label: 'Buyer Dashboard', section: 'buyer', roles: ['BUYER'] },
   { to: SELLER_DASHBOARD_PATH, label: 'Seller Dashboard', section: 'seller', roles: ['SELLER'] },
   { to: '/pricing', label: 'Plans and Pricing', external: true },

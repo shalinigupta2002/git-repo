@@ -87,6 +87,21 @@ const mockPrisma = {
   rfqNumberCounter: {
     upsert: jest.fn(),
   },
+  quoteRevision: {
+    count: jest.fn(),
+    create: jest.fn(),
+    findMany: jest.fn(),
+  },
+  rfqNotificationEvent: {
+    create: jest.fn(),
+    findMany: jest.fn(),
+    count: jest.fn(),
+    updateMany: jest.fn(),
+  },
+  marketplaceIdCounter: {
+    findUnique: jest.fn(),
+    upsert: jest.fn(),
+  },
   $queryRaw: jest.fn(),
   address: {
     findMany:   jest.fn(),

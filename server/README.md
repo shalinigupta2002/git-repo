@@ -74,106 +74,44 @@ Validation failures (`code: VALIDATION_ERROR`) include Zod `details` in developm
 
 ---
 
-## Catalog module (`/api/v1/products`)
+## Catalog module (`/api/catalog`)
 
-A second, self-contained products module backed by **raw PostgreSQL** (`pg`) that powers
-the storefront catalog with infinite-scroll, full-text search and category/brand filters.
-It lives in its own PostgreSQL schema (`catalog`) so it does not collide with the Prisma
-tables in `public`.
-
-### Tables
-
-All tables are created under the `catalog` schema.
-
-| Table | Columns | Notes |
-|-------|---------|-------|
-| `catalog.categories` | `id SERIAL PK`, `name TEXT`, `slug TEXT UNIQUE`, `created_at TIMESTAMPTZ` | Category taxonomy |
-| `catalog.brands`     | `id SERIAL PK`, `name TEXT UNIQUE`, `slug TEXT UNIQUE`, `created_at TIMESTAMPTZ` | Brand lookup |
-| `catalog.products`   | `id BIGSERIAL PK`, `title TEXT`, `description TEXT`, `price NUMERIC(12,2)`, `image_url TEXT`, `category_id INT FK`, `brand_id INT FK`, `created_at TIMESTAMPTZ` | Indexed on `(created_at DESC, id DESC)` for cursor pagination, plus FKs |
+Browse-only reference catalog backed by **raw PostgreSQL** (`pg`) in the `catalog` schema. Mounted at `/api/catalog` (see `server/src/routes/catalog.routes.js`).
 
 ### Setup
 
 ```bash
-# run migrations only
 npm run catalog:migrate
-
-# run migrations + insert ~26 sample products across 7 categories and 10 brands
-npm run catalog:seed
+npm run catalog:seed   # optional sample data
 ```
 
-Uses the same `DATABASE_URL` as Prisma.
+### Endpoints
 
-### Endpoint
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/catalog/products` | Cursor-paginated product list (`q`, `category`, `brand`, `cursor`, `limit`) |
+| `GET` | `/api/catalog/products/:id` | Product detail |
+| `GET` | `/api/catalog/products/:id/alternative-sellers` | Multi-seller listings for RFQ |
+| `GET` | `/api/catalog/categories` | Category list |
+| `GET` | `/api/catalog/brands` | Brand list |
 
-`GET /api/v1/products`
+### Example
 
-| Query param | Type | Description |
-|-------------|------|-------------|
-| `q`         | string | Search keyword (case-insensitive, matches `title` and `description`) |
-| `category`  | string | Category **slug** (e.g. `mobiles`, `laptops`) |
-| `brand`     | string | Brand slug **or** name, case-insensitive (e.g. `apple`, `Samsung`) |
-| `cursor`    | string | Opaque cursor returned by a previous call. Omit for page 1. |
-| `limit`     | number | Items per page. Default `10`, max `50`. |
+```bash
+curl "http://localhost:3001/api/catalog/products?limit=10"
+curl "http://localhost:3001/api/catalog/products?category=laptops"
+```
 
-All filters can be combined. Results are sorted by latest `created_at DESC, id DESC`.
-
-### Response format
+Response shape:
 
 ```json
 {
   "success": true,
-  "data": [
-    {
-      "id": "1",
-      "title": "iPhone 15 Pro",
-      "description": "Apple flagship smartphone…",
-      "price": 129900,
-      "imageUrl": "https://…",
-      "createdAt": "2026-04-20T10:27:00.000Z",
-      "category": { "slug": "mobiles", "name": "Mobiles" },
-      "brand":    { "slug": "apple",   "name": "Apple" }
-    }
-  ],
-  "nextCursor": "MjAyNi0wNC0yMFQxMDoyMjowMC4wMDBafDIw"
+  "data": {
+    "products": [ /* ... */ ],
+    "nextCursor": "opaque-cursor-or-null"
+  }
 }
-```
-
-When there are no more pages, `nextCursor` is `null`.
-
-### Cursor-based pagination logic
-
-- The cursor encodes the composite key `(created_at, id)` of the last row of the previous page as base64url.
-- On each call the service fetches `limit + 1` rows with
-  `WHERE (created_at, id) < ($cursorTs, $cursorId) ORDER BY created_at DESC, id DESC LIMIT $limit+1`.
-- If `limit + 1` rows come back, the last extra row is dropped and its predecessor
-  becomes `nextCursor`; otherwise `nextCursor` is `null`.
-- Using the `(created_at, id)` tuple ensures pagination is deterministic even when
-  multiple products share the same `created_at`.
-
-### Example requests
-
-```bash
-# 1) First page – latest 10 products
-curl "http://localhost:3001/api/v1/products"
-
-# 2) Custom page size
-curl "http://localhost:3001/api/v1/products?limit=5"
-
-# 3) Infinite scroll – use the returned nextCursor
-curl "http://localhost:3001/api/v1/products?limit=5&cursor=MjAyNi0wNC0yMFQxMDoxMjowMC4wMDBafDIy"
-
-# 4) Search (case-insensitive, matches title or description)
-curl "http://localhost:3001/api/v1/products?q=iphone"
-
-# 5) Category filter (by slug)
-curl "http://localhost:3001/api/v1/products?category=laptops"
-
-# 6) Brand filter (slug or name)
-curl "http://localhost:3001/api/v1/products?brand=samsung"
-curl "http://localhost:3001/api/v1/products?brand=Apple"
-
-# 7) Combine filters + pagination
-curl "http://localhost:3001/api/v1/products?q=pro&category=laptops&brand=apple&limit=5"
 ```
 
 ### Code layout
@@ -181,14 +119,11 @@ curl "http://localhost:3001/api/v1/products?q=pro&category=laptops&brand=apple&l
 ```
 server/src/
 ├── db/
-│   ├── pool.js                        # pg Pool (re-uses DATABASE_URL)
-│   ├── migrate.js                     # CLI: runs migrations (+ optional --seed)
-│   ├── migrations/001_catalog.sql     # catalog schema + indexes
-│   └── seeds/catalog_seed.sql         # sample data (~26 products)
-├── services/catalogProductService.js  # SQL + cursor encode/decode
-├── controllers/catalogProductController.js
-└── routes/
-    ├── catalogProduct.routes.js
-    └── v1.routes.js                   # mounted at /api/v1
+│   ├── pool.js
+│   ├── migrate.js
+│   └── migrations/001_catalog.sql
+├── services/catalogProductService.js
+├── controllers/catalogController.js
+└── routes/catalog.routes.js    # mounted at /api/catalog in app.js
 ```
 

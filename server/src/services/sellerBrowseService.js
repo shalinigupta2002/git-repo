@@ -107,7 +107,7 @@ function mapSellerProduct(product) {
       name: brandName,
     },
     source: 'seller',
-    seller: product.seller ? mapMaskedParty(product.seller) : null,
+    seller: product.seller ? mapMaskedParty(product.seller, 'SELLER', { dealAccepted: false, dealChargesPaid: false }) : null,
     stockQty: product.stockQty,
     moq: product.moq,
     currency: product.currency || 'INR',
@@ -162,8 +162,54 @@ async function getSellerProductById(id) {
   return mapSellerProduct(product)
 }
 
+/**
+ * Other active seller listings in the same category/brand (for multi-seller RFQ).
+ */
+async function findAlternativeSellerListings(productId, { limit = 12 } = {}) {
+  const source = await prisma.product.findUnique({
+    where: { id: String(productId), isActive: true },
+    select: { id: true, sellerId: true, name: true, description: true },
+  })
+  if (!source) return []
+
+  const meta = parseProductMeta(source.description)
+  const categoryName = meta.category?.split('>').map((part) => part.trim())[0] || null
+  const brandName = meta.brand || null
+
+  const rows = await prisma.product.findMany({
+    where: {
+      isActive: true,
+      id: { not: source.id },
+      sellerId: { not: source.sellerId },
+    },
+    include: { seller: { select: USER_PUBLIC_SELECT } },
+    orderBy: { createdAt: 'desc' },
+    take: 200,
+  })
+
+  const normalizedTitle = source.name.trim().toLowerCase()
+  const mapped = rows
+    .map(mapSellerProduct)
+    .filter((product) => {
+      const productMeta = parseProductMeta(product.description)
+      const productCategory = productMeta.category?.split('>').map((part) => part.trim())[0] || null
+      const productBrand = productMeta.brand || null
+      const titleMatch = product.title?.trim().toLowerCase() === normalizedTitle
+      const categoryMatch = categoryName && productCategory
+        ? productCategory.toLowerCase() === categoryName.toLowerCase()
+        : false
+      const brandMatch = brandName && productBrand
+        ? productBrand.toLowerCase() === brandName.toLowerCase()
+        : false
+      return titleMatch || (categoryMatch && brandMatch)
+    })
+
+  return mapped.slice(0, Math.min(Math.max(limit, 1), 50))
+}
+
 module.exports = {
   listSellerProducts,
   getSellerProductById,
+  findAlternativeSellerListings,
   parseProductMeta,
 }

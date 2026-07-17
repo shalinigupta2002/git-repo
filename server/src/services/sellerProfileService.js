@@ -1,31 +1,43 @@
-/** Prisma select for public seller/buyer profile fields including default city. */
+const {
+  serializeCounterpartyUser,
+  buildPartyMetaFromRequest,
+  pickUserCity,
+} = require('./counterpartyProfileService.js')
+
+/** Prisma select for counterparty resolution — includes marketplace IDs, not exposed raw. */
 const USER_PUBLIC_SELECT = {
   id: true,
   email: true,
   companyName: true,
+  buyerMarketplaceId: true,
+  sellerMarketplaceId: true,
   addresses: {
     orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
     take: 1,
-    select: { city: true },
+    select: {
+      city: true,
+      state: true,
+      line1: true,
+      line2: true,
+      postalCode: true,
+      phone: true,
+    },
   },
 }
 
-function pickUserCity(user) {
-  return user?.addresses?.[0]?.city ?? null
+/**
+ * Marketplace-safe party profile for counterparty views.
+ * @param {object} user Prisma user row
+ * @param {'BUYER'|'SELLER'} role
+ * @param {object} [context] Deal unlock context for future phases
+ */
+function mapMaskedParty(user, role = 'SELLER', context = {}) {
+  return serializeCounterpartyUser(user, role, context)
 }
 
-/** Marketplace-safe party profile: ID and city only (no contact or company). */
-function mapMaskedParty(user) {
-  if (!user) return null
-  return {
-    id: user.id,
-    city: pickUserCity(user),
-  }
-}
-
-/** @deprecated Prefer mapMaskedParty for marketplace API responses. */
-function mapPublicUser(user) {
-  return mapMaskedParty(user)
+/** @deprecated Prefer mapMaskedParty with explicit role. */
+function mapPublicUser(user, role = 'SELLER', context = {}) {
+  return mapMaskedParty(user, role, context)
 }
 
 module.exports = {
@@ -33,4 +45,5 @@ module.exports = {
   pickUserCity,
   mapMaskedParty,
   mapPublicUser,
+  buildPartyMetaFromRequest,
 }

@@ -1,12 +1,22 @@
 /**
  * Production bootstrap — login accounts + master catalog taxonomy only.
  * Subscription plans / pricing live in server/src/config/subscriptionPlans.js (not DB).
+ *
+ * QA testing groups (PREMIUM_AUTOMATION, PREMIUM_QA) are skipped when NODE_ENV=production
+ * unless SEED_QA=true.
  */
 
 const PASSWORDS = {
   admin: 'Admin@123',
   buyer: 'Buyer@123',
   seller: 'Seller@123',
+}
+
+function shouldSeedQaUsers() {
+  if (process.env.NODE_ENV === 'production' && process.env.SEED_QA !== 'true') {
+    return false
+  }
+  return true
 }
 
 const ADMIN = {
@@ -16,13 +26,14 @@ const ADMIN = {
   password: PASSWORDS.admin,
 }
 
+/** MANUAL_ONBOARDING_USERS — no subscription, no marketplace ID, fresh onboarding flow */
 const BUYERS = [
   { email: 'buyer1@test.com', companyName: 'Northwind Retail Pvt Ltd' },
   { email: 'buyer2@test.com', companyName: 'Contoso Imports India' },
   { email: 'buyer3@test.com', companyName: 'Fabrikam Distribution Co' },
   { email: 'buyer4@test.com', companyName: 'Apex Wholesale Buyers' },
   { email: 'buyer5@test.com', companyName: 'Summit Procurement Services' },
-].map((u) => ({ ...u, role: 'BUYER', password: PASSWORDS.buyer }))
+].map((u) => ({ ...u, role: 'BUYER', password: PASSWORDS.buyer, group: 'MANUAL_ONBOARDING' }))
 
 const SELLERS = [
   { email: 'seller1@test.com', companyName: 'Alpha Industrial Co.' },
@@ -30,10 +41,133 @@ const SELLERS = [
   { email: 'seller3@test.com', companyName: 'Gamma Wholesale Ltd.' },
   { email: 'seller4@test.com', companyName: 'Delta Home & Lifestyle' },
   { email: 'seller5@test.com', companyName: 'Echo Engineering Supplies' },
-].map((u) => ({ ...u, role: 'SELLER', password: PASSWORDS.seller }))
+].map((u) => ({ ...u, role: 'SELLER', password: PASSWORDS.seller, group: 'MANUAL_ONBOARDING' }))
+
+const MANUAL_ONBOARDING_USERS = [...BUYERS, ...SELLERS]
+const MANUAL_ONBOARDING_EMAILS = MANUAL_ONBOARDING_USERS.map((u) => u.email)
+
+/** PREMIUM_AUTOMATION_USERS — Playwright, CI, regression (subscribed + seller catalog) */
+const PREMIUM_AUTOMATION_BUYER = {
+  email: 'buyer.premium1@test.com',
+  role: 'BUYER',
+  password: PASSWORDS.buyer,
+  group: 'PREMIUM_AUTOMATION',
+  memberId: 'BUY-DEMO-000001',
+  companyName: 'Premium Automation Buyer',
+  address: {
+    label: 'Head Office',
+    line1: '12, Automation Trade Centre',
+    line2: 'Park Street Area',
+    city: 'Kolkata',
+    state: 'West Bengal',
+    postalCode: '700001',
+    phone: '9876510001',
+  },
+}
+
+const PREMIUM_AUTOMATION_SELLER = {
+  email: 'seller.premium1@test.com',
+  role: 'SELLER',
+  password: PASSWORDS.seller,
+  group: 'PREMIUM_AUTOMATION',
+  memberId: 'SEL-DEMO-000001',
+  companyName: 'Premium Automation Seller',
+  address: {
+    label: 'Warehouse',
+    line1: '45, Automation Industrial Hub',
+    line2: 'Peenya Phase 2',
+    city: 'Bengaluru',
+    state: 'Karnataka',
+    postalCode: '560001',
+    phone: '9876510002',
+  },
+}
+
+const PREMIUM_AUTOMATION_USERS = [PREMIUM_AUTOMATION_BUYER, PREMIUM_AUTOMATION_SELLER]
+
+/** PREMIUM_QA_USERS — manual QA from scratch (subscribed, no catalog / transactions) */
+const PREMIUM_QA_BUYER = {
+  email: 'buyer.premium2@test.com',
+  role: 'BUYER',
+  password: PASSWORDS.buyer,
+  group: 'PREMIUM_QA',
+  memberId: 'BUY-DEMO-000002',
+  companyName: 'Premium QA Buyer',
+  address: {
+    label: 'Head Office',
+    line1: '88, QA Business Park',
+    line2: 'Connaught Place',
+    city: 'Delhi',
+    state: 'Delhi',
+    postalCode: '110001',
+    phone: '9876520001',
+  },
+}
+
+const PREMIUM_QA_SELLER = {
+  email: 'seller.premium2@test.com',
+  role: 'SELLER',
+  password: PASSWORDS.seller,
+  group: 'PREMIUM_QA',
+  memberId: 'SEL-DEMO-000002',
+  companyName: 'Premium QA Seller',
+  address: {
+    label: 'Warehouse',
+    line1: '19, QA Logistics Hub',
+    line2: 'Andheri East',
+    city: 'Mumbai',
+    state: 'Maharashtra',
+    postalCode: '400001',
+    phone: '9876520002',
+  },
+}
+
+const PREMIUM_QA_USERS = [PREMIUM_QA_BUYER, PREMIUM_QA_SELLER]
+
+const PREMIUM_USERS = [...PREMIUM_AUTOMATION_USERS, ...PREMIUM_QA_USERS]
+const PREMIUM_USER_EMAILS = PREMIUM_USERS.map((u) => u.email)
+
+const PREMIUM_SUBSCRIPTION_SPECS = [
+  {
+    email: PREMIUM_AUTOMATION_BUYER.email,
+    plan: 'BUYER_LIFETIME',
+    paymentKey: 'bootstrap_premium1_buyer_sub',
+  },
+  {
+    email: PREMIUM_AUTOMATION_SELLER.email,
+    plan: 'SELLER_LIFETIME',
+    paymentKey: 'bootstrap_premium1_seller_sub',
+  },
+  {
+    email: PREMIUM_QA_BUYER.email,
+    plan: 'BUYER_LIFETIME',
+    paymentKey: 'bootstrap_premium2_buyer_sub',
+  },
+  {
+    email: PREMIUM_QA_SELLER.email,
+    plan: 'SELLER_LIFETIME',
+    paymentKey: 'bootstrap_premium2_seller_sub',
+  },
+]
+
+function buildLoginUserSpecs() {
+  const specs = [ADMIN, ...MANUAL_ONBOARDING_USERS]
+  if (shouldSeedQaUsers()) {
+    specs.push(...PREMIUM_USERS)
+  }
+  return specs
+}
+
+const LOGIN_USER_SPECS = buildLoginUserSpecs()
+const LOGIN_EMAILS = LOGIN_USER_SPECS.map((u) => u.email)
+
+/** @deprecated use MANUAL_ONBOARDING_EMAILS */
+const MANUAL_TEST_EMAILS = MANUAL_ONBOARDING_EMAILS
 
 /** Accounts created by earlier demo seeds — removed on bootstrap re-run */
 const LEGACY_DEMO_EMAILS = [
+  'buyer.e2e@test.com',
+  'seller.e2e@test.com',
   'buyer.sub1@test.com',
   'buyer.sub2@test.com',
   'buyer.sub3@test.com',
@@ -51,10 +185,6 @@ const LEGACY_DEMO_EMAILS = [
   'gamma@seller.test',
   'delta@seller.test',
 ]
-
-const LOGIN_USER_SPECS = [ADMIN, ...BUYERS, ...SELLERS]
-
-const LOGIN_EMAILS = LOGIN_USER_SPECS.map((u) => u.email)
 
 /** Master catalog taxonomy (categories, subcategories, brands) — no demo products */
 const CATALOG = [
@@ -146,10 +276,23 @@ module.exports = {
   ADMIN,
   BUYERS,
   SELLERS,
+  MANUAL_ONBOARDING_USERS,
+  MANUAL_ONBOARDING_EMAILS,
+  MANUAL_TEST_EMAILS,
+  PREMIUM_AUTOMATION_BUYER,
+  PREMIUM_AUTOMATION_SELLER,
+  PREMIUM_AUTOMATION_USERS,
+  PREMIUM_QA_BUYER,
+  PREMIUM_QA_SELLER,
+  PREMIUM_QA_USERS,
+  PREMIUM_USERS,
+  PREMIUM_USER_EMAILS,
+  PREMIUM_SUBSCRIPTION_SPECS,
   LOGIN_USER_SPECS,
   LOGIN_EMAILS,
   LEGACY_DEMO_EMAILS,
   CATALOG,
   EXTRA_BRANDS,
   PLAN_AMOUNTS_PAISE,
+  shouldSeedQaUsers,
 }

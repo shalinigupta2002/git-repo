@@ -46,6 +46,15 @@ export const logoutUser = createAsyncThunk('auth/logoutUser', async () => {
   await authApi.logoutRequest()
 })
 
+export const refreshUser = createAsyncThunk('auth/refreshUser', async (_, { rejectWithValue }) => {
+  try {
+    const user = await authApi.fetchMeRequest()
+    return user ?? null
+  } catch (e) {
+    return rejectWithValue(e.message || 'Failed to refresh user')
+  }
+})
+
 const initialState = {
   user: null,
   status: 'idle',
@@ -131,6 +140,10 @@ const authSlice = createSlice({
         state.user = null
         state.error = null
         state.status = 'idle'
+      })
+
+      .addCase(refreshUser.fulfilled, (state, action) => {
+        if (action.payload) state.user = action.payload
       })
   },
 })

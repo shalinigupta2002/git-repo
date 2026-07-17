@@ -18,10 +18,14 @@ export const loadSubscriptionStatus = createAsyncThunk(
 const initialState = {
   hasSeller: false,
   hasBuyer: false,
-  sellerPlanType: null, // 'SELLER_MONTH' | 'SELLER_LIFETIME' | null
-  buyerPlanType: null,  // 'BUYER_STANDARD' | 'BUYER_LIFETIME' | null
+  sellerPlanType: null,
+  buyerPlanType: null,
+  buyerMarketplaceId: null,
+  sellerMarketplaceId: null,
+  buyerSubscription: null,
+  sellerSubscription: null,
   subscriptions: [],
-  status: 'idle', // idle | loading | succeeded | failed
+  status: 'idle',
   error: null,
 }
 
@@ -30,6 +34,10 @@ const resetSubscriptionState = (state) => {
   state.hasBuyer = false
   state.sellerPlanType = null
   state.buyerPlanType = null
+  state.buyerMarketplaceId = null
+  state.sellerMarketplaceId = null
+  state.buyerSubscription = null
+  state.sellerSubscription = null
   state.subscriptions = []
   state.status = 'idle'
   state.error = null
@@ -88,6 +96,10 @@ const subscriptionSlice = createSlice({
         state.status = 'succeeded'
         state.hasSeller = action.payload.hasSellerSubscription
         state.hasBuyer  = action.payload.hasBuyerSubscription
+        state.buyerMarketplaceId = action.payload.buyerMarketplaceId ?? null
+        state.sellerMarketplaceId = action.payload.sellerMarketplaceId ?? null
+        state.buyerSubscription = action.payload.buyerSubscription ?? null
+        state.sellerSubscription = action.payload.sellerSubscription ?? null
         state.subscriptions = action.payload.subscriptions || []
 
         // Derive specific plan types from the subscriptions array
@@ -141,4 +153,10 @@ export function selectSellerPlanType(state) {
 }
 export function selectBuyerPlanType(state) {
   return state.subscription.buyerPlanType
+}
+export function selectBuyerMarketplaceId(state) {
+  return state.subscription.buyerMarketplaceId ?? state.auth.user?.buyerMarketplaceId ?? null
+}
+export function selectSellerMarketplaceId(state) {
+  return state.subscription.sellerMarketplaceId ?? state.auth.user?.sellerMarketplaceId ?? null
 }

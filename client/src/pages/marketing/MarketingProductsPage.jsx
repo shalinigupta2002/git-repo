@@ -220,8 +220,9 @@ export function MarketingProductsPage() {
   const [wishlistedIds, setWishlistedIds] = useState(() => getWishlistIds())
   const [wishlistSubscribeAlertOpen, setWishlistSubscribeAlertOpen] = useState(false)
   const [quoteModalOpen, setQuoteModalOpen] = useState(false)
-  const [quoteProduct, setQuoteProduct] = useState(null)
+  const [quoteProducts, setQuoteProducts] = useState([])
   const [quoteSubscribeAlertOpen, setQuoteSubscribeAlertOpen] = useState(false)
+  const [selectedRfqIds, setSelectedRfqIds] = useState(() => new Set())
 
   const openWishlistSubscribeAlert = useCallback(() => {
     setWishlistSubscribeAlertOpen(true)
@@ -278,7 +279,7 @@ export function MarketingProductsPage() {
         toast.error('Quotations are available for seller-listed products only.')
         return
       }
-      setQuoteProduct(product)
+      setQuoteProducts([product])
       setQuoteModalOpen(true)
     },
     [buyerWorkspace, hasBuyerSubscription, isAuthenticated, navigate],
@@ -373,6 +374,40 @@ export function MarketingProductsPage() {
     if (sortId === 'price-desc') return [...filtered].sort((a, b) => Number(b.price) - Number(a.price))
     return filtered
   }, [items, sortId, priceMax])
+
+  const selectedRfqProducts = useMemo(
+    () => items.filter((item) => selectedRfqIds.has(item.id)),
+    [items, selectedRfqIds],
+  )
+
+  const toggleRfqSelection = useCallback((product) => {
+    if (product.source !== 'seller') return
+    setSelectedRfqIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(product.id)) next.delete(product.id)
+      else next.add(product.id)
+      return next
+    })
+  }, [])
+
+  const openMultiSellerRfq = useCallback(() => {
+    if (!selectedRfqProducts.length) return
+    if (!isAuthenticated) {
+      toast('Sign in to request a quotation.', { icon: 'ℹ️' })
+      navigate('/login')
+      return
+    }
+    if (!buyerWorkspace) {
+      toast.error('Buyer workspace access is required to request quotations.')
+      return
+    }
+    if (!hasBuyerSubscription) {
+      setQuoteSubscribeAlertOpen(true)
+      return
+    }
+    setQuoteProducts(selectedRfqProducts)
+    setQuoteModalOpen(true)
+  }, [buyerWorkspace, hasBuyerSubscription, isAuthenticated, navigate, selectedRfqProducts])
 
   const loadSentinelRef = useRef(null)
   useEffect(() => {
@@ -701,13 +736,24 @@ export function MarketingProductsPage() {
                       </span>
                     </div>
                     {showRfqButton && p.source === 'seller' ? (
-                      <button
-                        type="button"
-                        className="btn btn--primary mpCard__quote"
-                        onClick={() => handleRequestQuote(p)}
-                      >
-                        Request quotation
-                      </button>
+                      <div className="mpCard__rfqRow">
+                        <label className="mpCard__selectRfq">
+                          <input
+                            type="checkbox"
+                            checked={selectedRfqIds.has(p.id)}
+                            onChange={() => toggleRfqSelection(p)}
+                            aria-label={`Select ${p.title} for multi-seller RFQ`}
+                          />
+                          <span>Compare</span>
+                        </label>
+                        <button
+                          type="button"
+                          className="btn btn--primary mpCard__quote"
+                          onClick={() => handleRequestQuote(p)}
+                        >
+                          Request quotation
+                        </button>
+                      </div>
                     ) : null}
                     {showWishlistButton ? (
                       <div className="mpCard__actions mpCard__actions--single">
@@ -750,16 +796,25 @@ export function MarketingProductsPage() {
         </div>
       </div>
 
+      {selectedRfqProducts.length > 1 ? (
+        <div className="mpMultiRfqBar">
+          <span>{selectedRfqProducts.length} sellers selected</span>
+          <button type="button" className="btn btn--primary" onClick={openMultiSellerRfq}>
+            Send RFQ to {selectedRfqProducts.length} sellers
+          </button>
+        </div>
+      ) : null}
+
       <button type="button" className="mpQuoteFab" aria-label="Open quotations" onClick={openQuotationHub}>
         <IconChat />
       </button>
 
       <RequestQuoteModal
         open={quoteModalOpen}
-        product={quoteProduct}
+        products={quoteProducts}
         onClose={() => {
           setQuoteModalOpen(false)
-          setQuoteProduct(null)
+          setQuoteProducts([])
         }}
         onSuccess={handleQuoteSuccess}
       />

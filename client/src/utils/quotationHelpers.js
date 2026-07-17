@@ -5,6 +5,9 @@ export const QUOTE_STATUS_LABELS = {
   RESPONDED: 'Quote received',
   ACCEPTED: 'Deal closed',
   DECLINED: 'Declined',
+  NOT_SELECTED: 'Not selected',
+  CANCELLED: 'Cancelled',
+  EXPIRED: 'Expired',
 }
 
 export const QUOTE_STATUS_BADGE = {
@@ -12,6 +15,9 @@ export const QUOTE_STATUS_BADGE = {
   RESPONDED: 'b2bBadge--blue',
   ACCEPTED: 'b2bBadge--green',
   DECLINED: 'b2bBadge--grey',
+  NOT_SELECTED: 'b2bBadge--grey',
+  CANCELLED: 'b2bBadge--grey',
+  EXPIRED: 'b2bBadge--grey',
 }
 
 export function formatQuoteMoney(value, currency = 'INR') {
@@ -39,6 +45,30 @@ export function quoteLineTotal(request) {
 }
 
 export function isQuoteExpired(request) {
+  if (request?.expired === true) return true
+  if (request?.status === 'NOT_SELECTED') return true
   if (!request?.quoteValidUntil) return false
   return new Date() > new Date(request.quoteValidUntil)
+}
+
+export function getQuoteStatusDisplay(status, { expired = false, mode = 'buyer' } = {}) {
+  if (mode === 'buyer' && (expired || status === 'NOT_SELECTED' || status === 'EXPIRED')) {
+    return { label: QUOTE_STATUS_LABELS.EXPIRED, badge: QUOTE_STATUS_BADGE.EXPIRED }
+  }
+  if (mode === 'seller' && status === 'NOT_SELECTED') {
+    return { label: QUOTE_STATUS_LABELS.NOT_SELECTED, badge: QUOTE_STATUS_BADGE.NOT_SELECTED }
+  }
+  if (expired && status === 'RESPONDED') {
+    return { label: QUOTE_STATUS_LABELS.EXPIRED, badge: QUOTE_STATUS_BADGE.EXPIRED }
+  }
+  return {
+    label: QUOTE_STATUS_LABELS[status] || status,
+    badge: QUOTE_STATUS_BADGE[status] || 'b2bBadge--grey',
+  }
+}
+
+export function isBuyerQuotationActionable(request) {
+  if (!request || request.actionsLocked) return false
+  if (request.status !== 'RESPONDED' && request.status !== 'PENDING') return false
+  return !isQuoteExpired(request)
 }

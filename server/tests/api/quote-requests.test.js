@@ -16,6 +16,7 @@ const RFQ_NUMBER = 'RFQ-2026-000001'
 const baseCreatePayload = {
   productTitle: 'Test Widget',
   quantity: 5,
+  message: 'Need 5 units with standard packaging.',
   deliveryLocation: 'Mumbai, Maharashtra',
   expectedDeliveryDate: '2026-08-01',
 }
@@ -38,8 +39,16 @@ function makeQuoteRow(overrides = {}) {
     attachments: [],
     createdAt: new Date(),
     updatedAt: new Date(),
-    buyer: { id: IDS.BUYER, addresses: [{ city: 'Mumbai' }] },
-    seller: { id: IDS.SELLER, addresses: [{ city: 'Delhi' }] },
+    buyer: {
+      id: IDS.BUYER,
+      buyerMarketplaceId: 'BUY-DEMO-000001',
+      addresses: [{ city: 'Mumbai' }],
+    },
+    seller: {
+      id: IDS.SELLER,
+      sellerMarketplaceId: 'SEL-DEMO-000001',
+      addresses: [{ city: 'Delhi' }],
+    },
     product: { id: IDS.PRODUCT, name: 'Test Product', sku: 'PROD-001' },
     order: null,
     ...overrides,
@@ -55,6 +64,13 @@ beforeEach(() => {
   prisma.$transaction.mockImplementation(async (fn) => fn(prisma))
     prisma.rfqNumberCounter.upsert.mockResolvedValue({ year: 2026, lastValue: 1 })
     prisma.rfqGroup.create.mockResolvedValue({ id: RFQ_GROUP_ID, rfqNumber: RFQ_NUMBER, buyerId: IDS.BUYER })
+    prisma.quoteRevision.count.mockResolvedValue(0)
+    prisma.quoteRevision.create.mockResolvedValue({ id: 'rev-1', revisionNumber: 1 })
+    prisma.rfqNotificationEvent.create.mockImplementation((args) => Promise.resolve({
+      id: 'ntf-1',
+      ...args.data,
+      createdAt: new Date(),
+    }))
 })
 
 describe('RFQ / quote-request APIs', () => {
@@ -95,9 +111,16 @@ describe('RFQ / quote-request APIs', () => {
     expect(res.body.data.group.rfqNumber).toBe(RFQ_NUMBER)
     expect(res.body.data.group.requests).toHaveLength(1)
     expect(res.body.data.request.seller).toEqual(
-      expect.objectContaining({ id: IDS.SELLER, city: 'Delhi' }),
+      expect.objectContaining({
+        marketplaceId: 'SEL-DEMO-000001',
+        city: 'Delhi',
+        profileUnlocked: false,
+      }),
     )
     expect(res.body.data.request.seller.email).toBeUndefined()
+    expect(res.body.data.request.seller.id).toBeUndefined()
+    expect(res.body.data.request.sellerId).toBeUndefined()
+    expect(res.body.data.request.buyerId).toBeUndefined()
   })
 
   test('201 – creates one QuoteRequest per seller with shared rfqGroupId', async () => {
@@ -277,7 +300,7 @@ describe('Quotation respond / accept APIs', () => {
     expect(res.status).toBe(409)
   })
 
-  test('accept declines sibling quotations in the same RFQ group', async () => {
+  test('accept marks sibling quotations as NOT_SELECTED in the same RFQ group', async () => {
     mockSubscribedBuyer()
 
     const respondedQuote = makeQuoteRow({
@@ -308,6 +331,10 @@ describe('Quotation respond / accept APIs', () => {
       orderId: IDS.ORDER,
     })
     prisma.quoteRequest.updateMany.mockResolvedValue({ count: 2 })
+    prisma.quoteRequest.findMany.mockResolvedValue([
+      { id: 'sibling-1', sellerId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' },
+      { id: 'sibling-2', sellerId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb' },
+    ])
 
     const res = await agent
       .patch(`/api/quote-requests/${RFQ_ID}/accept`)
@@ -321,9 +348,76 @@ describe('Quotation respond / accept APIs', () => {
           buyerId: IDS.BUYER,
           status: { in: ['PENDING', 'RESPONDED'] },
         }),
-        data: expect.objectContaining({ status: 'DECLINED' }),
+        data: expect.objectContaining({ status: 'NOT_SELECTED' }),
       }),
     )
-    expect(res.body.data.declinedSiblingCount).toBe(2)
+    expect(res.body.data.notSelectedSiblingCount).toBe(2)
+    expect(prisma.rfqNotificationEvent.create).toHaveBeenCalled()
+  })
+
+  test('409 – cannot accept a second quotation in the same RFQ group', async () => {
+    mockSubscribedBuyer()
+
+    const respondedQuote = makeQuoteRow({
+      status: 'RESPONDED',
+      sellerUnitPrice: { toString: () => '900.00' },
+      quoteValidUntil: new Date('2026-12-31'),
+    })
+
+    prisma.quoteRequest.findUnique
+      .mockResolvedValueOnce(respondedQuote)
+      .mockResolvedValueOnce(respondedQuote)
+    prisma.quoteRequest.findFirst.mockResolvedValue({
+      id: 'other-accepted',
+      status: 'ACCEPTED',
+    })
+
+    const res = await agent
+      .patch(`/api/quote-requests/${RFQ_ID}/accept`)
+      .set(cookieFor(buyerToken))
+
+    expect(res.status).toBe(409)
+  })
+
+  test('409 – seller cannot revise after NOT_SELECTED', async () => {
+    prisma.user.findUnique.mockResolvedValue({ id: IDS.SELLER, role: 'SELLER' })
+    prisma.subscription.findFirst.mockResolvedValue({ id: 'sub-seller' })
+    prisma.quoteRequest.findUnique.mockResolvedValue({
+      id: RFQ_ID,
+      sellerId: IDS.SELLER,
+      buyerId: IDS.BUYER,
+      status: 'NOT_SELECTED',
+    })
+
+    const res = await agent
+      .patch(`/api/quote-requests/${RFQ_ID}/respond`)
+      .set(cookieFor(sellerToken))
+      .send({ sellerUnitPrice: 100 })
+
+    expect(res.status).toBe(409)
+  })
+
+  test('409 – seller cannot revise when group already has acceptance', async () => {
+    prisma.user.findUnique.mockResolvedValue({ id: IDS.SELLER, role: 'SELLER' })
+    prisma.subscription.findFirst.mockResolvedValue({ id: 'sub-seller' })
+    prisma.quoteRequest.findUnique.mockResolvedValue({
+      id: RFQ_ID,
+      sellerId: IDS.SELLER,
+      buyerId: IDS.BUYER,
+      rfqGroupId: RFQ_GROUP_ID,
+      status: 'RESPONDED',
+    })
+    prisma.quoteRequest.findFirst.mockResolvedValue({
+      id: 'accepted-other',
+      status: 'ACCEPTED',
+    })
+
+    const res = await agent
+      .patch(`/api/quote-requests/${RFQ_ID}/respond`)
+      .set(cookieFor(sellerToken))
+      .send({ sellerUnitPrice: 100 })
+
+    expect(res.status).toBe(409)
+    expect(res.body.error.message).toMatch(/closed/i)
   })
 })

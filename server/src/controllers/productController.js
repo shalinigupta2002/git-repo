@@ -81,8 +81,7 @@ const getById = asyncHandler(async (req, res) => {
 })
 
 const create = asyncHandler(async (req, res) => {
-  // Role is already enforced by authorize('SELLER', 'ADMIN') in the route.
-  // Subscription is not required to create products — sellers can list for free.
+  // Role and active seller subscription are enforced in the route (admin bypasses subscription).
   let sellerId = req.user.id
   if (req.user.role === 'ADMIN') {
     if (!req.body.sellerId) {

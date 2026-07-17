@@ -100,7 +100,7 @@ export function BuyerTransactions() {
                 <tr key={o.id}>
                   <td><code>{o.orderNumber}</code></td>
                   <td>
-                    <SellerIdentity seller={o.seller} sellerId={o.sellerId} compact />
+                    <SellerIdentity seller={o.seller} sellerMarketplaceId={o.sellerMarketplaceId} compact />
                   </td>
                   <td>
                     <div>{o.items?.length || 0} line{(o.items?.length || 0) === 1 ? '' : 's'}</div>

@@ -4,6 +4,9 @@ import { hasActiveBuyerSubscription } from '../../utils/buyerSubscription.js'
 import { listOrders } from '../../services/order.service.js'
 import { fetchRfqStats } from '../../services/quoteRequest.service.js'
 import { useAuth } from '../../hooks/useAuth.js'
+import { useAppSelector } from '../../hooks/redux.js'
+import { selectBuyerMarketplaceId } from '../../store/slices/subscriptionSlice.js'
+import { MarketplaceIdDisplay, ProfileLinkHint } from '../../components/common/MarketplaceIdDisplay.jsx'
 import { Spinner } from '../../components/ui/Spinner.jsx'
 
 function formatAmount(v, currency = 'INR') {
@@ -23,6 +26,7 @@ function formatAmount(v, currency = 'INR') {
 export function BuyerDashboard() {
   const hasSub = hasActiveBuyerSubscription()
   const { user } = useAuth()
+  const buyerMarketplaceId = useAppSelector(selectBuyerMarketplaceId) ?? user?.buyerMarketplaceId
   const [stats, setStats] = useState({ total: 0, active: 0, spend: 0, loading: true, error: '' })
   const [rfqStats, setRfqStats] = useState(null)
 
@@ -68,10 +72,11 @@ export function BuyerDashboard() {
           <div className="metricCard metricCard--blue">
             <div className="metricCard__label">Subscription</div>
             <div className="metricCard__value">{hasSub ? 'Active' : 'Not active'}</div>
+            <MarketplaceIdDisplay marketplaceId={buyerMarketplaceId} label="Buyer ID" />
             {!hasSub ? (
               <Link to="/" className="metricCard__link">Get subscription →</Link>
             ) : (
-              <p className="metricCard__hint">Buyer features unlocked.</p>
+              <ProfileLinkHint />
             )}
           </div>
 

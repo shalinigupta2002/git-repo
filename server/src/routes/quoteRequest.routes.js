@@ -11,6 +11,8 @@ const {
   listRequestsQuery,
   groupedListQuery,
   statsQuery,
+  notificationsQuery,
+  markNotificationsReadBody,
   createQuoteRequestBody,
 } = require('../validators/quoteRequest.validator.js')
 
@@ -21,12 +23,21 @@ router.use(authenticate)
 router.post('/', authorizeWorkspace('BUYER'), requireSubscription('BUYER'), validate(createQuoteRequestBody), ctrl.createRequest)
 router.post('/attachments', authorizeWorkspace('BUYER'), requireSubscription('BUYER'), rfqUploadMiddleware, ctrl.uploadAttachments)
 router.get('/attachments/file/:filename', ctrl.downloadAttachment)
+router.get('/notifications', validate(notificationsQuery, 'query'), ctrl.listNotifications)
+router.patch('/notifications/read', validate(markNotificationsReadBody), ctrl.markNotificationsRead)
 router.get('/', validate(listRequestsQuery, 'query'), ctrl.listRequests)
 router.get('/stats', validate(statsQuery, 'query'), ctrl.getStats)
 router.get('/groups', authorizeWorkspace('BUYER'), validate(groupedListQuery, 'query'), ctrl.listGroupedRequests)
 router.get('/groups/:rfqGroupId', authorizeWorkspace('BUYER'), validate(rfqGroupIdParam, 'params'), ctrl.getGroupComparison)
 router.get('/confirmed-buyers', authorizeWorkspace('SELLER'), ctrl.listConfirmedBuyers)
 router.get('/:id', validate(quoteRequestIdParam, 'params'), ctrl.getById)
+router.patch(
+  '/:id/cancel',
+  authorizeWorkspace('BUYER'),
+  requireSubscription('BUYER'),
+  validate(quoteRequestIdParam, 'params'),
+  ctrl.buyerCancel,
+)
 router.patch(
   '/:id/seller-reject',
   authorizeWorkspace('SELLER'),

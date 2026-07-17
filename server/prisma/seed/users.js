@@ -12,22 +12,40 @@ const ADDRESS_CITIES = [
   ['Kolkata', 'West Bengal', '700001'],
 ]
 
+function buildUserData(spec, passwordHash) {
+  const base = {
+    role: spec.role,
+    companyName: spec.companyName,
+    passwordHash,
+  }
+
+  if (spec.group === 'MANUAL_ONBOARDING' || spec.group === undefined) {
+    return {
+      ...base,
+      buyerMarketplaceId: null,
+      buyerSubscriptionStatus: null,
+      buyerSubscriptionPlan: null,
+      buyerSubscriptionActivatedAt: null,
+      sellerMarketplaceId: null,
+      sellerSubscriptionStatus: null,
+      sellerSubscriptionPlan: null,
+      sellerSubscriptionActivatedAt: null,
+    }
+  }
+
+  return base
+}
+
 async function upsertUsers(prisma) {
   const users = {}
   for (const spec of LOGIN_USER_SPECS) {
     const passwordHash = await bcrypt.hash(spec.password, 10)
     users[spec.email] = await prisma.user.upsert({
       where: { email: spec.email },
-      update: {
-        role: spec.role,
-        companyName: spec.companyName,
-        passwordHash,
-      },
+      update: buildUserData(spec, passwordHash),
       create: {
         email: spec.email,
-        role: spec.role,
-        companyName: spec.companyName,
-        passwordHash,
+        ...buildUserData(spec, passwordHash),
       },
     })
   }
@@ -37,24 +55,38 @@ async function upsertUsers(prisma) {
 async function upsertAddresses(prisma, users) {
   let index = 0
   for (const spec of LOGIN_USER_SPECS.filter((u) => u.role !== 'ADMIN')) {
-    const [city, state, postalCode] = ADDRESS_CITIES[index % ADDRESS_CITIES.length]
-    const label = spec.role === 'SELLER' ? 'Warehouse' : 'Head Office'
+    const label = spec.address?.label || (spec.role === 'SELLER' ? 'Warehouse' : 'Head Office')
     const user = users[spec.email]
+
+    let data
+    if (spec.address) {
+      data = {
+        line1: spec.address.line1,
+        line2: spec.address.line2,
+        city: spec.address.city,
+        state: spec.address.state,
+        postalCode: spec.address.postalCode,
+        country: 'IN',
+        phone: spec.address.phone,
+        isDefault: true,
+      }
+    } else {
+      const [city, state, postalCode] = ADDRESS_CITIES[index % ADDRESS_CITIES.length]
+      data = {
+        line1: `${101 + index}, Trade Park Phase ${(index % 3) + 1}`,
+        line2: 'Industrial Area',
+        city,
+        state,
+        postalCode,
+        country: 'IN',
+        phone: `98765${String(10000 + index).slice(-5)}`,
+        isDefault: true,
+      }
+    }
 
     const existing = await prisma.address.findFirst({
       where: { userId: user.id, label },
     })
-
-    const data = {
-      line1: `${101 + index}, Trade Park Phase ${(index % 3) + 1}`,
-      line2: 'Industrial Area',
-      city,
-      state,
-      postalCode,
-      country: 'IN',
-      phone: `98765${String(10000 + index).slice(-5)}`,
-      isDefault: true,
-    }
 
     if (existing) {
       await prisma.address.update({ where: { id: existing.id }, data })

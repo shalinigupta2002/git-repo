@@ -50,6 +50,22 @@ const getProduct = asyncHandler(async (req, res) => {
 })
 
 /**
+ * GET /api/catalog/products/:id/alternative-sellers
+ *
+ * Other seller listings suitable for multi-seller RFQ on the same inquiry.
+ */
+const listAlternativeSellers = asyncHandler(async (req, res) => {
+  const products = await sellerBrowseService.findAlternativeSellerListings(req.params.id, {
+    limit: Number.parseInt(req.query.limit, 10) || 12,
+  })
+
+  res.json({
+    success: true,
+    data: { products },
+  })
+})
+
+/**
  * GET /api/catalog/categories
  *
  * Derived from active seller listings (no seeded catalog categories).
@@ -89,4 +105,4 @@ const listBrands = asyncHandler(async (req, res) => {
   res.json({ success: true, data: { brands } })
 })
 
-module.exports = { listProducts, getProduct, listCategories, listBrands }
+module.exports = { listProducts, getProduct, listAlternativeSellers, listCategories, listBrands }

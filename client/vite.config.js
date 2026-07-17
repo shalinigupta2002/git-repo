@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 
 /** Strip accidental .env-line paste (same logic as src/constants/env.js). */
@@ -14,18 +14,23 @@ function normalizeBuildApiUrl(raw) {
 }
 
 export default defineConfig(({ mode }) => {
+  const envFile = loadEnv(mode, process.cwd(), '')
   if (mode === 'production') {
     const api = normalizeBuildApiUrl(
-      process.env.VITE_API_BASE_URL || process.env.VITE_API_URL || '',
+      envFile.VITE_API_BASE_URL ||
+      envFile.VITE_API_URL ||
+      process.env.VITE_API_BASE_URL ||
+      process.env.VITE_API_URL ||
+      '',
     )
-    if (!api || api === '/api' || !/^https?:\/\//i.test(api)) {
+    if (!api || (!/^https?:\/\//i.test(api) && api !== '/api')) {
       throw new Error(
         [
           '',
-          'VITE_API_BASE_URL is required for production builds (Vercel).',
-          'Set it in Vercel → Settings → Environment Variables, e.g.:',
-          '  VITE_API_BASE_URL=https://your-service.onrender.com/api',
-          'Then trigger a new deployment.',
+          'VITE_API_BASE_URL is required for production builds.',
+          'Set an absolute API URL (https://your-service.onrender.com/api) for split deployments,',
+          'or /api for Docker/nginx same-origin proxy.',
+          'Vercel: Settings → Environment Variables → VITE_API_BASE_URL',
           '',
         ].join('\n'),
       )

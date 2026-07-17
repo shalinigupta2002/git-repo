@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import toast from 'react-hot-toast'
+import { BuyerIdentity } from '../../components/common/SellerIdentity.jsx'
 import { listOrders, updateOrderStatus } from '../../services/order.service.js'
 
 const STATUS_COLORS = {
@@ -137,12 +138,7 @@ export function SellerTransactions() {
                   <tr key={o.id}>
                     <td><code>{o.orderNumber}</code></td>
                     <td>
-                      <div>
-                        Buyer ID: <code>{o.buyer?.id || o.buyerId || '—'}</code>
-                      </div>
-                      <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                        City: {o.buyer?.city || '—'}
-                      </div>
+                      <BuyerIdentity buyer={o.buyer} buyerMarketplaceId={o.buyerMarketplaceId} compact showLabel />
                     </td>
                     <td>{o.items?.length || 0}</td>
                     <td>{formatAmount(o.totalAmount)}</td>

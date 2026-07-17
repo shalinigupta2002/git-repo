@@ -1,4 +1,9 @@
-const { LEGACY_DEMO_EMAILS, LOGIN_EMAILS } = require('./constants.js')
+const {
+  LEGACY_DEMO_EMAILS,
+  MANUAL_ONBOARDING_EMAILS,
+  PREMIUM_USER_EMAILS,
+  shouldSeedQaUsers,
+} = require('./constants.js')
 
 /**
  * Remove all marketplace transactional data so bootstrap leaves a clean slate.
@@ -43,10 +48,27 @@ async function purgeLegacyUsers(prisma) {
   return { removed: legacy.length, emails: legacy.map((u) => u.email) }
 }
 
-/** Strip subscriptions/payments from login test accounts (idempotent safety net) */
-async function clearLoginAccountSubscriptions(prisma) {
+/** Remove premium QA accounts when seeding production bootstrap only */
+async function purgePremiumUsers(prisma) {
+  if (shouldSeedQaUsers()) return { removed: 0, emails: [] }
+
+  const premium = await prisma.user.findMany({
+    where: { email: { in: PREMIUM_USER_EMAILS } },
+    select: { id: true, email: true },
+  })
+
+  if (!premium.length) return { removed: 0, emails: [] }
+
+  const ids = premium.map((u) => u.id)
+  await prisma.user.deleteMany({ where: { id: { in: ids } } })
+
+  return { removed: premium.length, emails: premium.map((u) => u.email) }
+}
+
+/** Strip subscriptions/payments from manual onboarding accounts only */
+async function clearManualOnboardingSubscriptions(prisma) {
   const loginUsers = await prisma.user.findMany({
-    where: { email: { in: LOGIN_EMAILS } },
+    where: { email: { in: MANUAL_ONBOARDING_EMAILS } },
     select: { id: true },
   })
   const ids = loginUsers.map((u) => u.id)
@@ -54,18 +76,38 @@ async function clearLoginAccountSubscriptions(prisma) {
 
   await prisma.payment.deleteMany({ where: { userId: { in: ids } } })
   await prisma.subscription.deleteMany({ where: { userId: { in: ids } } })
+
+  await prisma.user.updateMany({
+    where: { id: { in: ids } },
+    data: {
+      buyerMarketplaceId: null,
+      buyerSubscriptionStatus: null,
+      buyerSubscriptionPlan: null,
+      buyerSubscriptionActivatedAt: null,
+      sellerMarketplaceId: null,
+      sellerSubscriptionStatus: null,
+      sellerSubscriptionPlan: null,
+      sellerSubscriptionActivatedAt: null,
+    },
+  })
 }
 
 async function runCleanup(prisma) {
   await purgeTransactionalData(prisma)
-  await clearLoginAccountSubscriptions(prisma)
+  await clearManualOnboardingSubscriptions(prisma)
   const legacy = await purgeLegacyUsers(prisma)
-  return legacy
+  const premiumRemoved = await purgePremiumUsers(prisma)
+  return {
+    ...legacy,
+    premiumRemoved: premiumRemoved.removed,
+    premiumEmails: premiumRemoved.emails,
+  }
 }
 
 module.exports = {
   runCleanup,
   purgeTransactionalData,
   purgeLegacyUsers,
-  clearLoginAccountSubscriptions,
+  purgePremiumUsers,
+  clearManualOnboardingSubscriptions,
 }

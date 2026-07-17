@@ -225,10 +225,34 @@ describe('POST /api/subscriptions/verify', () => {
   }
 
   test('200 – valid signature activates subscription', async () => {
-    prisma.user.findUnique.mockResolvedValue(BUYER)
+    let storedUser = {
+      ...BUYER,
+      buyerMarketplaceId: null,
+      sellerMarketplaceId: null,
+      buyerSubscriptionStatus: null,
+      buyerSubscriptionPlan: null,
+      sellerSubscriptionStatus: null,
+      sellerSubscriptionPlan: null,
+      buyerSubscriptionActivatedAt: null,
+      sellerSubscriptionActivatedAt: null,
+    }
+
+    prisma.user.findUnique.mockImplementation(() => Promise.resolve(storedUser))
+    prisma.user.findMany.mockResolvedValue([])
+    prisma.marketplaceIdCounter.findUnique.mockResolvedValue(null)
+    prisma.marketplaceIdCounter.upsert.mockImplementation(({ update }) => {
+      if (update?.lastValue?.increment) {
+        return Promise.resolve({ type: 'BUYER', lastValue: update.lastValue.increment })
+      }
+      return Promise.resolve({ type: 'BUYER', lastValue: 0 })
+    })
+    prisma.user.update.mockImplementation(({ data }) => {
+      storedUser = { ...storedUser, ...data }
+      return Promise.resolve(storedUser)
+    })
     prisma.payment.findUnique
-      .mockResolvedValueOnce({ userId: BUYER.id, status: 'PENDING' }) // pre-check
-      .mockResolvedValueOnce(PENDING_PAYMENT)                          // inside tx
+      .mockResolvedValueOnce({ userId: BUYER.id, status: 'PENDING' })
+      .mockResolvedValueOnce(PENDING_PAYMENT)
     prisma.payment.updateMany.mockResolvedValue({ count: 0 })
     prisma.subscription.create.mockResolvedValue(ACTIVE_SUB)
     prisma.payment.update.mockResolvedValue({})
@@ -242,6 +266,7 @@ describe('POST /api/subscriptions/verify', () => {
     expect(res.body.success).toBe(true)
     expect(res.body.data.subscription.plan).toBe('BUYER_STANDARD')
     expect(res.body.data.subscription.status).toBe('ACTIVE')
+    expect(res.body.data.user?.buyerMarketplaceId).toBe('BUY-DEMO-000001')
     expect(res.body.data.alreadyPaid).toBeUndefined()
   })
 
@@ -264,10 +289,21 @@ describe('POST /api/subscriptions/verify', () => {
   })
 
   test('200 – idempotent retry returns existing subscription (alreadyPaid: true)', async () => {
-    prisma.user.findUnique.mockResolvedValue(BUYER)
+    const userRecord = {
+      ...BUYER,
+      buyerMarketplaceId: 'BUY-DEMO-000001',
+      sellerMarketplaceId: null,
+      buyerSubscriptionStatus: 'ACTIVE',
+      buyerSubscriptionPlan: 'BUYER_STANDARD',
+      buyerSubscriptionActivatedAt: new Date(),
+      sellerSubscriptionActivatedAt: null,
+    }
+
+    prisma.user.findUnique.mockResolvedValue(userRecord)
+    prisma.user.update.mockResolvedValue(userRecord)
     prisma.payment.findUnique
-      .mockResolvedValueOnce({ userId: BUYER.id, status: 'PAID' }) // pre-check
-      .mockResolvedValueOnce(PAID_PAYMENT)                          // inside tx
+      .mockResolvedValueOnce({ userId: BUYER.id, status: 'PAID' })
+      .mockResolvedValueOnce(PAID_PAYMENT)
     prisma.subscription.findUnique.mockResolvedValue(ACTIVE_SUB)
 
     const res = await agent
@@ -278,8 +314,9 @@ describe('POST /api/subscriptions/verify', () => {
     expect(res.status).toBe(200)
     expect(res.body.data.alreadyPaid).toBe(true)
     expect(res.body.data.subscription.id).toBe(ACTIVE_SUB.id)
-    // subscription.create must NOT be called again
+    expect(res.body.data.user?.buyerMarketplaceId).toBe('BUY-DEMO-000001')
     expect(prisma.subscription.create).not.toHaveBeenCalled()
+    expect(prisma.marketplaceIdCounter.upsert).not.toHaveBeenCalled()
   })
 
   test('409 – verifying a FAILED payment returns PAYMENT_FAILED', async () => {
@@ -343,10 +380,22 @@ describe('POST /api/subscriptions/verify', () => {
 describe('GET /api/subscriptions/status', () => {
   test('200 – returns active subscriptions for the authenticated user', async () => {
     const activeSub = makeSubscription({ plan: 'BUYER_STANDARD' })
+    const userRecord = {
+      ...BUYER,
+      buyerMarketplaceId: 'BUY-DEMO-000001',
+      sellerMarketplaceId: null,
+      buyerSubscriptionStatus: 'ACTIVE',
+      buyerSubscriptionPlan: 'BUYER_STANDARD',
+      sellerSubscriptionStatus: null,
+      sellerSubscriptionPlan: null,
+      buyerSubscriptionActivatedAt: new Date(),
+      sellerSubscriptionActivatedAt: null,
+    }
 
-    prisma.user.findUnique.mockResolvedValue(BUYER)
+    prisma.user.findUnique.mockResolvedValue(userRecord)
     prisma.subscription.findMany.mockResolvedValue([activeSub])
     prisma.subscription.updateMany.mockResolvedValue({ count: 0 })
+    prisma.user.update.mockResolvedValue(userRecord)
 
     const res = await agent
       .get('/api/subscriptions/status')
@@ -354,11 +403,25 @@ describe('GET /api/subscriptions/status', () => {
 
     expect(res.status).toBe(200)
     expect(res.body.data.hasBuyerSubscription).toBe(true)
+    expect(res.body.data.buyerMarketplaceId).toBe('BUY-DEMO-000001')
+    expect(res.body.data.buyerSubscription.marketplaceId).toBe('BUY-DEMO-000001')
     expect(res.body.data.subscriptions).toHaveLength(1)
   })
 
   test('200 – user with no subscriptions returns false flags', async () => {
-    prisma.user.findUnique.mockResolvedValue(BUYER)
+    const userRecord = {
+      ...BUYER,
+      buyerMarketplaceId: null,
+      sellerMarketplaceId: null,
+      buyerSubscriptionStatus: null,
+      buyerSubscriptionPlan: null,
+      sellerSubscriptionStatus: null,
+      sellerSubscriptionPlan: null,
+      buyerSubscriptionActivatedAt: null,
+      sellerSubscriptionActivatedAt: null,
+    }
+
+    prisma.user.findUnique.mockResolvedValue(userRecord)
     prisma.subscription.findMany.mockResolvedValue([])
     prisma.subscription.updateMany.mockResolvedValue({ count: 0 })
 
@@ -369,6 +432,8 @@ describe('GET /api/subscriptions/status', () => {
     expect(res.status).toBe(200)
     expect(res.body.data.hasBuyerSubscription).toBe(false)
     expect(res.body.data.hasSellerSubscription).toBe(false)
+    expect(res.body.data.buyerMarketplaceId).toBeNull()
+    expect(res.body.data.sellerMarketplaceId).toBeNull()
   })
 
   test('401 – unauthenticated request', async () => {

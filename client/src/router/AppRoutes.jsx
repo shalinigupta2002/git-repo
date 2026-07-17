@@ -52,6 +52,9 @@ const UserPortalLayout = lazy(() =>
 const PortalHome = lazy(() =>
   import('../pages/portal/PortalHome.jsx').then((m) => ({ default: m.PortalHome })),
 )
+const ProfilePage = lazy(() =>
+  import('../pages/portal/ProfilePage.jsx').then((m) => ({ default: m.ProfilePage })),
+)
 const BuyerDashboard = lazy(() =>
   import('../pages/buyer/BuyerDashboard.jsx').then((m) => ({ default: m.BuyerDashboard })),
 )
@@ -228,10 +231,12 @@ export function AppRoutes() {
           }
         >
           <Route path="/portal" element={<PortalHome />} />
+          <Route path="/portal/profile" element={<ProfilePage />} />
           <Route path="/portal/contact-admin" element={<ContactAdminPage />} />
 
           <Route element={<ProtectedRoute workspace="buyer"><Outlet /></ProtectedRoute>}>
             <Route path="/buyer" element={<Navigate to="/buyer/dashboard" replace />} />
+            <Route path="/buyer/welcome" element={<Navigate to="/buyer/dashboard" replace />} />
             <Route path="/buyer/dashboard" element={<BuyerDashboard />} />
             <Route path="/buyer/pricing/both-seller" element={<BuyerBothSellerPricing />} />
             <Route path="/buyer/pricing" element={<BuyerPricing />} />
@@ -253,12 +258,13 @@ export function AppRoutes() {
 
           <Route element={<ProtectedRoute workspace="seller"><Outlet /></ProtectedRoute>}>
             <Route path="/seller" element={<Navigate to="/seller/dashboard" replace />} />
+            <Route path="/seller/welcome" element={<Navigate to="/seller/dashboard" replace />} />
             <Route path="/seller/dashboard" element={<SellerDashboard />} />
             <Route path="/seller/pricing" element={sellerSub(<SellerPricing />)} />
             <Route path="/seller/transactions" element={sellerSub(<SellerTransactions />)} />
             <Route path="/seller/products" element={<SellerProductListing />} />
             <Route path="/seller/products/:productId/edit" element={<EditProduct />} />
-            <Route path="/seller/add-product" element={<AddNewProduct />} />
+            <Route path="/seller/add-product" element={sellerSub(<AddNewProduct />)} />
             <Route path="/seller/product-listed" element={<ProductListedSuccessfully />} />
             <Route path="/seller/manage-buyer" element={sellerSub(<ManageBuyer />)} />
             <Route path="/seller/quotations" element={<SellerQuotations />} />

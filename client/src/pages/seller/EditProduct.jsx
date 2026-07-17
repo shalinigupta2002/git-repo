@@ -18,6 +18,7 @@ const INITIAL = {
   currency: 'INR',
   delivery: '',
   availableStocks: '',
+  moq: '1',
   description: '',
   isActive: true,
 }
@@ -59,6 +60,7 @@ export function EditProduct() {
           currency: product.currency || 'INR',
           delivery: meta.delivery,
           availableStocks: product.trackInventory ? String(product.stockQty ?? 0) : '',
+          moq: product.moq != null ? String(product.moq) : '1',
           description: meta.description,
           isActive: product.isActive !== false,
         })
@@ -128,6 +130,12 @@ export function EditProduct() {
       return
     }
 
+    const moqNum = form.moq === '' ? 1 : Number(form.moq)
+    if (!Number.isInteger(moqNum) || moqNum < 1) {
+      setError('MOQ must be a whole number of 1 or more')
+      return
+    }
+
     const description = buildProductDescription(
       form,
       selectedCategoryNode,
@@ -142,6 +150,7 @@ export function EditProduct() {
         name: form.name.trim(),
         description,
         price: priceNum,
+        moq: moqNum,
         currency: form.currency || 'INR',
         isActive: form.isActive,
         trackInventory: stockNum > 0,
@@ -246,16 +255,23 @@ export function EditProduct() {
                   <input id="price" type="number" className="b2bInput" min={0} step="0.01" value={form.price} onChange={(e) => updateField('price', e.target.value)} required />
                 </div>
                 <div>
-                  <label className="b2bLabel" htmlFor="availableStocks">Available stocks</label>
-                  <input id="availableStocks" type="number" className="b2bInput" min={0} step={1} value={form.availableStocks} onChange={(e) => updateField('availableStocks', e.target.value)} />
+                  <label className="b2bLabel" htmlFor="moq">Minimum order quantity (MOQ)</label>
+                  <input id="moq" type="number" className="b2bInput" min={1} step={1} value={form.moq} onChange={(e) => updateField('moq', e.target.value)} required />
                 </div>
               </div>
 
               <div className="b2bFormRow2">
                 <div>
+                  <label className="b2bLabel" htmlFor="availableStocks">Available stocks</label>
+                  <input id="availableStocks" type="number" className="b2bInput" min={0} step={1} value={form.availableStocks} onChange={(e) => updateField('availableStocks', e.target.value)} />
+                </div>
+                <div>
                   <label className="b2bLabel" htmlFor="delivery">Delivery time</label>
                   <input id="delivery" className="b2bInput" value={form.delivery} onChange={(e) => updateField('delivery', e.target.value)} />
                 </div>
+              </div>
+
+              <div className="b2bFormRow2">
                 <div>
                   <label className="b2bLabel" htmlFor="status">Listing status</label>
                   <select id="status" className="b2bSelect" value={form.isActive ? 'active' : 'inactive'} onChange={(e) => updateField('isActive', e.target.value === 'active')}>
@@ -263,6 +279,7 @@ export function EditProduct() {
                     <option value="inactive">Inactive</option>
                   </select>
                 </div>
+                <div />
               </div>
 
               <div>

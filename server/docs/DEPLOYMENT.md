@@ -9,18 +9,25 @@ Production deployments must use **Prisma Migrate**, not `prisma db push`.
 | Development | `npm run db:migrate` (`prisma migrate dev`) |
 | CI / Production | `npm run db:migrate:deploy` (`prisma migrate deploy`) |
 
-## Migration files
+## Migration files (apply in order)
 
 | Migration | Purpose |
 |-----------|---------|
-| `20250715170000_baseline` | Full schema baseline (includes RFQ Phase 2A/2B) |
-| `20250715180000_rfq_production_hardening` | Idempotent upgrade for databases created via earlier `db push` |
+| `20250715170000_baseline` | Full schema baseline |
+| `20250715180000_rfq_production_hardening` | Idempotent RFQ hardening for legacy `db push` DBs |
+| `20260531120000_both_bundle_plans` | Subscription bundle plan enums |
+| `20260717120000_marketplace_identity` | Buyer/seller marketplace IDs |
+| `20260717130000_marketplace_id_counter` | Marketplace ID counter table |
+| `20260717140000_rfq_mvp_hardening` | RFQ revisions, CANCELLED status, notification events |
+| `20260717150000_rfq_not_selected_status` | `NOT_SELECTED` quote status for multi-seller accept flow |
 
 ### Fresh database (CI, new production)
 
 ```bash
 cd server
 npm run db:migrate:deploy
+npm run catalog:migrate
+npm run catalog:seed   # browse catalog for marketing /products page
 npm run db:seed        # non-production only
 ```
 
@@ -34,7 +41,17 @@ npm run db:seed        # non-production only
 3. Deploy remaining migrations:
    ```bash
    npm run db:migrate:deploy
+   npm run catalog:migrate
    ```
+
+### Verify migrations
+
+```bash
+cd server
+npm run db:migrate:deploy
+# Expected: "No pending migrations" or lists newly applied migrations
+npm run db:generate
+```
 
 ## Render / production build
 
@@ -42,25 +59,48 @@ npm run db:seed        # non-production only
 
 1. `prisma generate`
 2. `prisma migrate deploy`
-3. Catalog schema migration
+3. Catalog schema migration (`node src/db/migrate.js`)
 
-## RFQ database constraints
+Start command: `npm start` (`node src/index.js`)
 
-- **`rfq_groups.rfq_number`** — globally unique (canonical RFQ number registry)
-- **`quote_requests (rfq_group_id, seller_id)`** — unique per group (partial index where `seller_id IS NOT NULL`)
-- **Indexes** — `buyer_id`, `seller_id`, `status`, `rfq_group_id`, `created_at`, composite `(buyer_id, status)`, `(seller_id, status)`
+### Required environment variables (server)
+
+| Variable | Description |
+|----------|-------------|
+| `DATABASE_URL` | PostgreSQL connection string (Neon recommended, `?sslmode=require`) |
+| `JWT_SECRET` | Long random string (32+ chars) |
+| `CLIENT_URL` | Frontend origin for CORS (e.g. `https://your-app.vercel.app`) |
+| `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` | Payment gateway (test keys OK in staging) |
+| `NODE_ENV` | `production` in production |
+
+Optional: `PORT` (default `3001`), `USE_CROSS_SITE_COOKIES=true` when API and frontend are on different domains.
+
+## Docker
+
+```bash
+cp server/.env.example server/.env   # set DATABASE_URL, JWT_SECRET, etc.
+docker compose up --build -d server client
+```
+
+- **Server:** runs `docker-entrypoint.sh` → `prisma migrate deploy` → starts API on `:3001`
+- **Client:** built with `VITE_API_BASE_URL=/api`; nginx proxies `/api/` to `server:3001`
+
+## Frontend production build
+
+| Target | `VITE_API_BASE_URL` |
+|--------|----------------------|
+| Vercel + Render API | `https://your-service.onrender.com/api` |
+| Docker / same-origin nginx | `/api` |
+| Local production test | `http://localhost:3001/api` (default in `client/.env.production`) |
 
 ## Playwright CI
 
-GitHub Actions:
+GitHub Actions (`.github/workflows/ci.yml`):
 
 1. Starts PostgreSQL service
-2. Runs `db:ci:setup` (`migrate deploy` + seed)
-3. Builds frontend
-4. Playwright `webServer` starts backend → waits for `/api/health`
-5. Playwright starts Vite → waits for frontend
-6. Installs browsers (quality job) and runs tests
-7. Uploads HTML report + artifacts
+2. Runs `db:ci:setup` (`migrate deploy` + transactional seed + catalog migrate/seed)
+3. Builds frontend with `VITE_API_BASE_URL=http://127.0.0.1:3001/api`
+4. Playwright starts backend + Vite, runs E2E tests
 
 Local E2E:
 
@@ -71,6 +111,6 @@ cd ../client && npm run test:e2e:ci
 
 ## Attachment storage
 
-RFQ files are stored under `server/uploads/rfq/`. Downloads require authentication via `GET /api/quote-requests/attachments/file/:filename`.
+RFQ files: `server/uploads/rfq/`. Downloads require auth via `GET /api/quote-requests/attachments/file/:filename`.
 
-Optional virus scanning hook: set `RFQ_VIRUS_SCAN_URL` when integrating external AV (fail-closed until wired).
+Optional virus scanning: set `RFQ_VIRUS_SCAN_URL` when integrating external AV.

@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react'
 import { useAppDispatch } from './redux.js'
 import { activateSubscription, loadSubscriptionStatus } from '../store/slices/subscriptionSlice.js'
+import { refreshUser } from '../store/slices/authSlice.js'
 import { createSubscriptionOrder, verifySubscriptionPayment } from '../services/subscription.service.js'
 import { env } from '../constants/env.js'
 
@@ -72,6 +73,7 @@ export function useRazorpayCheckout() {
                 })
                 dispatch(activateSubscription(plan))
                 await dispatch(loadSubscriptionStatus())
+                await dispatch(refreshUser())
                 resolve()
               } catch (err) {
                 reject(err)

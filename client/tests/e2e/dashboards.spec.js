@@ -3,7 +3,7 @@ import { loginViaUi } from '../fixtures/auth.js'
 import { TEST_USERS } from '../fixtures/test-users.js'
 
 test.describe('Buyer dashboard', () => {
-  test('shows procurement metrics for subscribed buyer', async ({ page }) => {
+  test('shows procurement metrics for buyer', async ({ page }) => {
     await loginViaUi(page, TEST_USERS.buyer)
     await page.goto('/buyer/dashboard')
     await expect(page.locator('.metricCard--purple .metricCard__label')).toHaveText('RFQs & quotations')

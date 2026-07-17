@@ -65,13 +65,12 @@ const _rawApiUrl =
 
 const apiBaseUrl = normalizeApiBaseUrl(_rawApiUrl)
 
-/** True when production build will call the frontend host instead of Render. */
+/** True when production build will call the wrong host (missing or malformed URL). */
 export const isMisconfiguredProductionApi =
   import.meta.env.PROD &&
   (!apiBaseUrl ||
-    apiBaseUrl === '/api' ||
     /VITE_API_/i.test(apiBaseUrl) ||
-    (!apiBaseUrl.startsWith('http') && import.meta.env.PROD))
+    (!apiBaseUrl.startsWith('http') && apiBaseUrl !== '/api'))
 
 const parsedTimeout = Number(import.meta.env.VITE_API_TIMEOUT)
 const apiTimeout = Number.isFinite(parsedTimeout) && parsedTimeout > 0 ? parsedTimeout : 30_000

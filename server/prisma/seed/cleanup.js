@@ -1,3 +1,5 @@
+const fs = require('fs')
+const path = require('path')
 const {
   LEGACY_DEMO_EMAILS,
   MANUAL_ONBOARDING_EMAILS,
@@ -5,29 +7,149 @@ const {
   shouldSeedQaUsers,
 } = require('./constants.js')
 
-/**
- * Remove all marketplace transactional data so bootstrap leaves a clean slate.
- * Master catalog categories/brands are preserved (products truncated separately).
- */
-async function purgeTransactionalData(prisma) {
-  await prisma.orderHistory.deleteMany()
-  await prisma.orderItem.deleteMany()
-  await prisma.quoteRequest.deleteMany()
-  await prisma.order.deleteMany()
-  await prisma.rfqGroup.deleteMany()
-  await prisma.rfqNumberCounter.deleteMany()
-  await prisma.inventoryLog.deleteMany()
-  await prisma.product.deleteMany()
-  await prisma.payment.deleteMany()
-  await prisma.subscription.deleteMany()
-  await prisma.contactMessage.deleteMany()
-  await prisma.categoryRequest.deleteMany()
-  await prisma.auditLog.deleteMany()
+const UPLOAD_DIRS = [
+  path.join(__dirname, '../../uploads/rfq'),
+  path.join(__dirname, '../../uploads/products'),
+  path.join(__dirname, '../../uploads/contact'),
+]
 
+/**
+ * Remove marketplace business / transactional data.
+ * Preserves users, addresses, subscriptions, payments, and master catalog taxonomy by default.
+ */
+async function purgeBusinessData(prisma, { preserveSubscriptions = true } = {}) {
+  const counts = {}
+
+  counts.rfqNotificationEvents = (await prisma.rfqNotificationEvent.deleteMany()).count
+  counts.quoteRevisions = (await prisma.quoteRevision.deleteMany()).count
+  counts.orderHistory = (await prisma.orderHistory.deleteMany()).count
+  counts.orderItems = (await prisma.orderItem.deleteMany()).count
+  counts.quoteRequests = (await prisma.quoteRequest.deleteMany()).count
+  counts.orders = (await prisma.order.deleteMany()).count
+  counts.rfqGroups = (await prisma.rfqGroup.deleteMany()).count
+  counts.rfqNumberCounters = (await prisma.rfqNumberCounter.deleteMany()).count
+  counts.inventoryLogs = (await prisma.inventoryLog.deleteMany()).count
+  counts.products = (await prisma.product.deleteMany()).count
+  counts.contactMessages = (await prisma.contactMessage.deleteMany()).count
+  counts.categoryRequests = (await prisma.categoryRequest.deleteMany()).count
+  counts.auditLogs = (await prisma.auditLog.deleteMany()).count
+
+  if (!preserveSubscriptions) {
+    counts.payments = (await prisma.payment.deleteMany()).count
+    counts.subscriptions = (await prisma.subscription.deleteMany()).count
+  }
+
+  counts.catalogProducts = 0
   try {
-    await prisma.$executeRawUnsafe('DELETE FROM catalog.products')
+    const result = await prisma.$executeRawUnsafe('DELETE FROM catalog.products')
+    counts.catalogProducts = Number(result) || 0
   } catch {
-    // catalog schema may not exist on first run
+    // catalog schema optional until first seed
+  }
+
+  counts.uploadFiles = clearUploadDirectories()
+
+  return counts
+}
+
+/** @deprecated use purgeBusinessData — kept for bootstrap re-seed flow */
+async function purgeTransactionalData(prisma) {
+  return purgeBusinessData(prisma, { preserveSubscriptions: false })
+}
+
+function clearUploadDirectories() {
+  let removed = 0
+  for (const dir of UPLOAD_DIRS) {
+    if (!fs.existsSync(dir)) continue
+    for (const name of fs.readdirSync(dir)) {
+      const filePath = path.join(dir, name)
+      try {
+        if (fs.statSync(filePath).isFile()) {
+          fs.unlinkSync(filePath)
+          removed += 1
+        }
+      } catch {
+        // ignore unreadable entries
+      }
+    }
+  }
+  return removed
+}
+
+async function countBusinessRows(prisma) {
+  const [
+    products,
+    inventoryLogs,
+    orders,
+    orderItems,
+    orderHistory,
+    rfqGroups,
+    quoteRequests,
+    quoteRevisions,
+    rfqNotifications,
+    contactMessages,
+    categoryRequests,
+    auditLogs,
+    users,
+    addresses,
+    subscriptions,
+    payments,
+  ] = await Promise.all([
+    prisma.product.count(),
+    prisma.inventoryLog.count(),
+    prisma.order.count(),
+    prisma.orderItem.count(),
+    prisma.orderHistory.count(),
+    prisma.rfqGroup.count(),
+    prisma.quoteRequest.count(),
+    prisma.quoteRevision.count(),
+    prisma.rfqNotificationEvent.count(),
+    prisma.contactMessage.count(),
+    prisma.categoryRequest.count(),
+    prisma.auditLog.count(),
+    prisma.user.count(),
+    prisma.address.count(),
+    prisma.subscription.count(),
+    prisma.payment.count(),
+  ])
+
+  let catalogProducts = 0
+  let catalogCategories = 0
+  let catalogBrands = 0
+  try {
+    const rows = await prisma.$queryRawUnsafe(`
+      SELECT
+        (SELECT COUNT(*)::int FROM catalog.products) AS products,
+        (SELECT COUNT(*)::int FROM catalog.categories) AS categories,
+        (SELECT COUNT(*)::int FROM catalog.brands) AS brands
+    `)
+    catalogProducts = rows[0]?.products ?? 0
+    catalogCategories = rows[0]?.categories ?? 0
+    catalogBrands = rows[0]?.brands ?? 0
+  } catch {
+    // catalog schema optional
+  }
+
+  return {
+    products,
+    inventoryLogs,
+    orders,
+    orderItems,
+    orderHistory,
+    rfqGroups,
+    quoteRequests,
+    quoteRevisions,
+    rfqNotifications,
+    contactMessages,
+    categoryRequests,
+    auditLogs,
+    users,
+    addresses,
+    subscriptions,
+    payments,
+    catalogProducts,
+    catalogCategories,
+    catalogBrands,
   }
 }
 
@@ -104,10 +226,21 @@ async function runCleanup(prisma) {
   }
 }
 
+async function runUatCleanup(prisma) {
+  const before = await countBusinessRows(prisma)
+  const purged = await purgeBusinessData(prisma, { preserveSubscriptions: true })
+  const after = await countBusinessRows(prisma)
+  return { before, purged, after }
+}
+
 module.exports = {
   runCleanup,
+  runUatCleanup,
+  purgeBusinessData,
   purgeTransactionalData,
   purgeLegacyUsers,
   purgePremiumUsers,
   clearManualOnboardingSubscriptions,
+  countBusinessRows,
+  clearUploadDirectories,
 }

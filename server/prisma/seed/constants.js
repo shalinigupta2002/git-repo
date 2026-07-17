@@ -21,6 +21,13 @@ function shouldSeedQaUsers() {
   return true
 }
 
+/** E2E automation catalog listings — off by default for UAT-clean bootstrap; on in CI */
+function shouldSeedE2eProducts() {
+  if (process.env.SEED_E2E_PRODUCTS === 'false') return false
+  if (process.env.SEED_E2E_PRODUCTS === 'true') return true
+  return process.env.CI === 'true'
+}
+
 const ADMIN = {
   email: 'admin@b2b.local',
   role: 'ADMIN',
@@ -349,4 +356,5 @@ module.exports = {
   EXTRA_BRANDS,
   PLAN_AMOUNTS_PAISE,
   shouldSeedQaUsers,
+  shouldSeedE2eProducts,
 }

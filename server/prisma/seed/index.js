@@ -17,6 +17,7 @@ const {
   PREMIUM_QA_USERS,
   PLAN_AMOUNTS_PAISE,
   shouldSeedQaUsers,
+  shouldSeedE2eProducts,
 } = require('./constants.js')
 const { runCleanup } = require('./cleanup.js')
 const { upsertUsers, upsertAddresses } = require('./users.js')
@@ -190,10 +191,17 @@ async function verifyBootstrap(users) {
       name: 'Premium subscriptions only (6)',
       ok: empty.subscriptions === 6 && empty.payments === 6,
     })
-    checks.push({
-      name: 'Automation seller products only (8–10 total)',
-      ok: empty.products >= 8 && empty.products <= 10,
-    })
+    if (shouldSeedE2eProducts()) {
+      checks.push({
+        name: 'Automation seller products only (8–10 total)',
+        ok: empty.products >= 8 && empty.products <= 10,
+      })
+    } else {
+      checks.push({
+        name: 'No seller products (UAT-clean bootstrap)',
+        ok: empty.products === 0,
+      })
+    }
   } else {
     checks.push({
       name: 'Production: no subscriptions or products',
@@ -292,8 +300,12 @@ async function main() {
     await seedPremiumSubscriptions(prisma, users)
     console.log('[bootstrap] Premium subscriptions upserted (automation + QA)')
 
-    const automationProducts = await seedAutomationSellerProducts(prisma, users)
-    console.log(`[bootstrap] Automation seller products upserted (${automationProducts.length})`)
+    if (shouldSeedE2eProducts()) {
+      const automationProducts = await seedAutomationSellerProducts(prisma, users)
+      console.log(`[bootstrap] Automation seller products upserted (${automationProducts.length})`)
+    } else {
+      console.log('[bootstrap] Automation seller products skipped (set SEED_E2E_PRODUCTS=true for CI catalog)')
+    }
 
     await refreshUsers(users)
   }

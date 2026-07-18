@@ -1,14 +1,14 @@
 /**
  * Counterparty profile visibility — mirrors server/src/services/counterpartyProfileService.js
  *
- * Before deal completion: marketplace ID + city only.
+ * Before deal completion: portal user ID + city only.
  * After deal accepted + deal charges paid: full profile from Main Portal.
  */
 
-export const PUBLIC_COUNTERPARTY_FIELDS = ['marketplaceId', 'city']
+export const PUBLIC_COUNTERPARTY_FIELDS = ['portalUserId', 'city']
 
 export const UNLOCKED_COUNTERPARTY_FIELDS = [
-  'marketplaceId',
+  'portalUserId',
   'city',
   'state',
   'companyName',
@@ -31,6 +31,9 @@ export function maskCounterpartyProfile(profile, context = {}) {
   const masked = {}
   for (const key of allowed) {
     if (profile?.[key] != null && profile[key] !== '') masked[key] = profile[key]
+  }
+  if (profile?.portalUserId) {
+    masked.marketplaceId = profile.portalUserId
   }
   masked.profileUnlocked = unlocked
   return masked

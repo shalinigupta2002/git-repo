@@ -22,6 +22,7 @@ const initialState = {
   buyerPlanType: null,
   buyerMarketplaceId: null,
   sellerMarketplaceId: null,
+  portalUserId: null,
   buyerSubscription: null,
   sellerSubscription: null,
   subscriptions: [],
@@ -36,6 +37,7 @@ const resetSubscriptionState = (state) => {
   state.buyerPlanType = null
   state.buyerMarketplaceId = null
   state.sellerMarketplaceId = null
+  state.portalUserId = null
   state.buyerSubscription = null
   state.sellerSubscription = null
   state.subscriptions = []
@@ -98,6 +100,10 @@ const subscriptionSlice = createSlice({
         state.hasBuyer  = action.payload.hasBuyerSubscription
         state.buyerMarketplaceId = action.payload.buyerMarketplaceId ?? null
         state.sellerMarketplaceId = action.payload.sellerMarketplaceId ?? null
+        state.portalUserId = action.payload.portalUserId
+          ?? action.payload.user?.portalUserId
+          ?? action.payload.buyerMarketplaceId
+          ?? null
         state.buyerSubscription = action.payload.buyerSubscription ?? null
         state.sellerSubscription = action.payload.sellerSubscription ?? null
         state.subscriptions = action.payload.subscriptions || []
@@ -154,9 +160,18 @@ export function selectSellerPlanType(state) {
 export function selectBuyerPlanType(state) {
   return state.subscription.buyerPlanType
 }
+export function selectPortalUserId(state) {
+  return (
+    state.subscription.portalUserId
+    ?? state.auth.user?.portalUserId
+    ?? state.subscription.buyerMarketplaceId
+    ?? state.auth.user?.buyerMarketplaceId
+    ?? null
+  )
+}
 export function selectBuyerMarketplaceId(state) {
-  return state.subscription.buyerMarketplaceId ?? state.auth.user?.buyerMarketplaceId ?? null
+  return selectPortalUserId(state)
 }
 export function selectSellerMarketplaceId(state) {
-  return state.subscription.sellerMarketplaceId ?? state.auth.user?.sellerMarketplaceId ?? null
+  return selectPortalUserId(state)
 }

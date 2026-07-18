@@ -40,10 +40,12 @@ function serializeOrder(o) {
 
   return {
     ...rest,
-    buyerMarketplaceId: buyer?.marketplaceId ?? null,
+    buyerPortalUserId: buyer?.portalUserId ?? null,
     buyerCity: buyer?.city ?? null,
-    sellerMarketplaceId: seller?.marketplaceId ?? null,
+    sellerPortalUserId: seller?.portalUserId ?? null,
     sellerCity: seller?.city ?? null,
+    buyerMarketplaceId: buyer?.portalUserId ?? buyer?.marketplaceId ?? null,
+    sellerMarketplaceId: seller?.portalUserId ?? seller?.marketplaceId ?? null,
     totalAmount: serializeDecimal(o.totalAmount),
     buyer,
     seller,

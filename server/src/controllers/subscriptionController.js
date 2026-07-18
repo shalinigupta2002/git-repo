@@ -10,9 +10,11 @@ const {
   isBundlePlan,
 } = require('../config/subscriptionPlans.js')
 const {
-  ensureIdentityForGrants,
+  syncSubscriptionFieldsForGrants,
   syncDenormalizedSubscriptionFields,
-} = require('../services/marketplaceIdentityService.js')
+  hasEverActivatedBuyerSub,
+  hasEverActivatedSellerSub,
+} = require('../services/subscriptionSyncService.js')
 const { serializeUser, USER_SELECT } = require('../utils/serializeUser.js')
 
 /** Window (ms) within which a PENDING payment is considered a duplicate */
@@ -75,8 +77,8 @@ async function loadSerializedUser(tx, userId) {
   return serializeUser(user)
 }
 
-async function applyMarketplaceIdentity(tx, userId, subscriptions) {
-  await ensureIdentityForGrants(tx, userId, subscriptions)
+async function applySubscriptionSync(tx, userId, subscriptions) {
+  await syncSubscriptionFieldsForGrants(tx, userId, subscriptions)
   return loadSerializedUser(tx, userId)
 }
 
@@ -94,25 +96,29 @@ function buildSubscriptionSummary(user, subscriptions, now) {
 
   const hasBuyerSub = Boolean(buyerSub)
   const hasSellerSub = Boolean(sellerSub)
+  const portalUserId = user?.portalUserId ?? null
 
   return {
     hasBuyerSubscription: hasBuyerSub,
     hasSellerSubscription: hasSellerSub,
-    buyerMarketplaceId: user?.buyerMarketplaceId ?? null,
-    sellerMarketplaceId: user?.sellerMarketplaceId ?? null,
+    portalUserId,
+    buyerMarketplaceId: portalUserId,
+    sellerMarketplaceId: portalUserId,
     buyerSubscription: {
-      status: user?.buyerMarketplaceId
-        ? (hasBuyerSub ? 'ACTIVE' : (user.buyerSubscriptionStatus ?? 'EXPIRED'))
-        : null,
+      status: hasBuyerSub
+        ? 'ACTIVE'
+        : (hasEverActivatedBuyerSub(user) ? (user.buyerSubscriptionStatus ?? 'EXPIRED') : null),
       plan: user?.buyerSubscriptionPlan ?? buyerSub?.plan ?? null,
-      marketplaceId: user?.buyerMarketplaceId ?? null,
+      portalUserId,
+      marketplaceId: portalUserId,
     },
     sellerSubscription: {
-      status: user?.sellerMarketplaceId
-        ? (hasSellerSub ? 'ACTIVE' : (user.sellerSubscriptionStatus ?? 'EXPIRED'))
-        : null,
+      status: hasSellerSub
+        ? 'ACTIVE'
+        : (hasEverActivatedSellerSub(user) ? (user.sellerSubscriptionStatus ?? 'EXPIRED') : null),
       plan: user?.sellerSubscriptionPlan ?? sellerSub?.plan ?? null,
-      marketplaceId: user?.sellerMarketplaceId ?? null,
+      portalUserId,
+      marketplaceId: portalUserId,
     },
     buyerPlan: buyerSub?.plan ?? null,
     sellerPlan: sellerSub?.plan ?? null,
@@ -236,7 +242,7 @@ const verifyPayment = asyncHandler(async (req, res) => {
           },
         })
         if (linked) {
-          const serializedUser = await applyMarketplaceIdentity(tx, userId, [linked])
+          const serializedUser = await applySubscriptionSync(tx, userId, [linked])
           return {
             subscriptions: [linked],
             alreadyPaid:     true,
@@ -262,7 +268,7 @@ const verifyPayment = asyncHandler(async (req, res) => {
         },
       })
       if (existing.length) {
-        const serializedUser = await applyMarketplaceIdentity(tx, userId, existing)
+        const serializedUser = await applySubscriptionSync(tx, userId, existing)
         return {
           subscriptions: existing,
           alreadyPaid:     true,
@@ -292,7 +298,7 @@ const verifyPayment = asyncHandler(async (req, res) => {
       },
     })
 
-    const serializedUser = await applyMarketplaceIdentity(tx, userId, created)
+    const serializedUser = await applySubscriptionSync(tx, userId, created)
 
     return {
       subscriptions: created,
@@ -384,6 +390,7 @@ const getStatus = asyncHandler(async (req, res) => {
     data: {
       hasSellerSubscription: refreshedSummary.hasSellerSubscription,
       hasBuyerSubscription:  refreshedSummary.hasBuyerSubscription,
+      portalUserId:          refreshedSummary.portalUserId,
       buyerMarketplaceId:    refreshedSummary.buyerMarketplaceId,
       sellerMarketplaceId:   refreshedSummary.sellerMarketplaceId,
       buyerSubscription:     refreshedSummary.buyerSubscription,

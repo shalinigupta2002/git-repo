@@ -102,25 +102,17 @@ enum AuditAction {
 // Core models
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Atomic counter for marketplace member IDs (BUY-000001 / SEL-000001).
-model MarketplaceIdCounter {
-  type      String @id @db.VarChar(16)
-  lastValue Int    @default(0) @map("last_value")
-
-  @@map("marketplace_id_counters")
-}
-
 model User {
   id           String   @id @default(uuid())
   email        String   @unique
   passwordHash String   @map("password_hash")
   role         Role
   companyName  String?  @map("company_name")
-  buyerMarketplaceId              String?             @unique @map("buyer_marketplace_id") @db.VarChar(32)
+  /// Public identity from Main Portal (e.g. USR-000245). Single ID for buyer + seller workspaces.
+  portalUserId                    String?             @unique @map("portal_user_id") @db.VarChar(32)
   buyerSubscriptionStatus         SubscriptionStatus? @map("buyer_subscription_status")
   buyerSubscriptionPlan           SubscriptionPlan?   @map("buyer_subscription_plan")
   buyerSubscriptionActivatedAt    DateTime?           @map("buyer_subscription_activated_at")
-  sellerMarketplaceId             String?             @unique @map("seller_marketplace_id") @db.VarChar(32)
   sellerSubscriptionStatus        SubscriptionStatus? @map("seller_subscription_status")
   sellerSubscriptionPlan          SubscriptionPlan?   @map("seller_subscription_plan")
   sellerSubscriptionActivatedAt   DateTime?           @map("seller_subscription_activated_at")

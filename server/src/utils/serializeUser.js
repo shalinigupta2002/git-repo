@@ -1,20 +1,30 @@
 'use strict'
 
+/** @deprecated Transition alias — mirrors portalUserId for one release. */
+function legacyMarketplaceIdAliases(portalUserId) {
+  return {
+    buyerMarketplaceId: portalUserId ?? null,
+    sellerMarketplaceId: portalUserId ?? null,
+  }
+}
+
 /**
  * Serializes a User row for API responses.
- * Marketplace identity fields are included when present on the record.
+ * portalUserId is the public identity from Main Portal.
  */
 function serializeUser(user) {
   if (!user) return null
 
+  const portalUserId = user.portalUserId ?? null
+
   return {
     id: user.id,
+    portalUserId,
     email: user.email,
     role: user.role,
     companyName: user.companyName ?? null,
     createdAt: user.createdAt,
-    buyerMarketplaceId: user.buyerMarketplaceId ?? null,
-    sellerMarketplaceId: user.sellerMarketplaceId ?? null,
+    ...legacyMarketplaceIdAliases(portalUserId),
     buyerSubscriptionStatus: user.buyerSubscriptionStatus ?? null,
     buyerSubscriptionPlan: user.buyerSubscriptionPlan ?? null,
     buyerSubscriptionActivatedAt: user.buyerSubscriptionActivatedAt ?? null,
@@ -30,8 +40,7 @@ const USER_SELECT = {
   role: true,
   companyName: true,
   createdAt: true,
-  buyerMarketplaceId: true,
-  sellerMarketplaceId: true,
+  portalUserId: true,
   buyerSubscriptionStatus: true,
   buyerSubscriptionPlan: true,
   buyerSubscriptionActivatedAt: true,
@@ -40,4 +49,4 @@ const USER_SELECT = {
   sellerSubscriptionActivatedAt: true,
 }
 
-module.exports = { serializeUser, USER_SELECT }
+module.exports = { serializeUser, USER_SELECT, legacyMarketplaceIdAliases }

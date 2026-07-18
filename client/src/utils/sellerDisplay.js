@@ -1,28 +1,36 @@
-export function getSellerMarketplaceId(source) {
+export function getPortalUserId(source) {
   if (!source) return null
   if (typeof source === 'string') return source
   return (
-    source.sellerMarketplaceId
+    source.portalUserId
+    || source.user?.portalUserId
+    || source.buyer?.portalUserId
+    || source.seller?.portalUserId
+    || source.buyerPortalUserId
+    || source.sellerPortalUserId
+    // Transition aliases — remove after legacy field sunset
+    || source.buyerMarketplaceId
+    || source.sellerMarketplaceId
     || source.seller?.marketplaceId
-    || source.marketplaceId
-    || null
-  )
-}
-
-/** @deprecated Use getSellerMarketplaceId — returns marketplace ID, not internal UUID. */
-export function getSellerId(source) {
-  return getSellerMarketplaceId(source)
-}
-
-export function getBuyerMarketplaceId(source) {
-  if (!source) return null
-  if (typeof source === 'string') return source
-  return (
-    source.buyerMarketplaceId
     || source.buyer?.marketplaceId
     || source.marketplaceId
     || null
   )
+}
+
+/** @deprecated Use getPortalUserId */
+export function getSellerMarketplaceId(source) {
+  return getPortalUserId(source)
+}
+
+/** @deprecated Use getPortalUserId — returns public user ID, not internal UUID. */
+export function getSellerId(source) {
+  return getPortalUserId(source)
+}
+
+/** @deprecated Use getPortalUserId */
+export function getBuyerMarketplaceId(source) {
+  return getPortalUserId(source)
 }
 
 export function getSellerCity(source) {
@@ -36,27 +44,27 @@ export function getBuyerCity(source) {
 }
 
 export function formatSellerIdentity(source, { compact = false } = {}) {
-  const marketplaceId = getSellerMarketplaceId(source)
+  const portalUserId = getPortalUserId(source)
   const city = getSellerCity(source)
-  const idLabel = marketplaceId || '—'
+  const idLabel = portalUserId || '—'
   const cityLabel = city || '—'
 
   if (compact) {
-    return `Seller ${idLabel} · ${cityLabel}`
+    return `User ${idLabel} · ${cityLabel}`
   }
 
-  return { sellerMarketplaceId: idLabel, city: cityLabel }
+  return { portalUserId: idLabel, sellerMarketplaceId: idLabel, city: cityLabel }
 }
 
 export function formatBuyerIdentity(source, { compact = false } = {}) {
-  const marketplaceId = getBuyerMarketplaceId(source)
+  const portalUserId = getPortalUserId(source)
   const city = getBuyerCity(source)
-  const idLabel = marketplaceId || '—'
+  const idLabel = portalUserId || '—'
   const cityLabel = city || '—'
 
   if (compact) {
-    return `Buyer ${idLabel} · ${cityLabel}`
+    return `User ${idLabel} · ${cityLabel}`
   }
 
-  return { buyerMarketplaceId: idLabel, city: cityLabel }
+  return { portalUserId: idLabel, buyerMarketplaceId: idLabel, city: cityLabel }
 }

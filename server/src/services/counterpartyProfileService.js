@@ -1,8 +1,8 @@
 'use strict'
 
-const PUBLIC_FIELDS = ['marketplaceId', 'city']
+const PUBLIC_FIELDS = ['portalUserId', 'city']
 const UNLOCKED_FIELDS = [
-  'marketplaceId',
+  'portalUserId',
   'city',
   'state',
   'companyName',
@@ -23,11 +23,8 @@ function isProfileUnlocked({ dealAccepted, dealChargesPaid }) {
   return Boolean(dealAccepted && dealChargesPaid)
 }
 
-function pickMarketplaceId(user, role) {
-  if (!user) return null
-  if (role === 'BUYER') return user.buyerMarketplaceId ?? null
-  if (role === 'SELLER') return user.sellerMarketplaceId ?? null
-  return user.sellerMarketplaceId ?? user.buyerMarketplaceId ?? null
+function pickPortalUserId(user) {
+  return user?.portalUserId ?? null
 }
 
 /**
@@ -36,8 +33,11 @@ function pickMarketplaceId(user, role) {
 function buildFullPartyProfile(user, role) {
   if (!user) return null
   const address = user.addresses?.[0]
+  const portalUserId = pickPortalUserId(user)
   return {
-    marketplaceId: pickMarketplaceId(user, role),
+    portalUserId,
+    /** @deprecated Transition alias — same as portalUserId */
+    marketplaceId: portalUserId,
     city: pickUserCity(user),
     state: address?.state ?? null,
     companyName: user.companyName ?? null,
@@ -62,6 +62,9 @@ function maskCounterpartyProfile(profile, context = {}) {
       masked[key] = profile[key]
     }
   }
+  if (profile.portalUserId) {
+    masked.marketplaceId = profile.portalUserId
+  }
   masked.profileUnlocked = unlocked
   return masked
 }
@@ -80,13 +83,19 @@ function buildPartyMetaFromRequest(request, context = {}) {
     ? serializeCounterpartyUser(request.seller, 'SELLER', context)
     : null
 
+  const buyerPortalUserId = buyer?.portalUserId ?? null
+  const sellerPortalUserId = seller?.portalUserId ?? null
+
   return {
     rfqGroupId: request.rfqGroupId,
     rfqNumber: request.rfqNumber,
-    buyerMarketplaceId: buyer?.marketplaceId ?? null,
+    buyerPortalUserId,
+    sellerPortalUserId,
     buyerCity: buyer?.city ?? null,
-    sellerMarketplaceId: seller?.marketplaceId ?? null,
     sellerCity: seller?.city ?? null,
+    /** @deprecated Transition aliases */
+    buyerMarketplaceId: buyerPortalUserId,
+    sellerMarketplaceId: sellerPortalUserId,
     buyer,
     seller,
     deliveryLocation: request.deliveryLocation,
@@ -100,7 +109,7 @@ module.exports = {
   UNLOCKED_FIELDS,
   isProfileUnlocked,
   pickUserCity,
-  pickMarketplaceId,
+  pickPortalUserId,
   buildFullPartyProfile,
   maskCounterpartyProfile,
   serializeCounterpartyUser,

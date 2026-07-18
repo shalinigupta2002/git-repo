@@ -141,4 +141,5 @@ module.exports = Object.freeze({
   useCrossSiteCookies,
   razorpayKeyId,
   razorpayKeySecret,
+  mainPortalProfileEnabled: optional('MAIN_PORTAL_PROFILE_ENABLED', 'false') === 'true',
 })

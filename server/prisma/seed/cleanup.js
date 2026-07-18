@@ -202,11 +202,10 @@ async function clearManualOnboardingSubscriptions(prisma) {
   await prisma.user.updateMany({
     where: { id: { in: ids } },
     data: {
-      buyerMarketplaceId: null,
+      portalUserId: null,
       buyerSubscriptionStatus: null,
       buyerSubscriptionPlan: null,
       buyerSubscriptionActivatedAt: null,
-      sellerMarketplaceId: null,
       sellerSubscriptionStatus: null,
       sellerSubscriptionPlan: null,
       sellerSubscriptionActivatedAt: null,

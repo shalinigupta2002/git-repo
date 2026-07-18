@@ -41,12 +41,12 @@ function makeQuoteRow(overrides = {}) {
     updatedAt: new Date(),
     buyer: {
       id: IDS.BUYER,
-      buyerMarketplaceId: 'BUY-DEMO-000001',
+      portalUserId: 'USR-DEMO-000001',
       addresses: [{ city: 'Mumbai' }],
     },
     seller: {
       id: IDS.SELLER,
-      sellerMarketplaceId: 'SEL-DEMO-000001',
+      portalUserId: 'USR-DEMO-000002',
       addresses: [{ city: 'Delhi' }],
     },
     product: { id: IDS.PRODUCT, name: 'Test Product', sku: 'PROD-001' },
@@ -112,7 +112,8 @@ describe('RFQ / quote-request APIs', () => {
     expect(res.body.data.group.requests).toHaveLength(1)
     expect(res.body.data.request.seller).toEqual(
       expect.objectContaining({
-        marketplaceId: 'SEL-DEMO-000001',
+        portalUserId: 'USR-DEMO-000002',
+        marketplaceId: 'USR-DEMO-000002',
         city: 'Delhi',
         profileUnlocked: false,
       }),

@@ -22,18 +22,20 @@ function buildUserData(spec, passwordHash) {
   if (spec.group === 'MANUAL_ONBOARDING' || spec.group === undefined) {
     return {
       ...base,
-      buyerMarketplaceId: null,
+      portalUserId: null,
       buyerSubscriptionStatus: null,
       buyerSubscriptionPlan: null,
       buyerSubscriptionActivatedAt: null,
-      sellerMarketplaceId: null,
       sellerSubscriptionStatus: null,
       sellerSubscriptionPlan: null,
       sellerSubscriptionActivatedAt: null,
     }
   }
 
-  return base
+  return {
+    ...base,
+    portalUserId: spec.memberId ?? null,
+  }
 }
 
 async function upsertUsers(prisma) {

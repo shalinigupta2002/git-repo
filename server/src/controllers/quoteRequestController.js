@@ -151,10 +151,12 @@ function withPartyMeta(request) {
   return {
     rfqGroupId: meta.rfqGroupId,
     rfqNumber: meta.rfqNumber,
-    buyerMarketplaceId: meta.buyerMarketplaceId,
+    buyerPortalUserId: meta.buyerPortalUserId,
     buyerCity: meta.buyerCity,
-    sellerMarketplaceId: meta.sellerMarketplaceId,
+    sellerPortalUserId: meta.sellerPortalUserId,
     sellerCity: meta.sellerCity,
+    buyerMarketplaceId: meta.buyerMarketplaceId,
+    sellerMarketplaceId: meta.sellerMarketplaceId,
     deliveryLocation: meta.deliveryLocation,
     expectedDeliveryDate: meta.expectedDeliveryDate,
     attachments: meta.attachments ?? [],
@@ -960,7 +962,8 @@ const listConfirmedBuyers = asyncHandler(async (req, res) => {
     const buyerParty = serializeCounterpartyUser(request.buyer, 'BUYER', PRE_DEAL_PRIVACY)
     if (!byBuyer.has(buyerKey)) {
       byBuyer.set(buyerKey, {
-        buyerMarketplaceId: buyerParty?.marketplaceId ?? null,
+        buyerPortalUserId: buyerParty?.portalUserId ?? null,
+        buyerMarketplaceId: buyerParty?.portalUserId ?? buyerParty?.marketplaceId ?? null,
         buyerCity: buyerParty?.city ?? null,
         buyer: buyerParty,
         confirmedDeals: 0,

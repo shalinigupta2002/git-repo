@@ -88,7 +88,7 @@ async function main() {
     console.log(`${spec.companyName}`)
     console.log(`  Email:         ${spec.email}`)
     console.log(`  Password:      ${spec.password}`)
-    console.log(`  Seller ID:     ${user.sellerMarketplaceId}`)
+    console.log(`  User ID:       ${user.portalUserId ?? '—'}`)
     console.log(`  Subscription:  ${user.sellerSubscriptionPlan} (${user.sellerSubscriptionStatus})`)
     console.log(`  Login verify:  ${loginOk ? 'PASS' : 'FAIL'}`)
   }

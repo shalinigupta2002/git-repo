@@ -7,25 +7,29 @@ const {
 } = require('./constants.js')
 const { money, buildProductImages, buildDescription } = require('./helpers.js')
 
-const MARKETPLACE_ACTIVATED_AT = new Date('2026-01-01T00:00:00.000Z')
+const SUBSCRIPTION_ACTIVATED_AT = new Date('2026-01-01T00:00:00.000Z')
 
-async function syncMarketplaceIdentity(prisma, userId, spec, plan) {
-  const data =
+async function syncSubscriptionIdentity(prisma, userId, spec, plan) {
+  const subscriptionData =
     spec.role === 'BUYER'
       ? {
-          buyerMarketplaceId: spec.memberId,
           buyerSubscriptionStatus: 'ACTIVE',
           buyerSubscriptionPlan: plan,
-          buyerSubscriptionActivatedAt: MARKETPLACE_ACTIVATED_AT,
+          buyerSubscriptionActivatedAt: SUBSCRIPTION_ACTIVATED_AT,
         }
       : {
-          sellerMarketplaceId: spec.memberId,
           sellerSubscriptionStatus: 'ACTIVE',
           sellerSubscriptionPlan: plan,
-          sellerSubscriptionActivatedAt: MARKETPLACE_ACTIVATED_AT,
+          sellerSubscriptionActivatedAt: SUBSCRIPTION_ACTIVATED_AT,
         }
 
-  await prisma.user.update({ where: { id: userId }, data })
+  await prisma.user.update({
+    where: { id: userId },
+    data: {
+      portalUserId: spec.memberId,
+      ...subscriptionData,
+    },
+  })
 }
 
 async function upsertPremiumSubscription(prisma, userId, spec, userSpec) {
@@ -73,7 +77,7 @@ async function upsertPremiumSubscription(prisma, userId, spec, userSpec) {
     },
   })
 
-  await syncMarketplaceIdentity(prisma, userId, userSpec, spec.plan)
+  await syncSubscriptionIdentity(prisma, userId, userSpec, spec.plan)
   return subscription
 }
 
@@ -195,5 +199,5 @@ module.exports = {
   seedAutomationSellerProducts,
   buildAutomationProductSpecs,
   upsertPremiumSubscription,
-  syncMarketplaceIdentity,
+  syncSubscriptionIdentity,
 }

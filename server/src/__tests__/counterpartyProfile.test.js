@@ -14,8 +14,7 @@ const sampleBuyer = {
   id: 'uuid-buyer-internal',
   email: 'buyer@test.com',
   companyName: 'Acme Corp',
-  buyerMarketplaceId: 'BUY-DEMO-000042',
-  sellerMarketplaceId: null,
+  portalUserId: 'USR-DEMO-000042',
   addresses: [{ city: 'Mumbai', state: 'MH', line1: 'Secret St', phone: '9999999999' }],
 }
 
@@ -23,17 +22,17 @@ const sampleSeller = {
   id: 'uuid-seller-internal',
   email: 'seller@test.com',
   companyName: 'Seller Co',
-  buyerMarketplaceId: null,
-  sellerMarketplaceId: 'SEL-DEMO-000007',
+  portalUserId: 'USR-DEMO-000007',
   addresses: [{ city: 'Delhi', state: 'DL', line1: 'Hidden Rd', phone: '8888888888' }],
 }
 
 describe('counterpartyProfileService', () => {
   describe('serializeCounterpartyUser', () => {
-    it('exposes only marketplace ID and city before deal unlock', () => {
+    it('exposes only portal user ID and city before deal unlock', () => {
       const profile = serializeCounterpartyUser(sampleSeller, 'SELLER', PRE_DEAL)
       expect(profile).toEqual({
-        marketplaceId: 'SEL-DEMO-000007',
+        portalUserId: 'USR-DEMO-000007',
+        marketplaceId: 'USR-DEMO-000007',
         city: 'Delhi',
         profileUnlocked: false,
       })
@@ -47,7 +46,8 @@ describe('counterpartyProfileService', () => {
         dealAccepted: true,
         dealChargesPaid: true,
       })
-      expect(profile.marketplaceId).toBe('BUY-DEMO-000042')
+      expect(profile.portalUserId).toBe('USR-DEMO-000042')
+      expect(profile.marketplaceId).toBe('USR-DEMO-000042')
       expect(profile.city).toBe('Mumbai')
       expect(profile.email).toBe('buyer@test.com')
       expect(profile.companyName).toBe('Acme Corp')
@@ -72,8 +72,10 @@ describe('counterpartyProfileService', () => {
         PRE_DEAL,
       )
 
-      expect(meta.buyerMarketplaceId).toBe('BUY-DEMO-000042')
-      expect(meta.sellerMarketplaceId).toBe('SEL-DEMO-000007')
+      expect(meta.buyerPortalUserId).toBe('USR-DEMO-000042')
+      expect(meta.sellerPortalUserId).toBe('USR-DEMO-000007')
+      expect(meta.buyerMarketplaceId).toBe('USR-DEMO-000042')
+      expect(meta.sellerMarketplaceId).toBe('USR-DEMO-000007')
       expect(meta.buyer).not.toHaveProperty('id')
       expect(meta.seller).not.toHaveProperty('id')
       expect(meta).not.toHaveProperty('buyerId')

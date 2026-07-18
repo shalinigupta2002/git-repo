@@ -42,9 +42,11 @@ function buildQuotationSummary(request, { maskSeller = true, buyerView = false }
   return {
     id: request.id,
     status: request.status,
-    sellerMarketplaceId: sellerParty?.marketplaceId ?? null,
+    sellerPortalUserId: sellerParty?.portalUserId ?? null,
     sellerCity: sellerParty?.city ?? null,
     seller: sellerParty,
+    /** @deprecated Transition alias */
+    sellerMarketplaceId: sellerParty?.portalUserId ?? sellerParty?.marketplaceId ?? null,
     sellerUnitPrice: request.status === 'RESPONDED' || request.status === 'ACCEPTED'
       ? request.sellerUnitPrice
       : null,

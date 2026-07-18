@@ -59,7 +59,7 @@ const PREMIUM_AUTOMATION_BUYER = {
   role: 'BUYER',
   password: PASSWORDS.buyer,
   group: 'PREMIUM_AUTOMATION',
-  memberId: 'BUY-DEMO-000001',
+  memberId: 'USR-DEMO-000001',
   companyName: 'Premium Automation Buyer',
   address: {
     label: 'Head Office',
@@ -77,7 +77,7 @@ const PREMIUM_AUTOMATION_SELLER = {
   role: 'SELLER',
   password: PASSWORDS.seller,
   group: 'PREMIUM_AUTOMATION',
-  memberId: 'SEL-DEMO-000001',
+  memberId: 'USR-DEMO-000002',
   companyName: 'Premium Automation Seller',
   address: {
     label: 'Warehouse',
@@ -98,7 +98,7 @@ const PREMIUM_QA_BUYER = {
   role: 'BUYER',
   password: PASSWORDS.buyer,
   group: 'PREMIUM_QA',
-  memberId: 'BUY-DEMO-000002',
+  memberId: 'USR-DEMO-000003',
   companyName: 'Premium QA Buyer',
   address: {
     label: 'Head Office',
@@ -116,7 +116,7 @@ const PREMIUM_QA_SELLER = {
   role: 'SELLER',
   password: PASSWORDS.seller,
   group: 'PREMIUM_QA',
-  memberId: 'SEL-DEMO-000002',
+  memberId: 'USR-DEMO-000004',
   companyName: 'Premium QA Seller',
   address: {
     label: 'Warehouse',
@@ -135,7 +135,7 @@ const PREMIUM_QA_SELLER_2 = {
   role: 'SELLER',
   password: PASSWORDS.seller2,
   group: 'PREMIUM_QA',
-  memberId: 'SEL-DEMO-000003',
+  memberId: 'USR-DEMO-000005',
   companyName: 'Test Seller 2',
   address: {
     label: 'Warehouse',
@@ -153,7 +153,7 @@ const PREMIUM_QA_SELLER_3 = {
   role: 'SELLER',
   password: PASSWORDS.seller3,
   group: 'PREMIUM_QA',
-  memberId: 'SEL-DEMO-000004',
+  memberId: 'USR-DEMO-000006',
   companyName: 'Test Seller 3',
   address: {
     label: 'Warehouse',

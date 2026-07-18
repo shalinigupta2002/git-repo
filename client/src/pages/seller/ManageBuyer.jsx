@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { getPortalUserId } from '../../utils/sellerDisplay.js'
 import { SellerWorkflowChrome } from '../../layouts/SellerWorkflowChrome.jsx'
 import { fetchConfirmedBuyers } from '../../services/quoteRequest.service.js'
 
@@ -78,7 +78,7 @@ export function ManageBuyer() {
                 <table className="table">
                   <thead>
                     <tr>
-                      <th>Buyer ID</th>
+                      <th>User ID</th>
                       <th>City</th>
                       <th>Confirmed deals</th>
                       <th>Last confirmed</th>
@@ -87,8 +87,8 @@ export function ManageBuyer() {
                   </thead>
                   <tbody>
                     {buyers.map((buyer) => (
-                      <tr key={buyer.buyerMarketplaceId || buyer.buyer?.marketplaceId || buyer.confirmedDeals}>
-                        <td><code>{buyer.buyerMarketplaceId || buyer.buyer?.marketplaceId || '—'}</code></td>
+                      <tr key={getPortalUserId(buyer) || buyer.confirmedDeals}>
+                        <td><code>{getPortalUserId(buyer) || '—'}</code></td>
                         <td>{buyer.buyerCity || '—'}</td>
                         <td>{buyer.confirmedDeals}</td>
                         <td>{formatDate(buyer.lastConfirmedAt)}</td>

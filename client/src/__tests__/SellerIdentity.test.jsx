@@ -3,15 +3,15 @@ import { render, screen } from '@testing-library/react'
 import { SellerIdentity } from '../components/common/SellerIdentity.jsx'
 
 describe('SellerIdentity', () => {
-  it('renders seller marketplace id and city only', () => {
+  it('renders portal user id and city only', () => {
     render(
       <SellerIdentity
-        seller={{ marketplaceId: 'SEL-DEMO-000001', city: 'Mumbai' }}
+        seller={{ portalUserId: 'USR-DEMO-000001', city: 'Mumbai' }}
       />,
     )
 
-    expect(screen.getByText('Seller ID')).toBeInTheDocument()
-    expect(screen.getByText('SEL-DEMO-000001')).toBeInTheDocument()
+    expect(screen.getByText('User ID')).toBeInTheDocument()
+    expect(screen.getByText('USR-DEMO-000001')).toBeInTheDocument()
     expect(screen.getByText('City')).toBeInTheDocument()
     expect(screen.getByText('Mumbai')).toBeInTheDocument()
   })
@@ -19,15 +19,15 @@ describe('SellerIdentity', () => {
   it('compact mode shows id and city labels', () => {
     render(
       <SellerIdentity
-        seller={{ marketplaceId: 'SEL-DEMO-000002', city: 'Delhi' }}
+        seller={{ portalUserId: 'USR-DEMO-000002', city: 'Delhi' }}
         compact
         showLabel
       />,
     )
 
-    expect(screen.getByText(/Seller ID:/)).toBeInTheDocument()
+    expect(screen.getByText(/User ID:/)).toBeInTheDocument()
     expect(screen.getByText(/City:/)).toBeInTheDocument()
     expect(screen.getByText('Delhi')).toBeInTheDocument()
-    expect(screen.getByText('SEL-DEMO-000002')).toBeInTheDocument()
+    expect(screen.getByText('USR-DEMO-000002')).toBeInTheDocument()
   })
 })

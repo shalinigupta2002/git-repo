@@ -1,8 +1,9 @@
-import { getSellerCity, getSellerMarketplaceId, getBuyerMarketplaceId } from '../../utils/sellerDisplay.js'
+import { getSellerCity, getPortalUserId } from '../../utils/sellerDisplay.js'
 
 export function SellerIdentity({
   seller,
   sellerMarketplaceId,
+  sellerPortalUserId,
   sellerId,
   city,
   className = '',
@@ -10,7 +11,7 @@ export function SellerIdentity({
   showLabel = true,
   showId = true,
 }) {
-  const id = getSellerMarketplaceId({ seller, sellerMarketplaceId, sellerId }) || '—'
+  const id = getPortalUserId({ seller, sellerMarketplaceId, sellerPortalUserId, sellerId }) || '—'
   const sellerCity = getSellerCity({ seller, city, sellerCity: city }) || '—'
 
   if (compact) {
@@ -19,7 +20,7 @@ export function SellerIdentity({
         {showId ? (
           <>
             <span className="sellerIdentity__item">
-              {showLabel ? 'Seller ID: ' : null}
+              {showLabel ? 'User ID: ' : null}
               <code className="sellerIdentity__code">{id}</code>
             </span>
             <span className="sellerIdentity__dot" aria-hidden>
@@ -38,7 +39,7 @@ export function SellerIdentity({
   return (
     <dl className={`sellerIdentity ${className}`.trim()}>
       <div className="sellerIdentity__row">
-        <dt>Seller ID</dt>
+        <dt>User ID</dt>
         <dd><code className="sellerIdentity__code">{id}</code></dd>
       </div>
       <div className="sellerIdentity__row">
@@ -52,6 +53,7 @@ export function SellerIdentity({
 export function BuyerIdentity({
   buyer,
   buyerMarketplaceId,
+  buyerPortalUserId,
   buyerId,
   city,
   className = '',
@@ -59,7 +61,7 @@ export function BuyerIdentity({
   showLabel = true,
   showId = true,
 }) {
-  const id = getBuyerMarketplaceId({ buyer, buyerMarketplaceId, buyerId }) || '—'
+  const id = getPortalUserId({ buyer, buyerMarketplaceId, buyerPortalUserId, buyerId }) || '—'
   const buyerCity = city || buyer?.city || '—'
 
   if (compact) {
@@ -68,7 +70,7 @@ export function BuyerIdentity({
         {showId ? (
           <>
             <span className="sellerIdentity__item">
-              {showLabel ? 'Buyer ID: ' : null}
+              {showLabel ? 'User ID: ' : null}
               <code className="sellerIdentity__code">{id}</code>
             </span>
             <span className="sellerIdentity__dot" aria-hidden>
@@ -87,7 +89,7 @@ export function BuyerIdentity({
   return (
     <dl className={`sellerIdentity ${className}`.trim()}>
       <div className="sellerIdentity__row">
-        <dt>Buyer ID</dt>
+        <dt>User ID</dt>
         <dd><code className="sellerIdentity__code">{id}</code></dd>
       </div>
       <div className="sellerIdentity__row">

@@ -59,8 +59,7 @@ async function main() {
       email: true,
       role: true,
       companyName: true,
-      buyerMarketplaceId: true,
-      sellerMarketplaceId: true,
+      portalUserId: true,
       buyerSubscriptionStatus: true,
       sellerSubscriptionStatus: true,
       addresses: { where: { isDefault: true }, select: { city: true } },
@@ -72,11 +71,8 @@ async function main() {
   console.log(`=== Demo accounts preserved (${demoUsers.length}) ===`)
   for (const user of demoUsers) {
     const city = user.addresses[0]?.city ?? '—'
-    const ids = [
-      user.buyerMarketplaceId ? `buyer ${user.buyerMarketplaceId}` : null,
-      user.sellerMarketplaceId ? `seller ${user.sellerMarketplaceId}` : null,
-    ].filter(Boolean).join(', ') || 'no marketplace ID'
-    console.log(`  ${user.email} (${user.role}) · ${user.companyName} · ${ids} · ${city}`)
+    const idLabel = user.portalUserId ? `User ID ${user.portalUserId}` : 'no portal user ID'
+    console.log(`  ${user.email} (${user.role}) · ${user.companyName} · ${idLabel} · ${city}`)
   }
 
   const businessEmpty =

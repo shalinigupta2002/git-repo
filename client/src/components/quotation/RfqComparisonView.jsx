@@ -10,8 +10,8 @@ import {
   getRfqGroupComparison,
   rejectQuote,
 } from '../../services/quoteRequest.service.js'
+import { getPortalUserId } from '../../utils/sellerDisplay.js'
 import {
-  QUOTE_STATUS_BADGE,
   QUOTE_STATUS_LABELS,
   formatQuotationDate,
   formatQuoteMoney,
@@ -165,7 +165,7 @@ export function RfqComparisonView({ basePath = '/buyer/quotations' }) {
         <table className="quoteComparisonTable">
           <thead>
             <tr>
-              <th>Seller ID</th>
+              <th>User ID</th>
               <th>Seller city</th>
               <th>Price</th>
               <th>Delivery time</th>
@@ -191,7 +191,7 @@ export function RfqComparisonView({ basePath = '/buyer/quotations' }) {
                 && isBuyerQuotationActionable({ status, expired, actionsLocked: row.actionsLocked })
               return (
                 <tr key={quotationId}>
-                  <td><code>{row.sellerMarketplaceId || row.seller?.marketplaceId || '—'}</code></td>
+                  <td><code>{getPortalUserId(row) || '—'}</code></td>
                   <td>{row.sellerCity || '—'}</td>
                   <td>{formatQuoteMoney(row.finalUnitPrice || row.sellerUnitPrice, row.currency || row.sellerCurrency || 'INR')}</td>
                   <td>{row.deliveryTime || row.freightNote || '—'}</td>

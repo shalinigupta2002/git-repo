@@ -92,8 +92,8 @@ async function refreshUsers(users) {
   }
 }
 
-function marketplaceIdFor(user, role) {
-  return role === 'BUYER' ? user.buyerMarketplaceId : user.sellerMarketplaceId
+function portalUserIdFor(user) {
+  return user.portalUserId ?? null
 }
 
 async function verifyManualOnboarding(users, checks) {
@@ -104,8 +104,8 @@ async function verifyManualOnboarding(users, checks) {
       ok: Boolean(u && await bcrypt.compare(spec.password, u.passwordHash)),
     })
     checks.push({
-      name: `${spec.email} no marketplace ID`,
-      ok: !u?.buyerMarketplaceId && !u?.sellerMarketplaceId,
+      name: `${spec.email} no portal user ID`,
+      ok: !u?.portalUserId,
     })
     const subs = await prisma.subscription.count({
       where: { userId: u?.id, status: 'ACTIVE' },
@@ -122,8 +122,8 @@ async function verifyPremiumGroup(users, groupSpecs, checks, { expectProducts = 
       ok: Boolean(u && await bcrypt.compare(spec.password, u.passwordHash)),
     })
     checks.push({
-      name: `${spec.email} marketplace ID ${spec.memberId}`,
-      ok: marketplaceIdFor(u, spec.role) === spec.memberId,
+      name: `${spec.email} portal user ID ${spec.memberId}`,
+      ok: portalUserIdFor(u) === spec.memberId,
     })
     checks.push({
       name: `${spec.email} companyName is clean`,
@@ -221,7 +221,7 @@ function printReport(legacyRemoved, catalogStats, counts, verification) {
   console.log('')
   console.log(`Users (${userTotal} total):`)
   console.log(`  Admin:                    ${ADMIN.email}`)
-  console.log('  MANUAL_ONBOARDING:        buyer1–5@test.com, seller1@test.com, seller4–5@test.com (no subscription, no ID)')
+  console.log('  MANUAL_ONBOARDING:        buyer1–5@test.com, seller1@test.com, seller4–5@test.com (no subscription, no portal user ID)')
   if (seedQa) {
     console.log(`  PREMIUM_AUTOMATION buyer: ${PREMIUM_AUTOMATION_BUYER.email} (${PREMIUM_AUTOMATION_BUYER.memberId})`)
     console.log(`  PREMIUM_AUTOMATION seller:${PREMIUM_AUTOMATION_SELLER.email} (${PREMIUM_AUTOMATION_SELLER.memberId}, 10 products)`)
@@ -275,7 +275,7 @@ function printReport(legacyRemoved, catalogStats, counts, verification) {
   }
   console.log('')
   console.log('Notes:')
-  console.log('  • Marketplace IDs live in buyer_marketplace_id / seller_marketplace_id columns')
+  console.log('  • Portal User IDs live in portal_user_id column (Main Portal is source of truth)')
   console.log('  • MANUAL_ONBOARDING users test subscription purchase and onboarding flows')
   if (seedQa) {
     console.log('  • PREMIUM_AUTOMATION: Playwright/CI with seller catalog, no RFQs/orders')

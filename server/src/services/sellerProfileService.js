@@ -9,8 +9,7 @@ const USER_PUBLIC_SELECT = {
   id: true,
   email: true,
   companyName: true,
-  buyerMarketplaceId: true,
-  sellerMarketplaceId: true,
+  portalUserId: true,
   addresses: {
     orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
     take: 1,

@@ -5,8 +5,8 @@ import { listOrders } from '../../services/order.service.js'
 import { fetchRfqStats } from '../../services/quoteRequest.service.js'
 import { useAuth } from '../../hooks/useAuth.js'
 import { useAppSelector } from '../../hooks/redux.js'
-import { selectHasSellerSubscription, selectSubscription, selectSellerMarketplaceId } from '../../store/slices/subscriptionSlice.js'
-import { MarketplaceIdDisplay, ProfileLinkHint } from '../../components/common/MarketplaceIdDisplay.jsx'
+import { selectHasSellerSubscription, selectSubscription, selectPortalUserId } from '../../store/slices/subscriptionSlice.js'
+import { UserIdDisplay, ProfileLinkHint } from '../../components/common/MarketplaceIdDisplay.jsx'
 import { Spinner } from '../../components/ui/Spinner.jsx'
 
 function formatAmount(v, currency = 'INR') {
@@ -26,9 +26,8 @@ function formatAmount(v, currency = 'INR') {
 export function SellerDashboard() {
   const hasSub = useAppSelector(selectHasSellerSubscription)
   const subscriptionStatus = useAppSelector(selectSubscription).status
-  const sellerMarketplaceId = useAppSelector(selectSellerMarketplaceId)
   const { user } = useAuth()
-  const displaySellerId = sellerMarketplaceId ?? user?.sellerMarketplaceId
+  const portalUserId = useAppSelector(selectPortalUserId) ?? user?.portalUserId
   const [stats, setStats] = useState({
     products: 0,
     openOrders: 0,
@@ -99,7 +98,7 @@ export function SellerDashboard() {
             {subscriptionStatus !== 'loading' && subscriptionStatus !== 'idle' && !hasSub ? (
               <Link to="/pricing" className="metricCard__link">Get subscription →</Link>
             ) : null}
-            <MarketplaceIdDisplay marketplaceId={displaySellerId} label="Seller ID" />
+            <UserIdDisplay portalUserId={portalUserId} />
             {subscriptionStatus !== 'loading' && subscriptionStatus !== 'idle' && hasSub ? (
               <ProfileLinkHint />
             ) : null}

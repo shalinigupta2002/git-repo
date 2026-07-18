@@ -93,10 +93,11 @@ const create = asyncHandler(async (req, res) => {
 
   const { sku, name, description, price, moq, currency, isActive, trackInventory, stockQty } = req.body
   const images = buildProductImages(req.files || [])
-  await persistUploadedProductFiles(req.files || [])
 
   try {
     const product = await prisma.$transaction(async (tx) => {
+      await persistUploadedProductFiles(req.files || [], tx)
+
       const created = await tx.product.create({
         data: {
           sellerId,

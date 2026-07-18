@@ -8,7 +8,7 @@ jest.mock('../config/database.js', () => {
 
 const fs = require('fs')
 const path = require('path')
-const { persistUploadedProductFiles } = require('../services/productImageStorage.js')
+const { persistUploadedProductFiles, serveProductImage } = require('../services/productImageStorage.js')
 const { prisma } = require('../config/database.js')
 
 describe('productImageStorage', () => {
@@ -33,5 +33,30 @@ describe('productImageStorage', () => {
     )
 
     fs.unlinkSync(filePath)
+  })
+
+  test('serveProductImage serves DB blob without env import crash', async () => {
+    prisma.uploadedFile.findUnique.mockResolvedValue({
+      key: 'db-only.png',
+      mimeType: 'image/png',
+      data: new Uint8Array([137, 80, 78, 71]),
+    })
+
+    const headers = {}
+    const res = {
+      set(name, value) {
+        headers[name.toLowerCase()] = value
+      },
+      send(body) {
+        res.body = body
+      },
+    }
+
+    const served = await serveProductImage('db-only.png', res)
+
+    expect(served).toBe(true)
+    expect(headers['content-type']).toBe('image/png')
+    expect(Buffer.isBuffer(res.body)).toBe(true)
+    expect(res.body.length).toBe(4)
   })
 })

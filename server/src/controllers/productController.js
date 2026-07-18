@@ -6,6 +6,7 @@ const { USER_PUBLIC_SELECT } = require('../services/sellerProfileService.js')
 const { serializeProduct } = require('../utils/serialize.js')
 const { writeAuditLog } = require('../utils/audit.js')
 const { buildProductImages } = require('../middleware/productUpload.js')
+const { persistUploadedProductFiles } = require('../services/productImageStorage.js')
 
 const list = asyncHandler(async (req, res) => {
   const { page, limit, sellerId, includeInactive, search, mine } = req.query
@@ -92,6 +93,7 @@ const create = asyncHandler(async (req, res) => {
 
   const { sku, name, description, price, moq, currency, isActive, trackInventory, stockQty } = req.body
   const images = buildProductImages(req.files || [])
+  await persistUploadedProductFiles(req.files || [])
 
   try {
     const product = await prisma.$transaction(async (tx) => {

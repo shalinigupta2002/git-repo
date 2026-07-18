@@ -38,6 +38,8 @@ const { metricsMiddleware } = require('./middleware/metrics.js')
 const routes         = require('./routes/index.js')
 const catalogRoutes  = require('./routes/catalog.routes.js')
 const { errorHandler, notFoundHandler } = require('./middleware/errorHandler.js')
+const { asyncHandler } = require('./utils/asyncHandler.js')
+const { serveProductImage } = require('./services/productImageStorage.js')
 
 const app = express()
 
@@ -74,12 +76,14 @@ app.use(
   }),
 )
 
-// ── Uploaded product images ───────────────────────────────────────────────────
-app.use(
-  '/api/uploads/products',
-  express.static(path.join(__dirname, '../uploads/products'), {
-    fallthrough: false,
-    maxAge: env.isProd ? '7d' : 0,
+// ── Uploaded product images (disk in dev; DB fallback in production) ─────────
+app.get(
+  '/api/uploads/products/:filename',
+  asyncHandler(async (req, res) => {
+    const served = await serveProductImage(req.params.filename, res)
+    if (!served) {
+      res.status(404).json({ success: false, error: { message: 'File not found' } })
+    }
   }),
 )
 

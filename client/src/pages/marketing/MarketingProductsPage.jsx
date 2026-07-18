@@ -14,7 +14,7 @@ import { selectHasBuyerSubscription } from '../../store/slices/subscriptionSlice
 import { canAccessBuyerWorkspace } from '../../utils/portalNav.js'
 import { ErrorState } from '../../components/common/ErrorState.jsx'
 import { addWishlistItem, getWishlistIds } from '../../utils/wishlistStorage.js'
-import { resolveUploadUrl } from '../../utils/uploadUrl.js'
+import { ProductImage } from '../../components/common/ProductImage.jsx'
 import { formatProductPrice } from '../../utils/formatPrice.js'
 
 const PAGE_SIZE = 12
@@ -173,11 +173,6 @@ function IconChat() {
 
 function formatMoney(n, currency = 'INR') {
   return formatProductPrice(n, currency)
-}
-
-function productCardImage(product) {
-  if (!product?.imageUrl) return 'https://picsum.photos/600/600'
-  return product.source === 'seller' ? resolveUploadUrl(product.imageUrl) : product.imageUrl
 }
 
 function useDebouncedValue(value, delay = 400) {
@@ -704,12 +699,13 @@ export function MarketingProductsPage() {
                 <article key={p.id} className="mpCard">
                   <Link to={`/products/${p.id}`} className="mpCard__link">
                     <div className="mpCard__media">
-                      <img
+                      <ProductImage
+                        product={p}
                         className="mpCard__img"
-                        src={productCardImage(p)}
-                        alt=""
+                        alt={p.title || 'Product'}
                         loading="lazy"
                         decoding="async"
+                        placeholderSize={{ width: 600, height: 600 }}
                       />
                     </div>
                     <div className="mpCard__bodyTop">

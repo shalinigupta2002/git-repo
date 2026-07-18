@@ -15,12 +15,8 @@ import { fetchCatalogProduct, fetchAlternativeSellerListings } from '../../servi
 import { addWishlistItem, getWishlistIds } from '../../utils/wishlistStorage.js'
 import { canAccessBuyerWorkspace } from '../../utils/portalNav.js'
 import { formatProductPrice } from '../../utils/formatPrice.js'
-import { resolveUploadUrl } from '../../utils/uploadUrl.js'
+import { ProductImage } from '../../components/common/ProductImage.jsx'
 
-function productDetailImage(product) {
-  if (!product?.imageUrl) return `https://picsum.photos/seed/catalog-${product.id}/1200/900`
-  return product.source === 'seller' ? resolveUploadUrl(product.imageUrl) : product.imageUrl
-}
 
 function formatMoney(n, currency = 'INR') {
   return formatProductPrice(n, currency)
@@ -213,16 +209,13 @@ export function ProductDetailPage() {
             <>
               <article className="pdHero">
                 <div className="pdGallery">
-                  <img
+                  <ProductImage
+                    product={product}
                     className="pdGallery__img"
-                    src={productDetailImage(product)}
                     alt={product.title}
                     loading="eager"
                     decoding="async"
-                    onError={(e) => {
-                      e.currentTarget.onerror = null
-                      e.currentTarget.src = `https://picsum.photos/seed/catalog-${product.id}/1200/900`
-                    }}
+                    placeholderSize={{ width: 1200, height: 900 }}
                   />
                 </div>
 

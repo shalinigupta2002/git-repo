@@ -275,6 +275,16 @@ model Product {
   @@map("products")
 }
 
+/// Binary blobs for uploaded product images (production persistence on ephemeral hosts).
+model UploadedFile {
+  key       String   @id @map("key")
+  mimeType  String   @map("mime_type")
+  data      Bytes
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("uploaded_files")
+}
+
 /// Full trail of every stock movement for a product.
 model InventoryLog {
   id          String          @id @default(uuid())

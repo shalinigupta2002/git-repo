@@ -115,6 +115,10 @@ const mockPrisma = {
   dealEvent: {
     create: jest.fn(),
   },
+  uploadedFile: {
+    findUnique: jest.fn(),
+    upsert:     jest.fn(),
+  },
   quoteRevision: {
     count: jest.fn(),
     create: jest.fn(),

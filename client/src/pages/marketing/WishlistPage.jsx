@@ -2,10 +2,11 @@ import { Link } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import toast from 'react-hot-toast'
 import { BrandLogo } from '../../components/common/BrandLogo.jsx'
+import { MyDashboardMenu } from '../../components/common/MyDashboardMenu.jsx'
 import { SellerIdentity } from '../../components/common/SellerIdentity.jsx'
 import { useAuth } from '../../hooks/useAuth.js'
 import { getWishlistItems, removeWishlistItem } from '../../utils/wishlistStorage.js'
-import { resolveUploadUrl } from '../../utils/uploadUrl.js'
+import { ProductImage } from '../../components/common/ProductImage.jsx'
 
 function formatMoney(value) {
   return new Intl.NumberFormat('en-IN', {
@@ -13,10 +14,6 @@ function formatMoney(value) {
   }).format(Number(value) || 0)
 }
 
-function wishlistImage(item) {
-  if (!item?.imageUrl) return 'https://picsum.photos/600/600'
-  return item.source === 'seller' ? resolveUploadUrl(item.imageUrl) : item.imageUrl
-}
 
 export function WishlistPage() {
   const { user, isAuthenticated, initialized: authInitialized } = useAuth()
@@ -80,12 +77,13 @@ export function WishlistPage() {
             {items.map((item) => (
               <article key={item.id} className="wishlistCard">
                 <Link to={`/products/${item.id}`} className="wishlistCard__mediaLink">
-                  <img
+                  <ProductImage
+                    product={item}
                     className="wishlistCard__img"
-                    src={wishlistImage(item)}
-                    alt=""
+                    alt={item.title || 'Wishlisted product'}
                     loading="lazy"
                     decoding="async"
+                    placeholderSize={{ width: 600, height: 600 }}
                   />
                 </Link>
                 <div className="wishlistCard__body">

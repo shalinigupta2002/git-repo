@@ -3,7 +3,7 @@ import { getApiOrigin } from '../constants/env.js'
 /** Turn API-relative upload paths into absolute URLs for img/video src. */
 export function resolveUploadUrl(url) {
   if (!url || typeof url !== 'string') return ''
-  if (/^https?:\/\//i.test(url)) return url
+  if (/^(https?:|data:|blob:)/i.test(url)) return url
   const origin = getApiOrigin()
   const path = url.startsWith('/') ? url : `/${url}`
   return `${origin}${path}`

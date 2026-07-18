@@ -60,9 +60,22 @@ function slugify(value) {
     .replace(/^-+|-+$/g, '')
 }
 
+function normalizeProductImages(images) {
+  if (!images) return []
+  if (Array.isArray(images)) return images
+  if (typeof images === 'string') {
+    try {
+      const parsed = JSON.parse(images)
+      return Array.isArray(parsed) ? parsed : []
+    } catch {
+      return []
+    }
+  }
+  return []
+}
+
 function firstImageUrl(images) {
-  if (!images) return null
-  const list = Array.isArray(images) ? images : []
+  const list = normalizeProductImages(images)
   const hit = list.find((item) => item?.url)
   return hit?.url ?? null
 }
@@ -212,4 +225,5 @@ module.exports = {
   getSellerProductById,
   findAlternativeSellerListings,
   parseProductMeta,
+  mapSellerProduct,
 }

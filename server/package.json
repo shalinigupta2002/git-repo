@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node src/index.js",
     "start:ci": "node src/index.js",
-    "dev": "node --watch src/index.js",
+    "dev": "npm run free:port && node --watch src/index.js",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",

@@ -6,7 +6,7 @@ const { pool }   = require('./db/pool.js')
 
 // ─── Startup ──────────────────────────────────────────────────────────────────
 
-const server = app.listen(env.port, () => {
+const server = app.listen(env.port, async () => {
   logger.info(
     {
       port: env.port,
@@ -16,6 +16,17 @@ const server = app.listen(env.port, () => {
     },
     '[startup] API listening',
   )
+
+  try {
+    const path = require('path')
+    const { ensureCatalogSchema } = require(path.join(__dirname, '../prisma/seed/catalog.js'))
+    const { ensureDefaultCategories } = require('./services/shopCategoryDbService.js')
+    await ensureCatalogSchema(prisma)
+    await ensureDefaultCategories()
+    logger.info('[startup] Catalog schema and default categories ensured successfully')
+  } catch (err) {
+    logger.error({ err }, '[startup] Failed to ensure database catalog schema/categories')
+  }
 })
 
 server.on('error', (err) => {

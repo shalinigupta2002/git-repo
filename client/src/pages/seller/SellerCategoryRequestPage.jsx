@@ -6,7 +6,8 @@ import {
   markCategoryRequestRead,
   markAllCategoryRequestsRead,
 } from '../../services/categoryRequest.service.js'
-import { fetchCatalogCategories } from '../../services/catalog.service.js'
+import { fetchShopCategories } from '../../services/shopCategory.service.js'
+import { SearchableDropdown } from '../../components/ui/SearchableDropdown.jsx'
 
 // ─── Status config ─────────────────────────────────────────────────────────────
 
@@ -100,13 +101,6 @@ function SubFolderIcon() {
   )
 }
 
-// ─── Tab constants ─────────────────────────────────────────────────────────────
-
-const TABS = [
-  { id: 'CATEGORY',    label: 'Add category',    Icon: FolderIcon    },
-  { id: 'SUBCATEGORY', label: 'Add subcategory', Icon: SubFolderIcon },
-]
-
 // ─── Main page ─────────────────────────────────────────────────────────────────
 
 export function CategoryRequestPage({ audience = 'seller' }) {
@@ -114,25 +108,29 @@ export function CategoryRequestPage({ audience = 'seller' }) {
   const [categories,  setCategories]  = useState([])
   const [loading,     setLoading]     = useState(true)
   const [submitting,  setSubmitting]  = useState(false)
-  const [activeTab,   setActiveTab]   = useState('CATEGORY')
   const [unread,      setUnread]      = useState([])
 
   // form state
-  const [catName,     setCatName]    = useState('')
-  const [parentName,  setParentName] = useState('')
-  const [desc,        setDesc]       = useState('')
+  const [categoryName, setCategoryName] = useState('')
+  const [subcategoryName, setSubcategoryName] = useState('')
+  const [desc, setDesc] = useState('')
+
+  const selectedCategoryNode = categories.find(
+    (c) => c.label.toLowerCase() === categoryName.toLowerCase()
+  ) ?? null
+  const isExistingCategory = selectedCategoryNode !== null
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const [reqData, catData] = await Promise.all([
+      const [reqData, treeData] = await Promise.all([
         fetchMyCategoReqRequests(),
-        fetchCatalogCategories().catch(() => []),
+        fetchShopCategories().catch(() => []),
       ])
       const list = reqData.requests || []
       setRequests(list)
       setUnread(list.filter((r) => !r.notificationRead && r.status !== 'PENDING'))
-      setCategories(Array.isArray(catData) ? catData : [])
+      setCategories(Array.isArray(treeData) ? treeData : [])
     } catch (err) {
       toast.error(err.message || 'Failed to load data')
     } finally {
@@ -143,31 +141,47 @@ export function CategoryRequestPage({ audience = 'seller' }) {
   useEffect(() => { load() }, [load])
 
   function resetForm() {
-    setCatName('')
-    setParentName('')
+    setCategoryName('')
+    setSubcategoryName('')
     setDesc('')
   }
 
   async function handleSubmit(e) {
     e.preventDefault()
-    if (!catName.trim()) return
-    if (activeTab === 'SUBCATEGORY' && !parentName.trim()) {
-      toast.error('Please select or enter the parent category')
-      return
-    }
+    if (!categoryName.trim()) return
+
     setSubmitting(true)
     try {
-      await submitCategoryRequest({
-        requestType:        activeTab,
-        categoryName:       catName.trim(),
-        parentCategoryName: activeTab === 'SUBCATEGORY' ? parentName.trim() : undefined,
-        description:        desc.trim() || undefined,
-      })
-      toast.success(
-        activeTab === 'SUBCATEGORY'
-          ? 'Subcategory request submitted! Admin will review it.'
-          : 'Category request submitted! Admin will review it.',
-      )
+      if (isExistingCategory) {
+        if (!subcategoryName.trim()) {
+          toast.error('Please enter a subcategory name')
+          setSubmitting(false)
+          return
+        }
+        await submitCategoryRequest({
+          requestType: 'SUBCATEGORY',
+          categoryName: subcategoryName.trim(),
+          parentCategoryName: selectedCategoryNode.label,
+          description: desc.trim() || undefined,
+        })
+        toast.success(`Subcategory request for "${subcategoryName.trim()}" under "${selectedCategoryNode.label}" submitted!`)
+      } else {
+        await submitCategoryRequest({
+          requestType: 'CATEGORY',
+          categoryName: categoryName.trim(),
+          description: desc.trim() || undefined,
+        })
+        
+        if (subcategoryName.trim()) {
+          await submitCategoryRequest({
+            requestType: 'SUBCATEGORY',
+            categoryName: subcategoryName.trim(),
+            parentCategoryName: categoryName.trim(),
+            description: desc.trim() || undefined,
+          })
+        }
+        toast.success(`Category request for "${categoryName.trim()}" submitted!`)
+      }
       resetForm()
       load()
     } catch (err) {
@@ -253,83 +267,67 @@ export function CategoryRequestPage({ audience = 'seller' }) {
       <div className="crFormCard">
         <div className="crFormCard__header">
           <div className="crFormCard__headerLeft">
-            <h2 className="crFormCard__title">Submit a New Request</h2>
-            <p className="crFormCard__sub">Choose between adding a top-level category or a subcategory under an existing one.</p>
+            <h2 className="crFormCard__title">Submit a Category Request</h2>
+            <p className="crFormCard__sub">Search/select an existing category to request a subcategory, or type a completely new category name.</p>
           </div>
         </div>
 
-        {/* Tabs */}
-        <div className="crTabs" role="tablist">
-          {TABS.map(({ id, label, Icon }) => (
-            <button
-              key={id}
-              role="tab"
-              type="button"
-              aria-selected={activeTab === id}
-              className={`crTab${activeTab === id ? ' crTab--active' : ''}`}
-              onClick={() => { setActiveTab(id); resetForm() }}
-            >
-              <Icon />
-              {label}
-            </button>
-          ))}
-        </div>
-
         <form onSubmit={handleSubmit} className="crForm">
-          {activeTab === 'SUBCATEGORY' && (
-            <div className="crFormRow">
-              <div className="crField">
-                <label className="crLabel" htmlFor="parentName">
-                  Parent category <span className="crRequired">*</span>
-                </label>
-                <div className="crInputGroup">
-                  {categories.length > 0 ? (
-                    <select
-                      id="parentName"
-                      className="crInput crSelect"
-                      value={parentName}
-                      onChange={(e) => setParentName(e.target.value)}
-                      required
-                    >
-                      <option value="">— Select existing category —</option>
-                      {categories.map((c) => (
-                        <option key={c.id} value={c.name}>{c.name}</option>
-                      ))}
-                    </select>
-                  ) : (
-                    <input
-                      id="parentName"
-                      className="crInput"
-                      type="text"
-                      placeholder="e.g. Electronics"
-                      value={parentName}
-                      onChange={(e) => setParentName(e.target.value)}
-                      maxLength={200}
-                      required
-                    />
-                  )}
-                </div>
-                <p className="crHint">The existing category this subcategory should live under.</p>
-              </div>
-            </div>
-          )}
-
-          <div className="crFormRow crFormRow--2col">
+          <div className="crFormRow">
             <div className="crField">
-              <label className="crLabel" htmlFor="catName">
-                {activeTab === 'SUBCATEGORY' ? 'Subcategory name' : 'Category name'}{' '}
-                <span className="crRequired">*</span>
+              <label className="crLabel" htmlFor="categorySelect">
+                Category <span className="crRequired">*</span>
               </label>
-              <input
-                id="catName"
-                className="crInput"
-                type="text"
-                placeholder={activeTab === 'SUBCATEGORY' ? 'e.g. DSLR Cameras' : 'e.g. Industrial Pumps'}
-                value={catName}
-                onChange={(e) => setCatName(e.target.value)}
-                maxLength={200}
-                required
-              />
+              <div className="crInputGroup">
+                <SearchableDropdown
+                  id="categorySelect"
+                  options={categories.map((c) => ({ value: c.label, label: c.label }))}
+                  value={categoryName}
+                  onChange={(val) => {
+                    setCategoryName(val)
+                    setSubcategoryName('')
+                  }}
+                  placeholder="Search existing categories or type a new one..."
+                  allowCustom={true}
+                  required={true}
+                />
+              </div>
+              <p className="crHint">Select an admin-managed category or type a completely new category name.</p>
+            </div>
+          </div>
+
+          <div className="crFormRow">
+            <div className="crField">
+              <label className="crLabel" htmlFor="subcategorySelect">
+                Subcategory {isExistingCategory && <span className="crRequired">*</span>}
+              </label>
+              <div className="crInputGroup">
+                <SearchableDropdown
+                  id="subcategorySelect"
+                  options={
+                    isExistingCategory && selectedCategoryNode
+                      ? (selectedCategoryNode.children || []).map((sub) => ({ value: sub.label, label: sub.label }))
+                      : []
+                  }
+                  value={subcategoryName}
+                  onChange={setSubcategoryName}
+                  placeholder={
+                    categoryName
+                      ? isExistingCategory
+                        ? "Search existing subcategories or type a new one..."
+                        : "Type an optional first subcategory name..."
+                      : "Select or type a category first"
+                  }
+                  disabled={!categoryName}
+                  allowCustom={true}
+                  required={isExistingCategory}
+                />
+              </div>
+              <p className="crHint">
+                {isExistingCategory
+                  ? "Choose an existing subcategory or request a new one."
+                  : "Optional: Provide a first subcategory under your proposed new category."}
+              </p>
             </div>
           </div>
 
@@ -341,7 +339,7 @@ export function CategoryRequestPage({ audience = 'seller' }) {
               id="catDesc"
               className="crInput crTextarea"
               rows={3}
-              placeholder="Explain why this category is needed and what products would belong here…"
+              placeholder="Explain why this request is needed..."
               value={desc}
               onChange={(e) => setDesc(e.target.value)}
               maxLength={1000}
@@ -353,7 +351,7 @@ export function CategoryRequestPage({ audience = 'seller' }) {
             <button
               type="submit"
               className="crSubmitBtn"
-              disabled={submitting || !catName.trim() || (activeTab === 'SUBCATEGORY' && !parentName.trim())}
+              disabled={submitting || !categoryName.trim() || (isExistingCategory && !subcategoryName.trim())}
             >
               {submitting ? (
                 <span className="crSpinner" aria-hidden />

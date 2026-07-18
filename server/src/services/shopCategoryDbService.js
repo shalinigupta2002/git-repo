@@ -53,7 +53,40 @@ async function fetchActiveCategoryTree() {
   return buildTree(rows)
 }
 
+async function ensureDefaultCategories() {
+  const path = require('path')
+  const { rows } = await query('SELECT COUNT(*)::int as count FROM catalog.categories', [])
+  if (rows[0].count > 0) return
+
+  const constantsPath = path.join(__dirname, '../../prisma/seed/constants.js')
+  const helpersPath = path.join(__dirname, '../../prisma/seed/helpers.js')
+  const { CATALOG } = require(constantsPath)
+  const { slugify } = require(helpersPath)
+
+  for (const cat of CATALOG) {
+    const { rows: catRows } = await query(
+      `INSERT INTO catalog.categories (name, slug, parent_id)
+       VALUES ($1, $2, NULL)
+       ON CONFLICT (slug) DO UPDATE SET name = EXCLUDED.name
+       RETURNING id`,
+      [cat.name, cat.slug],
+    )
+    const parentId = catRows[0].id
+
+    for (const sub of cat.subcategories) {
+      const subSlug = `${cat.slug}-${slugify(sub)}`
+      await query(
+        `INSERT INTO catalog.categories (name, slug, parent_id)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (slug) DO UPDATE SET name = EXCLUDED.name, parent_id = EXCLUDED.parent_id`,
+        [sub, subSlug, parentId],
+      )
+    }
+  }
+}
+
 module.exports = {
   fetchActiveCategoryTree,
   buildTree,
+  ensureDefaultCategories,
 }

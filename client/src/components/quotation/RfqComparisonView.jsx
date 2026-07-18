@@ -89,7 +89,30 @@ export function RfqComparisonView({ basePath = '/buyer/quotations' }) {
     }
   }
 
-  if (loading) return <PageLoader label="Loading comparison" />
+  if (loading) {
+    return (
+      <div className="quoteWorkspace" style={{ animation: 'dealSkeletonPulse 1.2s ease-in-out infinite' }}>
+        <header className="quoteWorkspace__hero">
+          <div style={{ height: 24, backgroundColor: '#f1f5f9', width: '30%', borderRadius: 4, marginBottom: 8 }} />
+          <div style={{ height: 14, backgroundColor: '#f1f5f9', width: '50%', borderRadius: 4 }} />
+        </header>
+        <div className="panel" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ display: 'flex', gap: 12 }}>
+            <div style={{ height: 40, backgroundColor: '#f1f5f9', flex: 1, borderRadius: 4 }} />
+            <div style={{ height: 40, backgroundColor: '#f1f5f9', flex: 1, borderRadius: 4 }} />
+            <div style={{ height: 40, backgroundColor: '#f1f5f9', flex: 1, borderRadius: 4 }} />
+          </div>
+          {[...Array(4)].map((_, i) => (
+            <div key={i} style={{ display: 'flex', gap: 12 }}>
+              <div style={{ height: 60, backgroundColor: '#f1f5f9', flex: 1, borderRadius: 4 }} />
+              <div style={{ height: 60, backgroundColor: '#f1f5f9', flex: 1, borderRadius: 4 }} />
+              <div style={{ height: 60, backgroundColor: '#f1f5f9', flex: 1, borderRadius: 4 }} />
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
 
   if (!group) {
     return (

@@ -28,7 +28,7 @@ export const PAYMENT_STATUS_BADGE = Object.freeze({
 
 export const TIMELINE_EVENT_LABELS = Object.freeze({
   DEAL_CREATED: 'Deal created',
-  CHARGE_CALCULATED: 'Deal charges calculated',
+  CHARGE_CALCULATED: 'Platform charges calculated',
   PAYMENT_CREATED: 'Payment pending',
   PAYMENT_SUCCESS: 'Payment received',
   PAYMENT_FAILED: 'Payment failed',

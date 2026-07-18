@@ -6,7 +6,8 @@ import { MyDashboardMenu } from '../../components/common/MyDashboardMenu.jsx'
 import { SellerIdentity } from '../../components/common/SellerIdentity.jsx'
 import { SubscribeFeatureAlert } from '../../components/common/SubscribeFeatureAlert.jsx'
 import { RequestQuoteModal } from '../../components/quotation/RequestQuoteModal.jsx'
-import { getCategoryLevel, SHOP_CATEGORY_TREE } from '../../utils/shopCategoryTree.js'
+import { getCategoryLevel } from '../../utils/shopCategoryTree.js'
+import { useShopCategoryTree } from '../../hooks/useShopCategoryTree.js'
 import { useCatalogProducts } from '../../hooks/useCatalogProducts.js'
 import { useAuth } from '../../hooks/useAuth.js'
 import { useAppSelector } from '../../hooks/redux.js'
@@ -330,9 +331,11 @@ export function MarketingProductsPage() {
     setSelectedBrand('')
   }
 
+  const { tree: categoryTree, loading: categoriesLoading } = useShopCategoryTree()
+
   const categoryView = useMemo(
-    () => getCategoryLevel(SHOP_CATEGORY_TREE, categoryPath),
-    [categoryPath],
+    () => getCategoryLevel(categoryTree || [], categoryPath),
+    [categoryTree, categoryPath],
   )
 
   const brandsForCategory = useMemo(
@@ -556,55 +559,67 @@ export function MarketingProductsPage() {
             <div className="mpFilterBlock mpFilterBlock--categories">
               <h3 className="mpFilterBlock__title">Categories</h3>
               <nav className="mpShopByCat" aria-label="Shop by category">
-                {categoryPath.length > 0 ? (
-                  <>
-                    <button
-                      type="button"
-                      className="mpShopByCat__back"
-                      onClick={() => {
-                        setCategoryPath((p) => p.slice(0, -1))
-                        setActiveLeafCategoryId(null)
-                      }}
-                    >
-                      <IconArrowBack />
-                      <span>{categoryPath.length === 1 ? 'Main menu' : 'Back'}</span>
-                    </button>
-                    <hr className="mpShopByCat__rule mpShopByCat__rule--afterBack" />
-                    <h4 className="mpShopByCat__sectionTitle">{categoryView.sectionTitle}</h4>
-                  </>
+                {categoriesLoading ? (
+                  <div className="quoteInbox__loading" style={{ padding: '8px 16px', color: 'var(--text-muted)' }}>
+                    Loading categories…
+                  </div>
+                ) : !categoryTree || categoryTree.length === 0 ? (
+                  <div style={{ padding: '8px 16px', color: 'var(--text-muted)' }}>
+                    No categories found
+                  </div>
                 ) : (
-                  <p className="mpShopByCat__head">Shop by Category</p>
-                )}
-                <ul className="mpShopByCat__list">
-                  {(categoryView.items ?? []).map((node) => {
-                    const hasChildren = categoryItemHasChildren(node, categoryPath)
-                    const isActive = activeLeafCategoryId === node.id
-                    return (
-                      <li key={node.id}>
+                  <>
+                    {categoryPath.length > 0 ? (
+                      <>
                         <button
                           type="button"
-                          className={
-                            isActive
-                              ? 'mpShopByCat__row mpShopByCat__row--active'
-                              : 'mpShopByCat__row'
-                          }
+                          className="mpShopByCat__back"
                           onClick={() => {
-                            if (hasChildren) {
-                              setCategoryPath((p) => [...p, node.id])
-                              setActiveLeafCategoryId(null)
-                            } else {
-                              setActiveLeafCategoryId(node.id)
-                            }
+                            setCategoryPath((p) => p.slice(0, -1))
+                            setActiveLeafCategoryId(null)
                           }}
                         >
-                          <span className="mpShopByCat__label">{node.label}</span>
-                          {hasChildren ? <IconChevronRight /> : null}
+                          <IconArrowBack />
+                          <span>{categoryPath.length === 1 ? 'Main menu' : 'Back'}</span>
                         </button>
-                        {node.dividerAfter ? <hr className="mpShopByCat__rule" /> : null}
-                      </li>
-                    )
-                  })}
-                </ul>
+                        <hr className="mpShopByCat__rule mpShopByCat__rule--afterBack" />
+                        <h4 className="mpShopByCat__sectionTitle">{categoryView.sectionTitle}</h4>
+                      </>
+                    ) : (
+                      <p className="mpShopByCat__head">Shop by Category</p>
+                    )}
+                    <ul className="mpShopByCat__list">
+                      {(categoryView.items ?? []).map((node) => {
+                        const hasChildren = categoryItemHasChildren(node, categoryPath)
+                        const isActive = activeLeafCategoryId === node.id
+                        return (
+                          <li key={node.id}>
+                            <button
+                              type="button"
+                              className={
+                                isActive
+                                  ? 'mpShopByCat__row mpShopByCat__row--active'
+                                  : 'mpShopByCat__row'
+                              }
+                              onClick={() => {
+                                if (hasChildren) {
+                                  setCategoryPath((p) => [...p, node.id])
+                                  setActiveLeafCategoryId(null)
+                                } else {
+                                  setActiveLeafCategoryId(node.id)
+                                }
+                              }}
+                            >
+                              <span className="mpShopByCat__label">{node.label}</span>
+                              {hasChildren ? <IconChevronRight /> : null}
+                            </button>
+                            {node.dividerAfter ? <hr className="mpShopByCat__rule" /> : null}
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  </>
+                )}
               </nav>
             </div>
 
@@ -694,78 +709,93 @@ export function MarketingProductsPage() {
           ) : null}
 
           <div className="mpGridWrap">
-            <div className="mpGrid">
-              {visibleItems.map((p) => (
-                <article key={p.id} className="mpCard">
-                  <Link to={`/products/${p.id}`} className="mpCard__link">
-                    <div className="mpCard__media">
-                      <ProductImage
-                        product={p}
-                        className="mpCard__img"
-                        alt={p.title || 'Product'}
-                        loading="lazy"
-                        decoding="async"
-                        placeholderSize={{ width: 600, height: 600 }}
-                      />
+            {loading && visibleItems.length === 0 ? (
+              <div className="mpGrid">
+                {[...Array(8)].map((_, idx) => (
+                  <div key={idx} className="bvpSkeleton" style={{ minHeight: 260 }}>
+                    <div className="bvpSkeleton__media" style={{ height: 160 }} />
+                    <div className="bvpSkeleton__lines">
+                      <div className="bvpSkeleton__line" style={{ width: '80%' }} />
+                      <div className="bvpSkeleton__line" style={{ width: '50%' }} />
+                      <div className="bvpSkeleton__line" style={{ width: '30%', marginTop: 8 }} />
                     </div>
-                    <div className="mpCard__bodyTop">
-                      <h3 className="mpCard__title">{p.title}</h3>
-                      <p className="mpCard__price">
-                        <strong>{formatMoney(p.price, p.currency || 'INR')}</strong>
-                        <span className="mpCard__priceUnit"> / piece</span>
-                      </p>
-                    </div>
-                  </Link>
-                  <div className="mpCard__body">
-                    <div className="mpCard__metaRow">
-                      <span className="mpCard__loc">
-                        <IconPin />
-                        {p.source === 'seller' && p.seller ? (
-                          <SellerIdentity seller={p.seller} compact showLabel showId={false} />
-                        ) : (
-                          supplierDisplayName(p) || '—'
-                        )}
-                      </span>
-                      <span className="mpCard__tenure">{p.category?.name || ''}</span>
-                      <span className="mpCard__rating">
-                        <IconStar /> 4.8
-                      </span>
-                    </div>
-                    {showRfqButton && p.source === 'seller' ? (
-                      <div className="mpCard__rfqRow">
-                        <label className="mpCard__selectRfq">
-                          <input
-                            type="checkbox"
-                            checked={selectedRfqIds.has(p.id)}
-                            onChange={() => toggleRfqSelection(p)}
-                            aria-label={`Select ${p.title} for multi-seller RFQ`}
-                          />
-                          <span>Compare</span>
-                        </label>
-                        <button
-                          type="button"
-                          className="btn btn--primary mpCard__quote"
-                          onClick={() => handleRequestQuote(p)}
-                        >
-                          Request quotation
-                        </button>
-                      </div>
-                    ) : null}
-                    {showWishlistButton ? (
-                      <div className="mpCard__actions mpCard__actions--single">
-                        <button
-                          type="button"
-                          className="btnOutline mpCard__btnHalf mpCard__wishlist"
-                          onClick={() => handleWishlist(p)}
-                        >
-                          {wishlistedIds.has(String(p.id)) ? 'Wishlisted' : 'Wishlist'}
-                        </button>
-                      </div>
-                    ) : null}
                   </div>
-                </article>
-              ))}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <div className="mpGrid">
+                {visibleItems.map((p) => (
+                  <article key={p.id} className="mpCard">
+                    <Link to={`/products/${p.id}`} className="mpCard__link">
+                      <div className="mpCard__media">
+                        <ProductImage
+                          product={p}
+                          className="mpCard__img"
+                          alt={p.title || 'Product'}
+                          loading="lazy"
+                          decoding="async"
+                          placeholderSize={{ width: 600, height: 600 }}
+                        />
+                      </div>
+                      <div className="mpCard__bodyTop">
+                        <h3 className="mpCard__title">{p.title}</h3>
+                        <p className="mpCard__price">
+                          <strong>{formatMoney(p.price, p.currency || 'INR')}</strong>
+                          <span className="mpCard__priceUnit"> / piece</span>
+                        </p>
+                      </div>
+                    </Link>
+                    <div className="mpCard__body">
+                      <div className="mpCard__metaRow">
+                        <span className="mpCard__loc">
+                          <IconPin />
+                          {p.source === 'seller' && p.seller ? (
+                            <SellerIdentity seller={p.seller} compact showLabel showId={false} />
+                          ) : (
+                            supplierDisplayName(p) || '—'
+                          )}
+                        </span>
+                        <span className="mpCard__tenure">{p.category?.name || ''}</span>
+                        <span className="mpCard__rating">
+                          <IconStar /> 4.8
+                        </span>
+                      </div>
+                      {showRfqButton && p.source === 'seller' ? (
+                        <div className="mpCard__rfqRow">
+                          <label className="mpCard__selectRfq">
+                            <input
+                              type="checkbox"
+                              checked={selectedRfqIds.has(p.id)}
+                              onChange={() => toggleRfqSelection(p)}
+                              aria-label={`Select ${p.title} for multi-seller RFQ`}
+                            />
+                            <span>Compare</span>
+                          </label>
+                          <button
+                            type="button"
+                            className="btn btn--primary mpCard__quote"
+                            onClick={() => handleRequestQuote(p)}
+                          >
+                            Request quotation
+                          </button>
+                        </div>
+                      ) : null}
+                      {showWishlistButton ? (
+                        <div className="mpCard__actions mpCard__actions--single">
+                          <button
+                            type="button"
+                            className="btnOutline mpCard__btnHalf mpCard__wishlist"
+                            onClick={() => handleWishlist(p)}
+                          >
+                            {wishlistedIds.has(String(p.id)) ? 'Wishlisted' : 'Wishlist'}
+                          </button>
+                        </div>
+                      ) : null}
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
 
             {!loading && initialized && visibleItems.length === 0 ? (
               <div style={{ padding: '32px 16px', textAlign: 'center', color: '#6b7280' }}>

@@ -65,7 +65,7 @@ export function PaymentCard({
     <section className="paymentCard panel panel--nested">
       <div className="panelHeader">
         <div>
-          <h3 className="panelTitle">Deal charge payment</h3>
+          <h3 className="panelTitle">Platform charge payment</h3>
           <p className="panelSub">Dummy payment gateway — no real money is charged.</p>
         </div>
         <PaymentStatusBadge status={payment?.paymentStatus || 'PENDING'} />
@@ -111,7 +111,7 @@ export function PaymentCard({
             onClick={() => setConfirmOpen(true)}
             disabled={paying}
           >
-            Pay deal charge
+            Pay Platform Charge
           </button>
         </div>
       ) : null}
@@ -124,9 +124,8 @@ export function PaymentCard({
 
       <ConfirmDialog
         open={confirmOpen}
-        title="Confirm deal charge payment"
-        message={`Pay ${formatDealAmount(chargeAmount, currency)} using the dummy payment gateway?`}
-        confirmLabel="Confirm payment"
+        title="Confirm Platform Charge payment"
+        message={`Pay Platform Charge of ${formatDealAmount(chargeAmount, currency)} using the dummy payment gateway?`}        confirmLabel="Confirm payment"
         loading={paying}
         onConfirm={handleConfirmPay}
         onCancel={() => setConfirmOpen(false)}

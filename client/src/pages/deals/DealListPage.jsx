@@ -34,7 +34,7 @@ export function DealListPage({
   } = useDeals(role, showAdminFilters ? {} : undefined)
 
   const counterpartyLabel = role === 'BUYER' ? 'Seller ID' : role === 'SELLER' ? 'Buyer ID' : 'Parties'
-  const chargeLabel = role === 'BUYER' ? 'Buyer charge' : role === 'SELLER' ? 'Seller charge' : 'Charges'
+  const chargeLabel = role === 'ADMIN' ? 'Charges' : 'Platform Charge'
 
   return (
     <section className="panel dealPage">

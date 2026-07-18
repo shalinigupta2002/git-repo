@@ -13,6 +13,10 @@ export function AdminMarketingPricingPage() {
   const [buyerLifetime, setBuyerLifetime] = useState(initial.buyerLifetime)
   const [sellerMonth, setSellerMonth] = useState(initial.sellerMonth)
   const [sellerLifetime, setSellerLifetime] = useState(initial.sellerLifetime)
+  const [bothStandardMonth, setBothStandardMonth] = useState(initial.bothStandardMonth)
+  const [bothLifetimeLifetime, setBothLifetimeLifetime] = useState(initial.bothLifetimeLifetime)
+  const [bothLifetimeMonth, setBothLifetimeMonth] = useState(initial.bothLifetimeMonth)
+  const [bothStandardLifetime, setBothStandardLifetime] = useState(initial.bothStandardLifetime)
   const [savedFlash, setSavedFlash] = useState(false)
 
   function onSave(e) {
@@ -22,6 +26,10 @@ export function AdminMarketingPricingPage() {
       buyerLifetime,
       sellerMonth,
       sellerLifetime,
+      bothStandardMonth,
+      bothLifetimeLifetime,
+      bothLifetimeMonth,
+      bothStandardLifetime,
     })
     setSavedFlash(true)
     window.setTimeout(() => setSavedFlash(false), 2000)
@@ -35,6 +43,10 @@ export function AdminMarketingPricingPage() {
     setBuyerLifetime(d.buyerLifetime)
     setSellerMonth(d.sellerMonth)
     setSellerLifetime(d.sellerLifetime)
+    setBothStandardMonth(d.bothStandardMonth)
+    setBothLifetimeLifetime(d.bothLifetimeLifetime)
+    setBothLifetimeMonth(d.bothLifetimeMonth)
+    setBothStandardLifetime(d.bothStandardLifetime)
     setSavedFlash(true)
     window.setTimeout(() => setSavedFlash(false), 2000)
   }
@@ -116,6 +128,62 @@ export function AdminMarketingPricingPage() {
             />
             <p className="hint" style={{ marginTop: 6 }}>
               One-time seller lifetime plan amount.
+            </p>
+          </label>
+
+          <label className="field">
+            <div className="fieldLabel">Both — standard + monthly</div>
+            <input
+              className="input"
+              value={bothStandardMonth}
+              onChange={(e) => setBothStandardMonth(e.target.value)}
+              placeholder={DEFAULT_MARKETING_PRICING.bothStandardMonth}
+              autoComplete="off"
+            />
+            <p className="hint" style={{ marginTop: 6 }}>
+              Both standard (buyer) and monthly (seller) bundle plan.
+            </p>
+          </label>
+
+          <label className="field">
+            <div className="fieldLabel">Both — lifetime + lifetime</div>
+            <input
+              className="input"
+              value={bothLifetimeLifetime}
+              onChange={(e) => setBothLifetimeLifetime(e.target.value)}
+              placeholder={DEFAULT_MARKETING_PRICING.bothLifetimeLifetime}
+              autoComplete="off"
+            />
+            <p className="hint" style={{ marginTop: 6 }}>
+              Both lifetime buyer and lifetime seller bundle plan.
+            </p>
+          </label>
+
+          <label className="field">
+            <div className="fieldLabel">Both — buyer lifetime + seller monthly</div>
+            <input
+              className="input"
+              value={bothLifetimeMonth}
+              onChange={(e) => setBothLifetimeMonth(e.target.value)}
+              placeholder={DEFAULT_MARKETING_PRICING.bothLifetimeMonth}
+              autoComplete="off"
+            />
+            <p className="hint" style={{ marginTop: 6 }}>
+              Mixed bundle plan: Buyer lifetime and Seller monthly.
+            </p>
+          </label>
+
+          <label className="field">
+            <div className="fieldLabel">Both — buyer standard + seller lifetime</div>
+            <input
+              className="input"
+              value={bothStandardLifetime}
+              onChange={(e) => setBothStandardLifetime(e.target.value)}
+              placeholder={DEFAULT_MARKETING_PRICING.bothStandardLifetime}
+              autoComplete="off"
+            />
+            <p className="hint" style={{ marginTop: 6 }}>
+              Mixed bundle plan: Buyer standard and Seller lifetime.
             </p>
           </label>
 

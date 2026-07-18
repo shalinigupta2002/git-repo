@@ -112,8 +112,8 @@ export function DealDetailPage({
         <InfoSection title="Quotation information">
           <dl className="dealInfoGrid">
             <div><dt>Deal amount</dt><dd>{formatDealAmount(deal.totalAmount, deal.currency)}</dd></div>
-            <div><dt>Buyer charge</dt><dd>{formatDealAmount(deal.buyerDealCharge, deal.currency)}</dd></div>
-            <div><dt>Seller charge</dt><dd>{formatDealAmount(deal.sellerDealCharge, deal.currency)}</dd></div>
+            <div><dt>Platform Charge (Buyer)</dt><dd>{formatDealAmount(deal.buyerDealCharge, deal.currency)}</dd></div>
+            <div><dt>Platform Charge (Seller)</dt><dd>{formatDealAmount(deal.sellerDealCharge, deal.currency)}</dd></div>
           </dl>
         </InfoSection>
       </div>

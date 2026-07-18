@@ -54,7 +54,7 @@ describe('PaymentCard', () => {
       />,
     )
 
-    await user.click(screen.getByRole('button', { name: 'Pay deal charge' }))
+    await user.click(screen.getByRole('button', { name: 'Pay Platform Charge' }))
     expect(screen.getByRole('dialog')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Confirm payment' }))
     expect(onPay).toHaveBeenCalledTimes(1)

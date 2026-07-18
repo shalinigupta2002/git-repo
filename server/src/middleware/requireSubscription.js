@@ -7,8 +7,22 @@ const { asyncHandler } = require('../utils/asyncHandler.js')
  * Kept in sync with PLAN_CONFIG in subscriptionController.js.
  */
 const PLANS_BY_TYPE = {
-  SELLER: ['SELLER_MONTH', 'SELLER_LIFETIME'],
-  BUYER:  ['BUYER_STANDARD', 'BUYER_LIFETIME'],
+  SELLER: [
+    'SELLER_MONTH',
+    'SELLER_LIFETIME',
+    'BOTH_STANDARD_MONTH',
+    'BOTH_LIFETIME_LIFETIME',
+    'BOTH_LIFETIME_MONTH',
+    'BOTH_STANDARD_LIFETIME',
+  ],
+  BUYER:  [
+    'BUYER_STANDARD',
+    'BUYER_LIFETIME',
+    'BOTH_STANDARD_MONTH',
+    'BOTH_LIFETIME_LIFETIME',
+    'BOTH_LIFETIME_MONTH',
+    'BOTH_STANDARD_LIFETIME',
+  ],
 }
 
 async function hasActiveSubscription(userId, type) {

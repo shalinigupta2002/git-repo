@@ -197,7 +197,18 @@ export function ProductDetailPage() {
           </nav>
 
           {loading ? (
-            <PageLoader label="Loading product" />
+            <div className="pdHero" style={{ animation: 'dealSkeletonPulse 1.2s ease-in-out infinite' }}>
+              <div className="pdGallery bvpSkeleton__media" style={{ height: 400, borderRadius: 14 }} />
+              <div className="pdBuyBox" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <div style={{ height: 16, backgroundColor: '#f1f5f9', width: '30%', borderRadius: 4 }} />
+                <div style={{ height: 32, backgroundColor: '#f1f5f9', width: '90%', borderRadius: 4 }} />
+                <div style={{ height: 16, backgroundColor: '#f1f5f9', width: '40%', borderRadius: 4 }} />
+                <hr style={{ border: 'none', borderTop: '1px solid #f1f5f9', margin: '8px 0' }} />
+                <div style={{ height: 24, backgroundColor: '#f1f5f9', width: '50%', borderRadius: 4 }} />
+                <div style={{ height: 12, backgroundColor: '#f1f5f9', width: '70%', borderRadius: 4 }} />
+                <div style={{ height: 48, backgroundColor: '#f1f5f9', width: '100%', borderRadius: 8, marginTop: 24 }} />
+              </div>
+            </div>
           ) : error ? (
             <ErrorState
               title="Product unavailable"

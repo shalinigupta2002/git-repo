@@ -272,62 +272,15 @@ async function unlockDealContactIfEligible(tx, deal, payments, actorUserId) {
 }
 
 /**
- * Process a dummy deal charge payment for one party.
- * @param {import('@prisma/client').Prisma.TransactionClient} [client]
+ * Process a deal charge payment using the active payment provider.
  */
-async function processDummyDealPayment(client, { dealId, payerRole, actorUserId }) {
-  assertDummyPaymentAllowed()
-
+async function processDealPayment(client, { dealId, payerRole, actorUserId }) {
+  const PaymentProviderFactory = require('./payment/PaymentProviderFactory.js')
   const db = client
+  const provider = PaymentProviderFactory.getProvider()
 
   const run = async (tx) => {
-    await lockDealRow(tx, dealId)
-
-    const deal = await tx.deal.findUnique({
-      where: { id: dealId },
-      include: { payments: true },
-    })
-
-    if (!deal) {
-      throw new AppError('Deal not found.', 404, 'DEAL_NOT_FOUND')
-    }
-
-    const payment = getPaymentByRole(deal.payments, payerRole)
-    if (!payment) {
-      throw new AppError('Deal payment record not found.', 404, 'PAYMENT_NOT_FOUND')
-    }
-
-    if (payment.payerUserId !== actorUserId) {
-      throw new AppError('Forbidden', 403, 'FORBIDDEN')
-    }
-
-    if (payment.paymentStatus === 'SUCCESS') {
-      return loadDealForPaymentResponse(tx, dealId)
-    }
-
-    if (deal.status !== 'PAYMENT_PENDING' && deal.contactUnlockStatus !== 'UNLOCKED') {
-      throw new AppError(
-        'Deal is not awaiting payment.',
-        400,
-        'INVALID_PAYMENT_STATE',
-      )
-    }
-
-    await markPaymentSuccessful(tx, payment, actorUserId)
-
-    const payments = await tx.dealPayment.findMany({
-      where: { dealId: deal.id },
-      orderBy: { createdAt: 'asc' },
-    })
-
-    const refreshedDeal = await tx.deal.findUnique({
-      where: { id: deal.id },
-      include: { payments: true },
-    })
-
-    await unlockDealContactIfEligible(tx, refreshedDeal, payments, actorUserId)
-
-    return loadDealForPaymentResponse(tx, dealId)
+    return provider.processPayment(tx, { dealId, payerRole, actorUserId })
   }
 
   if (typeof db.$transaction === 'function') {
@@ -335,6 +288,15 @@ async function processDummyDealPayment(client, { dealId, payerRole, actorUserId 
   }
 
   return run(db)
+}
+
+/**
+ * Process a dummy deal charge payment for one party.
+ * @param {import('@prisma/client').Prisma.TransactionClient} [client]
+ */
+async function processDummyDealPayment(client, { dealId, payerRole, actorUserId }) {
+  assertDummyPaymentAllowed()
+  return processDealPayment(client, { dealId, payerRole, actorUserId })
 }
 
 module.exports = {
@@ -352,5 +314,6 @@ module.exports = {
   markPaymentSuccessful,
   unlockDealContactIfEligible,
   loadDealForPaymentResponse,
+  processDealPayment,
   processDummyDealPayment,
 }

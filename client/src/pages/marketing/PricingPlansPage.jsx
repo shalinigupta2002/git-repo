@@ -78,7 +78,7 @@ function PlanCheckoutBar({ total, onSubscribe, loading, disabled, currentPlan, s
       <div className="pricingPlans__checkoutPanel">
         <div className="pricingPlans__total">
           <span className="pricingPlans__totalLabel">Total payable</span>
-          <strong className="pricingPlans__totalAmount">{formatInr(total)}</strong>
+          <strong className="pricingPlans__totalAmount">{total > 0 ? formatInr(total) : '—'}</strong>
         </div>
         {disabled && currentPlan ? (
           <span className="pricingPlans__currentPlanBtn">Current plan</span>
@@ -164,11 +164,11 @@ export function PricingPlansPage() {
   const { user, isAuthenticated } = useAuth()
   const { startCheckout, loadingPlan } = useRazorpayCheckout()
 
-  const [activePlan, setActivePlan] = useState('buyer')
-  const [buyerTier, setBuyerTier] = useState('annual')
-  const [sellerTier, setSellerTier] = useState('annual')
-  const [bothBuyerTier, setBothBuyerTier] = useState('annual')
-  const [bothSellerTier, setBothSellerTier] = useState('annual')
+  const [activePlan, setActivePlan] = useState(null)
+  const [buyerTier, setBuyerTier] = useState(null)
+  const [sellerTier, setSellerTier] = useState(null)
+  const [bothBuyerTier, setBothBuyerTier] = useState(null)
+  const [bothSellerTier, setBothSellerTier] = useState(null)
 
   const hasBuyer = useAppSelector(selectHasBuyerSubscription)
   const hasSeller = useAppSelector(selectHasSellerSubscription)
@@ -180,25 +180,38 @@ export function PricingPlansPage() {
   const sellerAnnualActive = hasSeller && sellerPlanType === 'SELLER_MONTH'
   const sellerLifeActive = hasSeller && sellerPlanType === 'SELLER_LIFETIME'
 
-  const buyerTotal = buyerTier === 'lifetime' ? amounts.buyerLifetime : amounts.buyerAnnual
-  const sellerTotal = sellerTier === 'lifetime' ? amounts.sellerLifetime : amounts.sellerAnnual
-  const bothTotal =
-    (bothBuyerTier === 'lifetime' ? amounts.buyerLifetime : amounts.buyerAnnual) +
-    (bothSellerTier === 'lifetime' ? amounts.sellerLifetime : amounts.sellerAnnual)
+  const buyerTotal = buyerTier === 'lifetime' ? amounts.buyerLifetime : buyerTier === 'annual' ? amounts.buyerAnnual : 0
+  const sellerTotal = sellerTier === 'lifetime' ? amounts.sellerLifetime : sellerTier === 'annual' ? amounts.sellerAnnual : 0
+  
+  const bothTotal = useMemo(() => {
+    if (!bothBuyerTier || !bothSellerTier) return 0
+    if (bothBuyerTier === 'lifetime' && bothSellerTier === 'lifetime') {
+      return amounts.bothLifetimeLifetime
+    }
+    if (bothBuyerTier === 'lifetime' && bothSellerTier === 'annual') {
+      return amounts.bothLifetimeMonth
+    }
+    if (bothBuyerTier === 'annual' && bothSellerTier === 'lifetime') {
+      return amounts.bothStandardLifetime
+    }
+    return amounts.bothStandardMonth
+  }, [bothBuyerTier, bothSellerTier, amounts])
 
   const bothBundlePlan = bothBundlePlanId({
     sellerPlan: bothSellerTier === 'lifetime' ? 'lifetime' : 'month',
     buyerPlan: bothBuyerTier === 'lifetime' ? 'lifetime' : 'standard',
   })
 
-  const bothCurrentPlan =
+  const bothCurrentPlan = Boolean(
+    bothBuyerTier && bothSellerTier &&
     (bothBuyerTier === 'annual' ? buyerAnnualActive : buyerLifetimeActive) &&
     (bothSellerTier === 'annual' ? sellerAnnualActive : sellerLifeActive)
+  )
 
   const bothBuyerSideActive =
-    bothBuyerTier === 'annual' ? buyerAnnualActive : buyerLifetimeActive
+    bothBuyerTier === 'annual' ? buyerAnnualActive : bothBuyerTier === 'lifetime' ? buyerLifetimeActive : false
   const bothSellerSideActive =
-    bothSellerTier === 'annual' ? sellerAnnualActive : sellerLifeActive
+    bothSellerTier === 'annual' ? sellerAnnualActive : bothSellerTier === 'lifetime' ? sellerLifeActive : false
 
   const bothSubscribeLabel =
     bothBuyerSideActive && !bothSellerSideActive
@@ -358,12 +371,25 @@ export function PricingPlansPage() {
         <header className="pricingPlans__header pricingPlans__header--compact">
           <p className="pricingPlans__eyebrow">Subscription</p>
           <h1 className="pricingPlans__title">Choose your plan</h1>
-          <p className="pricingPlans__subtitle">{planCopy[activePlan]}</p>
+          <p className="pricingPlans__subtitle">
+            {planCopy[activePlan] || 'Procure suppliers, list items, or unlock full access to buy and sell together.'}
+          </p>
         </header>
 
         <PlanTabs active={activePlan} onChange={setActivePlan} />
 
         <section className="pricingPlans__panel" aria-live="polite">
+          {!activePlan ? (
+            <div style={{ textAlign: 'center', padding: '40px 24px', color: 'var(--text-muted)' }}>
+              <p style={{ fontSize: 18, fontWeight: 500, color: 'var(--text-h)', marginBottom: 8 }}>
+                Select a role to view plans
+              </p>
+              <p style={{ maxWidth: 400, margin: '0 auto', fontSize: 14 }}>
+                Please choose <strong>Buyer</strong>, <strong>Seller</strong>, or <strong>Both</strong> above to customize your subscription and unlock marketplace features.
+              </p>
+            </div>
+          ) : null}
+
           {activePlan === 'buyer' ? (
             <>
               <RolePlanOptions
@@ -380,8 +406,9 @@ export function PricingPlansPage() {
               <PlanCheckoutBar
                 total={buyerTotal}
                 loading={loadingPlan === (buyerTier === 'lifetime' ? 'BUYER_LIFETIME' : 'BUYER_STANDARD')}
-                disabled={buyerTier === 'annual' ? buyerAnnualActive : buyerLifetimeActive}
+                disabled={!buyerTier || (buyerTier === 'annual' ? buyerAnnualActive : buyerLifetimeActive)}
                 currentPlan={buyerTier === 'annual' ? buyerAnnualActive : buyerLifetimeActive}
+                subscribeLabel={!buyerTier ? 'Select a plan tier' : 'Subscribe now'}
                 onSubscribe={() =>
                   payBuyerPlan(buyerTier === 'lifetime' ? 'lifetime' : 'standard', {
                     lifetime: buyerTier === 'lifetime',
@@ -407,8 +434,9 @@ export function PricingPlansPage() {
               <PlanCheckoutBar
                 total={sellerTotal}
                 loading={loadingPlan === (sellerTier === 'lifetime' ? 'SELLER_LIFETIME' : 'SELLER_MONTH')}
-                disabled={sellerTier === 'annual' ? sellerAnnualActive : sellerLifeActive}
+                disabled={!sellerTier || (sellerTier === 'annual' ? sellerAnnualActive : sellerLifeActive)}
                 currentPlan={sellerTier === 'annual' ? sellerAnnualActive : sellerLifeActive}
+                subscribeLabel={!sellerTier ? 'Select a plan tier' : 'Subscribe now'}
                 onSubscribe={() => paySellerPlan(sellerTier === 'lifetime' ? 'lifetime' : 'month')}
               />
             </>
@@ -449,9 +477,9 @@ export function PricingPlansPage() {
               <PlanCheckoutBar
                 total={bothTotal}
                 loading={loadingPlan === bothBundlePlan}
-                disabled={bothCurrentPlan}
+                disabled={!bothBuyerTier || !bothSellerTier || bothCurrentPlan}
                 currentPlan={bothCurrentPlan}
-                subscribeLabel={bothSubscribeLabel}
+                subscribeLabel={!bothBuyerTier || !bothSellerTier ? 'Select both tiers' : bothSubscribeLabel}
                 onSubscribe={handleBothSubscribe}
               />
             </>

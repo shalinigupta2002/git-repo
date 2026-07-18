@@ -128,8 +128,8 @@ if (isProd) {
 
 // ─── Exported config (frozen — callers must not mutate) ─────────────────────
 
-/** Dummy deal payments are allowed only outside production (dev/test/CI). */
-const allowDummyDealPayments = !isProd
+/** Dummy deal payments are allowed only outside production (dev/test/CI) unless overridden by environment. */
+const allowDummyDealPayments = optional('ALLOW_DUMMY_DEAL_PAYMENTS', isProd ? 'false' : 'true') === 'true'
 
 module.exports = Object.freeze({
   nodeEnv,

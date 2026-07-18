@@ -580,7 +580,15 @@ export function QuotationWorkspace({ mode, basePath }) {
           </div>
 
           {loadingList ? (
-            <div className="quoteInbox__loading"><Spinner size="sm" /> Loading…</div>
+            <div className="quoteInbox__list" style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {[...Array(4)].map((_, idx) => (
+                <div key={idx} className="bvpSkeleton" style={{ padding: 12, animation: 'dealSkeletonPulse 1.2s ease-in-out infinite' }}>
+                  <div className="bvpSkeleton__line" style={{ width: '40%', height: 14, marginBottom: 8 }} />
+                  <div className="bvpSkeleton__line" style={{ width: '70%', height: 10, marginBottom: 6 }} />
+                  <div className="bvpSkeleton__line" style={{ width: '25%', height: 10 }} />
+                </div>
+              ))}
+            </div>
           ) : listError ? (
             <p className="quoteInbox__empty" role="alert">{listError}</p>
           ) : mode === 'buyer' ? (
@@ -661,7 +669,14 @@ export function QuotationWorkspace({ mode, basePath }) {
               <p>Choose a request from the inbox to view details and take action.</p>
             </div>
           ) : loadingDetail ? (
-            <PageLoader label="Loading RFQ" />
+            <div className="quoteDetail__skeleton panel" style={{ animation: 'dealSkeletonPulse 1.2s ease-in-out infinite', padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div style={{ height: 24, backgroundColor: '#f1f5f9', width: '60%', borderRadius: 4 }} />
+              <div style={{ height: 14, backgroundColor: '#f1f5f9', width: '30%', borderRadius: 4 }} />
+              <hr style={{ border: 'none', borderTop: '1px solid #f1f5f9', margin: '8px 0' }} />
+              <div style={{ height: 80, backgroundColor: '#f1f5f9', borderRadius: 8 }} />
+              <div style={{ height: 120, backgroundColor: '#f1f5f9', borderRadius: 8 }} />
+              <div style={{ height: 48, backgroundColor: '#f1f5f9', borderRadius: 8, width: '40%', alignSelf: 'flex-end', marginTop: 12 }} />
+            </div>
           ) : !selected ? (
             <div className="quoteDetail__empty panel">
               <h2>RFQ unavailable</h2>

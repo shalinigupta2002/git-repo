@@ -8,7 +8,7 @@ const {
   assertSellerDealOwnership,
 } = require('../services/dealAccessService.js')
 const { prisma } = require('../config/database.js')
-const { processDummyDealPayment, assertDummyPaymentAllowed } = require('../services/dealPaymentService.js')
+const { processDealPayment } = require('../services/dealPaymentService.js')
 
 const list = asyncHandler(async (req, res) => {
   const result = await listDeals({
@@ -30,12 +30,22 @@ const getById = asyncHandler(async (req, res) => {
 })
 
 const pay = asyncHandler(async (req, res) => {
-  assertDummyPaymentAllowed()
+  const PaymentProviderFactory = require('../services/payment/PaymentProviderFactory.js')
+  const { AppError } = require('../utils/AppError.js')
+
+  const provider = PaymentProviderFactory.getProvider()
+  if (!provider.isAvailable()) {
+    throw new AppError(
+      'Deal charge payments are not available. Configure a production payment provider.',
+      503,
+      'PAYMENT_PROVIDER_UNAVAILABLE',
+    )
+  }
 
   const deal = await getDealById(req.params.dealId)
   assertSellerDealOwnership(req.user, deal)
 
-  const updated = await processDummyDealPayment(prisma, {
+  const updated = await processDealPayment(prisma, {
     dealId: deal.id,
     payerRole: 'SELLER',
     actorUserId: req.user.id,

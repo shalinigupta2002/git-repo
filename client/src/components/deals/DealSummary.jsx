@@ -29,11 +29,11 @@ export function DealSummary({ deal, viewerRole = 'BUYER' }) {
           <div className="dealSummary__value">{formatDealAmount(deal.totalAmount, deal.currency)}</div>
         </div>
         <div>
-          <div className="dealSummary__label">Buyer charge</div>
+          <div className="dealSummary__label">Platform Charge (Buyer)</div>
           <div className="dealSummary__value">{formatDealAmount(deal.buyerDealCharge, deal.currency)}</div>
         </div>
         <div>
-          <div className="dealSummary__label">Seller charge</div>
+          <div className="dealSummary__label">Platform Charge (Seller)</div>
           <div className="dealSummary__value">{formatDealAmount(deal.sellerDealCharge, deal.currency)}</div>
         </div>
         <div>

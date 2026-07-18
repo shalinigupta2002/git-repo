@@ -1,10 +1,10 @@
-import { SHOP_CATEGORY_TREE, normalizeCategoryName } from './shopCategoryTree.js'
+import { normalizeCategoryName } from './shopCategoryTree.js'
 
 function labelsMatch(a, b) {
   return normalizeCategoryName(a) === normalizeCategoryName(b)
 }
 
-export function parseProductFormMeta(description, categoryTree = SHOP_CATEGORY_TREE) {
+export function parseProductFormMeta(description, categoryTree = []) {
   const categoryMatch = description?.match(/Category:\s*([^.]+)\./)
   const brandMatch = description?.match(/Brand:\s*([^.]+)\./)
   const uomMatch = description?.match(/UOM:\s*([^.]+)\./)
@@ -30,7 +30,7 @@ export function parseProductFormMeta(description, categoryTree = SHOP_CATEGORY_T
   }
 }
 
-function findCategoryIdsFromLabels(pathLabels, categoryTree = SHOP_CATEGORY_TREE) {
+function findCategoryIdsFromLabels(pathLabels, categoryTree = []) {
   if (!pathLabels.length) {
     return { category: '', subcategory: '', subsubcategory: '' }
   }

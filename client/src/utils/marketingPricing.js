@@ -6,6 +6,10 @@ export const DEFAULT_MARKETING_PRICING = {
   buyerLifetime: '₹49,999',
   sellerMonth: '₹9,999',
   sellerLifetime: '₹49,999',
+  bothStandardMonth: '₹14,999',
+  bothLifetimeLifetime: '₹79,999',
+  bothLifetimeMonth: '₹54,999',
+  bothStandardLifetime: '₹54,999',
 }
 
 /** Numeric amounts (INR) for totals on the pricing page. */
@@ -22,11 +26,20 @@ export function formatInr(amount) {
 
 /** Resolve display amounts for pricing cards (labels + numeric totals). */
 export function getPlanAmounts(pricing = getMarketingPricing()) {
+  const buyerAnnual = parseInrAmount(pricing.buyerOneTime) ?? DEFAULT_PLAN_AMOUNTS.buyerAnnual
+  const buyerLifetime = parseInrAmount(pricing.buyerLifetime) ?? DEFAULT_PLAN_AMOUNTS.buyerLifetime
+  const sellerAnnual = parseInrAmount(pricing.sellerMonth) ?? DEFAULT_PLAN_AMOUNTS.sellerAnnual
+  const sellerLifetime = parseInrAmount(pricing.sellerLifetime) ?? DEFAULT_PLAN_AMOUNTS.sellerLifetime
+
   return {
-    buyerAnnual: parseInrAmount(pricing.buyerOneTime) ?? DEFAULT_PLAN_AMOUNTS.buyerAnnual,
-    buyerLifetime: parseInrAmount(pricing.buyerLifetime) ?? DEFAULT_PLAN_AMOUNTS.buyerLifetime,
-    sellerAnnual: parseInrAmount(pricing.sellerMonth) ?? DEFAULT_PLAN_AMOUNTS.sellerAnnual,
-    sellerLifetime: parseInrAmount(pricing.sellerLifetime) ?? DEFAULT_PLAN_AMOUNTS.sellerLifetime,
+    buyerAnnual,
+    buyerLifetime,
+    sellerAnnual,
+    sellerLifetime,
+    bothStandardMonth: parseInrAmount(pricing.bothStandardMonth) ?? (buyerAnnual + sellerAnnual),
+    bothLifetimeLifetime: parseInrAmount(pricing.bothLifetimeLifetime) ?? (buyerLifetime + sellerLifetime),
+    bothLifetimeMonth: parseInrAmount(pricing.bothLifetimeMonth) ?? (buyerLifetime + sellerAnnual),
+    bothStandardLifetime: parseInrAmount(pricing.bothStandardLifetime) ?? (buyerAnnual + sellerLifetime),
   }
 }
 
@@ -60,6 +73,22 @@ function mergeWithDefaults(raw) {
       typeof raw?.sellerLifetime === 'string' && raw.sellerLifetime.trim()
         ? raw.sellerLifetime.trim()
         : d.sellerLifetime,
+    bothStandardMonth:
+      typeof raw?.bothStandardMonth === 'string' && raw.bothStandardMonth.trim()
+        ? raw.bothStandardMonth.trim()
+        : d.bothStandardMonth,
+    bothLifetimeLifetime:
+      typeof raw?.bothLifetimeLifetime === 'string' && raw.bothLifetimeLifetime.trim()
+        ? raw.bothLifetimeLifetime.trim()
+        : d.bothLifetimeLifetime,
+    bothLifetimeMonth:
+      typeof raw?.bothLifetimeMonth === 'string' && raw.bothLifetimeMonth.trim()
+        ? raw.bothLifetimeMonth.trim()
+        : d.bothLifetimeMonth,
+    bothStandardLifetime:
+      typeof raw?.bothStandardLifetime === 'string' && raw.bothStandardLifetime.trim()
+        ? raw.bothStandardLifetime.trim()
+        : d.bothStandardLifetime,
   }
 }
 

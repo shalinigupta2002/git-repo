@@ -37,7 +37,7 @@ export function DealCard({ deal, viewerRole = 'BUYER', detailPath }) {
           <dd>{formatDealAmount(deal.totalAmount, deal.currency)}</dd>
         </div>
         <div>
-          <dt>{viewerRole === 'BUYER' ? 'Buyer charge' : 'Seller charge'}</dt>
+          <dt>Platform Charge</dt>
           <dd>{formatDealAmount(charge, deal.currency)}</dd>
         </div>
         <div>

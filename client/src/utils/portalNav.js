@@ -150,6 +150,7 @@ export function visibleBuyerSubNav(hasSub = hasActiveBuyerSubscription()) {
     { to: '/products', label: 'Product catalog' },
     { to: '/buyer/quotations', label: 'RFQs & quotations' },
     { to: '/wishlist', label: 'Wishlist' },
+    { to: '/buyer/deals', label: 'My deals' },
     { to: '/buyer/transactions', label: 'Transactions' },
     { to: '/buyer/category-request', label: 'Request category' },
   ]
@@ -168,6 +169,7 @@ export function visibleSellerSubNav(hasSub = hasActiveSellerSubscription()) {
     { to: '/seller/add-product', label: 'Add product' },
     { to: '/seller/manage-buyer', label: 'Buyers history' },
     { to: '/seller/quotations', label: 'RFQs & quotations' },
+    { to: '/seller/deals', label: 'My deals' },
     { to: '/seller/transactions', label: 'Transactions' },
     { to: '/seller/category-request', label: 'Request category' },
   ]

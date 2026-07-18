@@ -4,6 +4,7 @@ const { asyncHandler } = require('../utils/asyncHandler.js')
 const { AppError } = require('../utils/AppError.js')
 const { hasActiveSubscription } = require('../middleware/requireSubscription.js')
 const { createOrderFromQuote } = require('../services/quoteOrderService.js')
+const { createDealFromAcceptedQuote } = require('../services/dealCreationService.js')
 const { createQuoteRequests } = require('../services/rfqCreateService.js')
 const {
   assertTransition,
@@ -682,6 +683,12 @@ const buyerAccept = asyncHandler(async (req, res) => {
 
     const order = await createOrderFromQuote(tx, locked, req.user.id)
 
+    const deal = await createDealFromAcceptedQuote(tx, {
+      quote: locked,
+      orderId: order.id,
+      actorUserId: req.user.id,
+    })
+
     const updated = await tx.quoteRequest.update({
       where: { id: locked.id },
       data: {
@@ -739,6 +746,8 @@ const buyerAccept = asyncHandler(async (req, res) => {
         rfqNumber: locked.rfqNumber,
         productTitle: locked.productTitle,
         orderId: order.id,
+        dealId: deal.id,
+        dealNumber: deal.dealNumber,
       },
     })
 
@@ -752,10 +761,12 @@ const buyerAccept = asyncHandler(async (req, res) => {
         rfqNumber: locked.rfqNumber,
         productTitle: locked.productTitle,
         orderId: order.id,
+        dealId: deal.id,
+        dealNumber: deal.dealNumber,
       },
     })
 
-    return { order, request: updated, notSelectedSiblingCount }
+    return { order, deal, request: updated, notSelectedSiblingCount }
   }, { timeout: 15_000 })
 
   res.json({

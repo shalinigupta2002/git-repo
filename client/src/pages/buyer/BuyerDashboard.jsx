@@ -99,7 +99,7 @@ export function BuyerDashboard() {
               {stats.loading ? <Spinner size="sm" /> : formatAmount(stats.spend)}
             </div>
             <p className="metricCard__hint">
-              <Link to="/buyer/transactions">View transactions →</Link>
+              <Link to="/buyer/deals">View my deals →</Link>
             </p>
           </div>
 

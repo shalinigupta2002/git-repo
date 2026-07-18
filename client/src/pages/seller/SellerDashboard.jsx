@@ -121,7 +121,7 @@ export function SellerDashboard() {
               {stats.loading ? <Spinner size="sm" /> : stats.openOrders}
             </div>
             <p className="metricCard__hint">
-              <Link to="/seller/transactions">Manage deals →</Link>
+              <Link to="/seller/deals">Manage deals →</Link>
             </p>
           </div>
           <div className="metricCard metricCard--green">

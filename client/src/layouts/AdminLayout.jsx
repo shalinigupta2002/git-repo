@@ -172,6 +172,22 @@ export function AdminLayout() {
             Seller listing
           </NavLink>
           <NavLink
+            to="/admin/deals"
+            className={({ isActive }) =>
+              isActive ? 'proNavLink proNavLink--active' : 'proNavLink'
+            }
+          >
+            Deals
+          </NavLink>
+          <NavLink
+            to="/admin/deal-charge-configs"
+            className={({ isActive }) =>
+              isActive ? 'proNavLink proNavLink--active' : 'proNavLink'
+            }
+          >
+            Deal charges
+          </NavLink>
+          <NavLink
             to="/admin/transactions"
             className={({ isActive }) =>
               isActive ? 'proNavLink proNavLink--active' : 'proNavLink'

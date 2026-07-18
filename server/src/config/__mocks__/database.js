@@ -87,6 +87,34 @@ const mockPrisma = {
   rfqNumberCounter: {
     upsert: jest.fn(),
   },
+  dealNumberCounter: {
+    upsert: jest.fn(),
+  },
+  deal: {
+    findUnique: jest.fn(),
+    findFirst:  jest.fn(),
+    findMany:   jest.fn(),
+    create:     jest.fn(),
+    update:     jest.fn(),
+    updateMany: jest.fn(),
+    count:      jest.fn(),
+  },
+  dealChargeConfig: {
+    findFirst: jest.fn(),
+    findUnique: jest.fn(),
+    findMany:  jest.fn(),
+    update:    jest.fn(),
+  },
+  dealPayment: {
+    findUnique: jest.fn(),
+    findMany:   jest.fn(),
+    create:     jest.fn(),
+    update:     jest.fn(),
+    updateMany: jest.fn(),
+  },
+  dealEvent: {
+    create: jest.fn(),
+  },
   quoteRevision: {
     count: jest.fn(),
     create: jest.fn(),

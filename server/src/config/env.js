@@ -128,6 +128,9 @@ if (isProd) {
 
 // ─── Exported config (frozen — callers must not mutate) ─────────────────────
 
+/** Dummy deal payments are allowed only outside production (dev/test/CI). */
+const allowDummyDealPayments = !isProd
+
 module.exports = Object.freeze({
   nodeEnv,
   isProd,
@@ -142,4 +145,6 @@ module.exports = Object.freeze({
   razorpayKeyId,
   razorpayKeySecret,
   mainPortalProfileEnabled: optional('MAIN_PORTAL_PROFILE_ENABLED', 'false') === 'true',
+  allowDummyDealPayments,
 })
+

@@ -144,6 +144,27 @@ const AdminOverviewDashboard = lazy(() =>
     default: m.AdminOverviewDashboard,
   })),
 )
+const AdminDealsList = lazy(() =>
+  import('../pages/admin/AdminDealsList.jsx').then((m) => ({ default: m.AdminDealsList })),
+)
+const AdminDealDetail = lazy(() =>
+  import('../pages/admin/AdminDealDetail.jsx').then((m) => ({ default: m.AdminDealDetail })),
+)
+const AdminDealChargeConfig = lazy(() =>
+  import('../pages/admin/AdminDealChargeConfig.jsx').then((m) => ({ default: m.AdminDealChargeConfig })),
+)
+const BuyerDealsList = lazy(() =>
+  import('../pages/buyer/BuyerDealsList.jsx').then((m) => ({ default: m.BuyerDealsList })),
+)
+const BuyerDealDetail = lazy(() =>
+  import('../pages/buyer/BuyerDealDetail.jsx').then((m) => ({ default: m.BuyerDealDetail })),
+)
+const SellerDealsList = lazy(() =>
+  import('../pages/seller/SellerDealsList.jsx').then((m) => ({ default: m.SellerDealsList })),
+)
+const SellerDealDetail = lazy(() =>
+  import('../pages/seller/SellerDealDetail.jsx').then((m) => ({ default: m.SellerDealDetail })),
+)
 const ContactAdminPage = lazy(() =>
   import('../pages/common/ContactAdminPage.jsx').then((m) => ({ default: m.ContactAdminPage })),
 )
@@ -241,6 +262,8 @@ export function AppRoutes() {
             <Route path="/buyer/pricing/both-seller" element={<BuyerBothSellerPricing />} />
             <Route path="/buyer/pricing" element={<BuyerPricing />} />
             <Route path="/buyer/transactions" element={buyerSub(<BuyerTransactions />)} />
+            <Route path="/buyer/deals" element={buyerSub(<BuyerDealsList />)} />
+            <Route path="/buyer/deals/:dealId" element={buyerSub(<BuyerDealDetail />)} />
             <Route path="/buyer/quotations" element={<BuyerQuotations />} />
             <Route path="/buyer/quotations/group/:rfqGroupId" element={<BuyerRfqComparison />} />
             <Route path="/buyer/quotations/:requestId" element={<BuyerQuotations />} />
@@ -262,6 +285,8 @@ export function AppRoutes() {
             <Route path="/seller/dashboard" element={<SellerDashboard />} />
             <Route path="/seller/pricing" element={sellerSub(<SellerPricing />)} />
             <Route path="/seller/transactions" element={sellerSub(<SellerTransactions />)} />
+            <Route path="/seller/deals" element={sellerSub(<SellerDealsList />)} />
+            <Route path="/seller/deals/:dealId" element={sellerSub(<SellerDealDetail />)} />
             <Route path="/seller/products" element={<SellerProductListing />} />
             <Route path="/seller/products/:productId/edit" element={<EditProduct />} />
             <Route path="/seller/add-product" element={sellerSub(<AddNewProduct />)} />
@@ -296,6 +321,9 @@ export function AppRoutes() {
           <Route path="buyers" element={<BuyerListing />} />
           <Route path="sellers" element={<SellerListing />} />
           <Route path="transactions" element={<TransactionReports />} />
+          <Route path="deals" element={<AdminDealsList />} />
+          <Route path="deals/:dealId" element={<AdminDealDetail />} />
+          <Route path="deal-charge-configs" element={<AdminDealChargeConfig />} />
           <Route path="pricing" element={<AdminMarketingPricingPage />} />
           <Route path="categories" element={<AdminCategoryPage />} />
           <Route path="category-requests" element={<AdminCategoryRequestsPage />} />

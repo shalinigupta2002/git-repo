@@ -8,6 +8,9 @@ const addressRoutes          = require('./address.routes.js')
 const categoryRequestRoutes  = require('./categoryRequest.routes.js')
 const contactRoutes          = require('./contact.routes.js')
 const quoteRequestRoutes     = require('./quoteRequest.routes.js')
+const dealRoutes             = require('./deal.routes.js')
+const sellerDealRoutes       = require('./sellerDeal.routes.js')
+const adminDealRoutes        = require('./adminDeal.routes.js')
 const { getSnapshot }        = require('../middleware/metrics.js')
 
 const router = Router()
@@ -22,6 +25,9 @@ router.use('/addresses',          addressRoutes)
 router.use('/category-requests',  categoryRequestRoutes)
 router.use('/contact',            contactRoutes)
 router.use('/quote-requests',     quoteRequestRoutes)
+router.use('/v1/deals',           dealRoutes)
+router.use('/v1/seller/deals',     sellerDealRoutes)
+router.use('/v1/admin',           adminDealRoutes)
 
 /**
  * GET /api/health

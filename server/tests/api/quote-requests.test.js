@@ -5,6 +5,7 @@ jest.mock('../../src/utils/audit')
 
 const { agent, cookieFor, makeToken, IDS, makeProduct } = require('../../src/__tests__/helpers')
 const { prisma } = require('../../src/config/database')
+const { Prisma } = require('@prisma/client')
 
 const buyerToken = makeToken({ id: IDS.BUYER, role: 'BUYER' })
 const sellerToken = makeToken({ id: IDS.SELLER, role: 'SELLER' })
@@ -57,7 +58,72 @@ function makeQuoteRow(overrides = {}) {
 
 function mockSubscribedBuyer() {
   prisma.user.findUnique.mockResolvedValue({ id: IDS.BUYER, role: 'BUYER' })
-  prisma.subscription.findFirst.mockResolvedValue({ id: 'sub-001', status: 'ACTIVE' })
+  prisma.subscription.findFirst.mockResolvedValue({ id: 'sub-001', status: 'ACTIVE', plan: 'BUYER_LIFETIME' })
+}
+
+function mockDealCreationForAccept() {
+  const buyerConfig = {
+    id: 'cfg-buyer',
+    audience: 'BUYER',
+    planKey: 'BUYER_LIFETIME',
+    chargeType: 'PERCENTAGE',
+    value: new Prisma.Decimal('2'),
+    currency: 'INR',
+    isActive: true,
+  }
+  const sellerConfig = {
+    id: 'cfg-seller',
+    audience: 'SELLER',
+    planKey: 'SELLER_LIFETIME',
+    chargeType: 'PERCENTAGE',
+    value: new Prisma.Decimal('2'),
+    currency: 'INR',
+    isActive: true,
+  }
+
+  prisma.deal.findUnique
+    .mockResolvedValueOnce(null)
+    .mockResolvedValueOnce({
+      id: 'deal-1',
+      dealNumber: 'DEAL-2026-000001',
+      status: 'PAYMENT_PENDING',
+      contactUnlockStatus: 'LOCKED',
+      payments: [],
+      events: [],
+    })
+
+  prisma.dealNumberCounter.upsert.mockResolvedValue({ year: 2026, lastValue: 1 })
+  prisma.subscription.findFirst
+    .mockResolvedValueOnce({ id: 'sub-buyer', plan: 'BUYER_LIFETIME', status: 'ACTIVE' })
+    .mockResolvedValueOnce({ id: 'sub-seller', plan: 'SELLER_LIFETIME', status: 'ACTIVE' })
+  prisma.dealChargeConfig.findFirst
+    .mockResolvedValueOnce(buyerConfig)
+    .mockResolvedValueOnce(sellerConfig)
+  prisma.deal.create.mockResolvedValue({
+    id: 'deal-1',
+    dealNumber: 'DEAL-2026-000001',
+    status: 'QUOTATION_ACCEPTED',
+  })
+  prisma.deal.update
+    .mockResolvedValueOnce({
+      id: 'deal-1',
+      dealNumber: 'DEAL-2026-000001',
+      status: 'DEAL_CREATED',
+    })
+    .mockResolvedValueOnce({
+      id: 'deal-1',
+      dealNumber: 'DEAL-2026-000001',
+      status: 'PAYMENT_PENDING',
+    })
+  prisma.dealPayment.findUnique.mockResolvedValue(null)
+  prisma.dealPayment.create.mockImplementation(({ data }) => Promise.resolve({
+    id: `pay-${data.payerRole}`,
+    payerRole: data.payerRole,
+    paymentStatus: 'PENDING',
+    paymentReference: data.paymentReference || 'DPAY-TEST',
+    amount: data.amount,
+  }))
+  prisma.dealEvent.create.mockResolvedValue({ id: 'evt-1' })
 }
 
 beforeEach(() => {
@@ -436,6 +502,7 @@ describe('Quotation respond / accept APIs', () => {
 
   test('accept marks sibling quotations as NOT_SELECTED in the same RFQ group', async () => {
     mockSubscribedBuyer()
+    mockDealCreationForAccept()
 
     const respondedQuote = makeQuoteRow({
       status: 'RESPONDED',

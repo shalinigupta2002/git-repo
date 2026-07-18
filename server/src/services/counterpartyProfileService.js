@@ -19,8 +19,20 @@ function pickUserCity(user) {
   return user?.addresses?.[0]?.city ?? null
 }
 
-function isProfileUnlocked({ dealAccepted, dealChargesPaid }) {
-  return Boolean(dealAccepted && dealChargesPaid)
+function isProfileUnlocked(context = {}) {
+  if (context.contactUnlockStatus === 'UNLOCKED') return true
+  if (context.contactUnlockOverride === true) return true
+  return Boolean(context.dealAccepted && context.dealChargesPaid)
+}
+
+function buildDealContactContext(deal) {
+  if (!deal) return {}
+  return {
+    contactUnlockStatus: deal.contactUnlockStatus,
+    contactUnlockOverride: deal.contactUnlockOverride,
+    dealAccepted: true,
+    dealChargesPaid: deal.contactUnlockStatus === 'UNLOCKED',
+  }
 }
 
 function pickPortalUserId(user) {
@@ -108,6 +120,7 @@ module.exports = {
   PUBLIC_FIELDS,
   UNLOCKED_FIELDS,
   isProfileUnlocked,
+  buildDealContactContext,
   pickUserCity,
   pickPortalUserId,
   buildFullPartyProfile,

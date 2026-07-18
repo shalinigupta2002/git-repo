@@ -1,8 +1,8 @@
 /**
  * Counterparty profile visibility — mirrors server/src/services/counterpartyProfileService.js
  *
- * Before deal completion: portal user ID + city only.
- * After deal accepted + deal charges paid: full profile from Main Portal.
+ * Before contact unlock: portal user ID + city only.
+ * After contact unlock: full profile fields returned by the deal API.
  */
 
 export const PUBLIC_COUNTERPARTY_FIELDS = ['portalUserId', 'city']
@@ -21,8 +21,9 @@ export const UNLOCKED_COUNTERPARTY_FIELDS = [
   'postalCode',
 ]
 
-export function isCounterpartyProfileUnlocked({ dealAccepted, dealChargesPaid } = {}) {
-  return Boolean(dealAccepted && dealChargesPaid)
+export function isCounterpartyProfileUnlocked(context = {}) {
+  if (context.contactUnlockStatus === 'UNLOCKED') return true
+  return Boolean(context.dealAccepted && context.dealChargesPaid)
 }
 
 export function maskCounterpartyProfile(profile, context = {}) {

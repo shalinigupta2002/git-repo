@@ -49,15 +49,37 @@ export const sendContactMessage = async ({ subject, message, images = [], videos
   }
 }
 export const fetchMyContactMessages   = ()      => getJson('/contact')
+export const fetchContactMessage      = (id)    => getJson(`/contact/${id}`)
 export const fetchContactUnreadCount  = ()      => getJson('/contact/unread-reply-count')
 export const markContactReplyRead     = (id)    => patchJson(`/contact/${id}/reply-read`, {})
 export const markAllContactRepliesRead = ()     => patchJson('/contact/mark-all-replies-read', {})
+
+export async function sendContactFollowUp(id, { message, images = [], videos = [] }) {
+  const hasFiles = images.length > 0 || videos.length > 0
+  if (!hasFiles) {
+    return postJson(`/contact/${encodeURIComponent(id)}/replies`, { message })
+  }
+  const form = new FormData()
+  form.append('message', message)
+  images.forEach((file) => form.append('images', file))
+  videos.forEach((file) => form.append('videos', file))
+  try {
+    const { data } = await api.post(`/contact/${encodeURIComponent(id)}/replies`, form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+    if (!data?.success) throw new Error(data?.error?.message || 'Request failed')
+    return data.data
+  } catch (e) {
+    throwFriendly(e, 'Request failed')
+  }
+}
 
 // Admin side
 export const fetchAdminMessages      = (status) => {
   const qs = status ? `?status=${status}` : ''
   return getJson(`/admin/messages${qs}`)
 }
+export const fetchAdminMessage       = (id) => getJson(`/admin/messages/${encodeURIComponent(id)}`)
 export const fetchAdminMessageUnreadCount = ()       => getJson('/admin/messages/unread-count')
 export const adminMarkMessageRead         = (id)     => patchJson(`/admin/messages/${id}/read`, {})
 export const adminReplyToMessage          = (id, reply) => patchJson(`/admin/messages/${id}/reply`, { adminReply: reply })

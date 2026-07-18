@@ -161,6 +161,7 @@ model User {
   auditLogs            AuditLog[]
   categoryRequests     CategoryRequest[]
   contactMessages      ContactMessage[]
+  contactMessageReplies ContactMessageReply[] @relation("ContactReplyAuthor")
   buyerQuoteRequests   QuoteRequest[]    @relation("BuyerQuoteRequests")
   sellerQuoteRequests  QuoteRequest[]    @relation("SellerQuoteRequests")
   rfqGroups            RfqGroup[]
@@ -390,10 +391,26 @@ model ContactMessage {
   replyRead      Boolean       @default(false) @map("reply_read")
   createdAt      DateTime      @default(now()) @map("created_at")
   updatedAt      DateTime      @updatedAt @map("updated_at")
+  replies        ContactMessageReply[]
 
   @@index([senderId])
   @@index([status])
   @@map("contact_messages")
+}
+
+model ContactMessageReply {
+  id               String         @id @default(uuid())
+  contactMessageId String         @map("contact_message_id")
+  contactMessage   ContactMessage @relation(fields: [contactMessageId], references: [id], onDelete: Cascade)
+  authorId         String         @map("author_id")
+  author           User           @relation("ContactReplyAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  body             String         @db.VarChar(5000)
+  attachments      Json?          @default("[]")
+  isAdmin          Boolean        @default(false) @map("is_admin")
+  createdAt        DateTime       @default(now()) @map("created_at")
+
+  @@index([contactMessageId, createdAt])
+  @@map("contact_message_replies")
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

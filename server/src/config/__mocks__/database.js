@@ -119,6 +119,19 @@ const mockPrisma = {
     findUnique: jest.fn(),
     upsert:     jest.fn(),
   },
+  contactMessage: {
+    findUnique: jest.fn(),
+    findFirst:  jest.fn(),
+    findMany:   jest.fn(),
+    create:     jest.fn(),
+    update:     jest.fn(),
+    updateMany: jest.fn(),
+    count:      jest.fn(),
+  },
+  contactMessageReply: {
+    create:   jest.fn(),
+    findMany: jest.fn(),
+  },
   quoteRevision: {
     count: jest.fn(),
     create: jest.fn(),

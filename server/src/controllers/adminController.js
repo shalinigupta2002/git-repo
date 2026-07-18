@@ -299,9 +299,21 @@ const updateCategory = asyncHandler(async (req, res) => {
 
 const deleteCategory = asyncHandler(async (req, res) => {
   const { id } = req.params
+  const numId = Number(id)
+  if (!Number.isFinite(numId)) {
+    return res.status(400).json({ success: false, error: { message: 'Invalid category id' } })
+  }
+
   const { rowCount } = await query(
-    'DELETE FROM catalog.categories WHERE id = $1',
-    [Number(id)],
+    `WITH RECURSIVE descendants AS (
+       SELECT id FROM catalog.categories WHERE id = $1
+       UNION ALL
+       SELECT c.id FROM catalog.categories c
+       INNER JOIN descendants d ON c.parent_id = d.id
+     )
+     DELETE FROM catalog.categories
+     WHERE id IN (SELECT id FROM descendants)`,
+    [numId],
   )
 
   if (rowCount === 0) {

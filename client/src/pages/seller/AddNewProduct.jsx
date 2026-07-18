@@ -4,6 +4,7 @@ import toast from 'react-hot-toast'
 import { SellerWorkflowChrome } from '../../layouts/SellerWorkflowChrome.jsx'
 import { createProduct } from '../../services/product.service.js'
 import { useShopCategoryTree } from '../../hooks/useShopCategoryTree.js'
+import { CategoryFields } from '../../components/seller/CategoryFields.jsx'
 
 const INITIAL = {
   sku: '',
@@ -210,7 +211,7 @@ export function AddNewProduct() {
       nextTo="/seller/products"
       nextLabel="View my listings"
     >
-      <div className="b2bGrid2">
+      <div className="b2bGrid2 b2bGrid2--single">
         <div className="b2bCard">
           <div className="b2bCard__hd">
             <div>
@@ -248,74 +249,15 @@ export function AddNewProduct() {
                 </div>
               </div>
 
-              <div className="b2bFormRow2">
-                <div>
-                  <label className="b2bLabel" htmlFor="category">Category</label>
-                  <select
-                    id="category"
-                    className="b2bSelect"
-                    value={form.category}
-                    onChange={handleCategoryChange}
-                  >
-                    <option value="">Select category</option>
-                    {categoryTree.map((node) => (
-                      <option key={node.id} value={node.id}>
-                        {node.label}
-                      </option>
-                    ))}
-                  </select>
-                  <p className="panelSub" style={{ margin: '6px 0 0', fontSize: 13 }}>
-                    Category missing?{' '}
-                    <Link to="/seller/category-request" style={{ color: 'var(--brand)', fontWeight: 600 }}>
-                      Request a new category
-                    </Link>
-                    {' '}— admin will review; approved categories appear here immediately.
-                  </p>
-                </div>
-                <div>
-                  <label className="b2bLabel" htmlFor="subcategory">Subcategory</label>
-                  <select
-                    id="subcategory"
-                    className="b2bSelect"
-                    value={form.subcategory}
-                    onChange={handleSubcategoryChange}
-                    disabled={subcategoryOptions.length === 0}
-                  >
-                    <option value="">
-                      {subcategoryOptions.length === 0 ? 'Select a category first' : 'Select subcategory'}
-                    </option>
-                    {subcategoryOptions.map((node) => (
-                      <option key={node.id} value={node.id}>
-                        {node.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {subsubcategoryOptions.length > 0 && (
-                <div>
-                  <label className="b2bLabel" htmlFor="subsubcategory">
-                    Product type
-                    <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0, marginLeft: 4, color: 'var(--text-muted)' }}>
-                      — under {selectedSubcategoryNode?.label}
-                    </span>
-                  </label>
-                  <select
-                    id="subsubcategory"
-                    className="b2bSelect"
-                    value={form.subsubcategory}
-                    onChange={(e) => updateField('subsubcategory', e.target.value)}
-                  >
-                    <option value="">Select product type</option>
-                    {subsubcategoryOptions.map((node) => (
-                      <option key={node.id} value={node.id}>
-                        {node.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
+              <CategoryFields
+                tree={categoryTree}
+                loading={categoriesLoading}
+                form={form}
+                onCategoryChange={handleCategoryChange}
+                onSubcategoryChange={handleSubcategoryChange}
+                onSubsubcategoryChange={(e) => updateField('subsubcategory', e.target.value)}
+                showRequestLink
+              />
 
               <div className="b2bFormRow2">
                 <div>
@@ -537,37 +479,6 @@ export function AddNewProduct() {
             </form>
           </div>
         </div>
-
-        <aside className="b2bCard">
-          <div className="b2bCard__hd">
-            <h2 className="b2bCard__title">Listing checklist</h2>
-          </div>
-          <div className="b2bCard__bd">
-            <ul className="subPricing__list" style={{ margin: 0 }}>
-              <li>Accurate SKU, category and subcategory improve catalog discoverability.</li>
-              <li>Adding your brand helps buyers identify and shortlist products faster.</li>
-              <li>Clear delivery time helps buyers decide faster on quotations.</li>
-              <li>Available stocks help buyers know what you can ship immediately.</li>
-              <li>Use the same currency as your payout bank account.</li>
-              <li>Upload clear product images and spec sheets (PDF/Excel) to speed up buyer decisions.</li>
-            </ul>
-            <div
-              style={{
-                marginTop: 16,
-                padding: 12,
-                borderRadius: 'var(--radius-md)',
-                background: 'var(--tint-blue)',
-                border: '1px solid #dbeafe',
-                fontSize: 13,
-                color: 'var(--text)',
-              }}
-            >
-              <strong style={{ color: 'var(--text-h)' }}>Tip:</strong> Publishing goes live immediately in the catalog and marketplace search. After
-              publishing you can activate, deactivate, edit, or delete the product under{' '}
-              <em>List products</em>.
-            </div>
-          </div>
-        </aside>
       </div>
     </SellerWorkflowChrome>
   )

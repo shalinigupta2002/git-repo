@@ -5,6 +5,7 @@ import { deleteProduct, listProducts } from '../../services/product.service.js'
 import { useAppSelector } from '../../hooks/redux.js'
 import { selectHasSellerSubscription } from '../../store/slices/subscriptionSlice.js'
 import { resolveUploadUrl } from '../../utils/uploadUrl.js'
+import { ProductHelpModal } from '../../components/seller/ProductHelpModal.jsx'
 
 function parseProductMeta(description) {
   if (!description) return { category: null, brand: null }
@@ -347,6 +348,7 @@ function CategoryFilter({ categories, selected, onSelect }) {
 }
 
 export function SellerProductListing() {
+  const [helpOpen, setHelpOpen] = useState(false)
   const hasSub = useAppSelector(selectHasSellerSubscription)
   const [products, setProducts] = useState([])
   const [loading, setLoading] = useState(true)
@@ -450,6 +452,15 @@ export function SellerProductListing() {
           </div>
 
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              className="btnOutline sellerHelpFab"
+              onClick={() => setHelpOpen(true)}
+              aria-label="How to use product listing"
+              title="How to use"
+            >
+              ?
+            </button>
             <button
               type="button"
               className="btnOutline"
@@ -837,6 +848,8 @@ export function SellerProductListing() {
           </section>
         </div>
       </div>
+
+      <ProductHelpModal open={helpOpen} onClose={() => setHelpOpen(false)} />
     </div>
   )
 }

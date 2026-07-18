@@ -34,6 +34,7 @@ router.patch('/category-requests/:id/decide',  adminController.decideCategoryReq
 // ─── Contact messages (buyer/seller → admin) ──────────────────────────────────
 router.get('/messages/unread-count',           contactController.adminUnreadCount)
 router.get('/messages',                        contactController.adminListMessages)
+router.get('/messages/:id',                    contactController.adminGetMessage)
 router.patch('/messages/:id/read',             contactController.adminMarkRead)
 router.patch('/messages/:id/reply',            contactController.adminReply)
 

@@ -7,8 +7,10 @@ import {
   fetchMyContactMessages,
   markContactReplyRead,
   markAllContactRepliesRead,
+  sendContactFollowUp,
 } from '../../services/contact.service.js'
 import { ContactMessageAttachments } from '../../components/common/ContactMessageAttachments.jsx'
+import { ContactThreadReplyBox, ContactThreadTimeline } from '../../components/common/ContactThreadView.jsx'
 
 const IMAGE_ACCEPT = 'image/jpeg,image/png,image/webp,image/gif'
 const VIDEO_ACCEPT = 'video/mp4,video/webm,video/quicktime'
@@ -73,15 +75,31 @@ function AdminIcon() {
 
 // ─── Thread card ──────────────────────────────────────────────────────────────
 
-function MessageThread({ msg, onMarkRead, user }) {
+function MessageThread({ msg, onMarkRead, onRefresh, user }) {
   const [open, setOpen] = useState(msg.status === 'REPLIED' && !msg.replyRead)
+  const [reply, setReply] = useState('')
+  const [submitting, setSubmitting] = useState(false)
   const hasUnreadReply  = msg.status === 'REPLIED' && !msg.replyRead
-  const initials = (user?.companyName || user?.email || 'U').slice(0, 2).toUpperCase()
-  const adminInitials = 'AD'
+  const thread = msg.thread?.length ? msg.thread : null
+
+  async function handleFollowUp(e) {
+    e.preventDefault()
+    if (!reply.trim()) return
+    setSubmitting(true)
+    try {
+      await sendContactFollowUp(msg.id, { message: reply.trim() })
+      toast.success('Reply sent')
+      setReply('')
+      onRefresh?.()
+    } catch (err) {
+      toast.error(err.message || 'Failed to send reply')
+    } finally {
+      setSubmitting(false)
+    }
+  }
 
   return (
-    <div className={`msgThread${hasUnreadReply ? ' msgThread--unread' : ''}`}>
-      {/* Header row */}
+    <div className={`msgThread supportTicket${hasUnreadReply ? ' msgThread--unread' : ''}`}>
       <button
         type="button"
         className="msgThread__head"
@@ -95,59 +113,47 @@ function MessageThread({ msg, onMarkRead, user }) {
         </div>
         <div className="msgThread__headRight">
           <span className="msgThread__date">
-            {new Date(msg.createdAt).toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' })}
+            {new Date(msg.updatedAt || msg.createdAt).toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' })}
           </span>
           <span className={`msgChevron${open ? ' msgChevron--open' : ''}`} aria-hidden>›</span>
         </div>
       </button>
 
-      {/* Expanded thread */}
       {open && (
-        <div className="msgThread__body">
-          {/* Sender message bubble */}
-          <div className="msgBubble msgBubble--sender">
-            <div className="msgBubble__avatar msgBubble__avatar--sender">{initials}</div>
-            <div className="msgBubble__content">
-              <div className="msgBubble__meta">
-                <span className="msgBubble__name">{user?.companyName || user?.email}</span>
-                <span className="msgBubble__role">{user?.role}</span>
-                <span className="msgBubble__time">
-                  {new Date(msg.createdAt).toLocaleString('en-IN', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' })}
-                </span>
-              </div>
-              <div className="msgBubble__text">{msg.message}</div>
-              <ContactMessageAttachments attachments={msg.attachments} />
-            </div>
-          </div>
-
-          {/* Admin reply bubble */}
-          {msg.adminReply ? (
-            <div className="msgBubble msgBubble--admin">
-              <div className="msgBubble__avatar msgBubble__avatar--admin">{adminInitials}</div>
-              <div className="msgBubble__content">
-                <div className="msgBubble__meta">
-                  <span className="msgBubble__name">Admin</span>
-                  <span className="msgBubble__role" style={{ background:'#ede9fe', color:'#5b21b6' }}>B2B Admin</span>
-                  <span className="msgBubble__time">
-                    {msg.repliedAt
-                      ? new Date(msg.repliedAt).toLocaleString('en-IN', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' })
-                      : ''}
-                  </span>
-                </div>
-                <div className="msgBubble__text msgBubble__text--admin">{msg.adminReply}</div>
-                {hasUnreadReply && (
-                  <button type="button" className="msgMarkReadBtn" onClick={() => onMarkRead(msg.id)}>
-                    <CheckIcon /> Mark as read
-                  </button>
-                )}
-              </div>
-            </div>
+        <div className="msgThread__body supportTicket__body">
+          {thread ? (
+            <ContactThreadTimeline thread={thread} user={user} />
           ) : (
-            <div className="msgWaiting">
-              <span className="msgWaiting__dot" />
-              <span>Waiting for admin response…</span>
-            </div>
+            <>
+              <div className="msgBubble msgBubble--sender">
+                <div className="msgBubble__content">
+                  <div className="msgBubble__text">{msg.message}</div>
+                  <ContactMessageAttachments attachments={msg.attachments} />
+                </div>
+              </div>
+              {msg.adminReply ? (
+                <div className="msgBubble msgBubble--admin">
+                  <div className="msgBubble__content">
+                    <div className="msgBubble__text msgBubble__text--admin">{msg.adminReply}</div>
+                  </div>
+                </div>
+              ) : null}
+            </>
           )}
+
+          {hasUnreadReply ? (
+            <button type="button" className="msgMarkReadBtn" onClick={() => onMarkRead(msg.id)}>
+              <CheckIcon /> Mark admin reply as read
+            </button>
+          ) : null}
+
+          <ContactThreadReplyBox
+            value={reply}
+            onChange={(e) => setReply(e.target.value)}
+            onSubmit={handleFollowUp}
+            submitting={submitting}
+            placeholder="Reply to admin — conversation stays open until resolved"
+          />
         </div>
       )}
     </div>
@@ -458,7 +464,7 @@ export function ContactAdminPage() {
           ) : (
             <div className="caThreadList">
               {messages.map((m) => (
-                <MessageThread key={m.id} msg={m} user={user} onMarkRead={handleMarkRead} />
+                <MessageThread key={m.id} msg={m} user={user} onMarkRead={handleMarkRead} onRefresh={load} />
               ))}
             </div>
           )}

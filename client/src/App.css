@@ -8288,3 +8288,530 @@ body,
     max-width: calc(100vw - 16px);
   }
 }
+
+/* ── Phase A: Category fields (seller product form) ─────────────────────── */
+.catFields {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.catFields__group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.catFields__hint {
+  margin: 0.15rem 0 0;
+  font-size: 0.78rem;
+  color: var(--muted, #64748b);
+  line-height: 1.5;
+}
+
+.catFields__hintInline {
+  font-weight: 400;
+  color: var(--muted, #94a3b8);
+  font-size: 0.82rem;
+}
+
+.catFields__warn {
+  padding: 0.65rem 0.85rem;
+  border-radius: 0.5rem;
+  border: 1px solid #fde68a;
+  background: #fffbeb;
+  color: #92400e;
+  font-size: 0.84rem;
+  line-height: 1.5;
+}
+
+.b2bGrid2--single {
+  grid-template-columns: 1fr;
+}
+
+/* ── Phase A: Product listing help modal ────────────────────────────────── */
+.sellerHelpFab {
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 1rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.helpModalOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.helpModal {
+  width: min(640px, 100%);
+  max-height: min(85dvh, 720px);
+  background: #fff;
+  border-radius: 14px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 24px 48px rgba(15, 23, 42, 0.18);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.helpModal__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 20px 22px 14px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.helpModal__eyebrow {
+  margin: 0 0 4px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.helpModal__title {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -0.02em;
+}
+
+.helpModal__close {
+  border: none;
+  background: #f8fafc;
+  color: #64748b;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.helpModal__close:hover {
+  background: #f1f5f9;
+  color: #334155;
+}
+
+.helpModal__body {
+  overflow-y: auto;
+  padding: 8px 22px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.helpModal__section h3 {
+  margin: 0 0 8px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.helpModal__section ul {
+  margin: 0;
+  padding-left: 1.15rem;
+  color: #475569;
+  font-size: 0.875rem;
+  line-height: 1.65;
+}
+
+.helpModal__section li + li {
+  margin-top: 6px;
+}
+
+.helpModal__foot {
+  padding: 14px 22px 18px;
+  border-top: 1px solid #f1f5f9;
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* ── Phase A: Support thread bubbles (shared) ───────────────────────────── */
+.supportThread {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 4px 0;
+}
+
+.supportBubble {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.supportBubble--admin {
+  flex-direction: row-reverse;
+}
+
+.supportBubble__avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(135deg, #4f46e5, #818cf8);
+}
+
+.supportBubble__avatar--admin {
+  background: linear-gradient(135deg, #0ea5e9, #6366f1);
+}
+
+.supportBubble__content {
+  max-width: min(85%, 560px);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.supportBubble--admin .supportBubble__content {
+  align-items: flex-end;
+}
+
+.supportBubble__meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.supportBubble--admin .supportBubble__meta {
+  flex-direction: row-reverse;
+}
+
+.supportBubble__name {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #111827;
+}
+
+.supportBubble__time {
+  font-size: 0.72rem;
+  color: #94a3b8;
+}
+
+.supportBubble__text {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-size: 0.875rem;
+  color: #334155;
+  line-height: 1.6;
+  word-break: break-word;
+}
+
+.supportBubble--admin .supportBubble__text {
+  background: linear-gradient(135deg, #eff6ff, #eef2ff);
+  border-color: #c7d2fe;
+  color: #1e1b4b;
+}
+
+.supportReplyBox {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+  border-top: 1px solid #e2e8f0;
+  background: #fafafa;
+}
+
+.supportReplyBox__input {
+  width: 100%;
+  resize: vertical;
+  min-height: 72px;
+  padding: 10px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  font-family: inherit;
+  font-size: 0.875rem;
+  line-height: 1.55;
+  box-sizing: border-box;
+}
+
+.supportReplyBox__input:focus {
+  outline: none;
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+}
+
+.supportReplyBox__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.supportReplyBox__count {
+  font-size: 0.72rem;
+  color: #94a3b8;
+}
+
+.supportTicket__body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* ── Phase A: Admin support dashboard ───────────────────────────────────── */
+.supportDesk {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 520px;
+}
+
+.supportDesk__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.supportDesk__stats {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.supportDesk__stat {
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.supportDesk__stat--warn {
+  background: #fef9c3;
+  color: #854d0e;
+}
+
+.supportDesk__filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.supportDesk__filter {
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #475569;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.supportDesk__filter--active {
+  border-color: #6366f1;
+  background: #eef2ff;
+  color: #4338ca;
+}
+
+.supportDesk__badge {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.supportDesk__search {
+  flex: 1;
+  min-width: 180px;
+  padding: 8px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  font-size: 0.84rem;
+}
+
+.supportDesk__layout {
+  display: grid;
+  grid-template-columns: minmax(260px, 340px) 1fr;
+  gap: 0;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
+  min-height: 480px;
+}
+
+.supportDesk__list {
+  border-right: 1px solid #e2e8f0;
+  overflow-y: auto;
+  max-height: min(70vh, 640px);
+}
+
+.supportDesk__item {
+  width: 100%;
+  text-align: left;
+  border: none;
+  border-bottom: 1px solid #f1f5f9;
+  background: #fff;
+  padding: 12px 14px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.supportDesk__item:hover {
+  background: #f8fafc;
+}
+
+.supportDesk__item--active {
+  background: #eef2ff;
+}
+
+.supportDesk__item--unread {
+  border-left: 3px solid #f59e0b;
+}
+
+.supportDesk__itemTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.supportDesk__itemTop strong {
+  font-size: 0.84rem;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.supportDesk__itemSubject {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #334155;
+}
+
+.supportDesk__itemPreview {
+  font-size: 0.76rem;
+  color: #64748b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.supportDesk__itemDate {
+  font-size: 0.72rem;
+  color: #94a3b8;
+}
+
+.supportDesk__detail {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.supportDesk__detailHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 16px 18px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.supportDesk__detailTitle {
+  margin: 0 0 4px;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.supportDesk__detailMeta {
+  margin: 0;
+  font-size: 0.78rem;
+  color: #64748b;
+}
+
+.supportDesk__thread {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 18px;
+  min-height: 200px;
+  max-height: min(50vh, 420px);
+}
+
+.supportDesk__empty {
+  padding: 32px 16px;
+  text-align: center;
+  color: #64748b;
+  font-size: 0.875rem;
+}
+
+.supportDesk__empty--detail {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.supportStatusPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.supportStatusPill__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+@media (max-width: 900px) {
+  .supportDesk__layout {
+    grid-template-columns: 1fr;
+  }
+
+  .supportDesk__list {
+    max-height: 240px;
+    border-right: none;
+    border-bottom: 1px solid #e2e8f0;
+  }
+}

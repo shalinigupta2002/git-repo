@@ -1,6 +1,12 @@
 const { prisma }       = require('../config/database.js')
 const { asyncHandler } = require('../utils/asyncHandler.js')
 const { buildContactAttachments } = require('../middleware/contactUpload.js')
+const {
+  messageInclude,
+  serializeContactThread,
+  findMessageForSender,
+  findMessageById,
+} = require('../services/contactThreadService.js')
 
 // ─── Sender-side (buyer / seller) ─────────────────────────────────────────────
 
@@ -25,19 +31,71 @@ const sendMessage = asyncHandler(async (req, res) => {
       message:  message.trim(),
       attachments,
     },
+    include: messageInclude,
   })
 
-  res.status(201).json({ success: true, data: { message: record } })
+  res.status(201).json({ success: true, data: { message: serializeContactThread(record) } })
 })
 
-/** GET /api/contact — sender's own message thread */
+/** GET /api/contact — sender's own message threads */
 const listMyMessages = asyncHandler(async (req, res) => {
   const messages = await prisma.contactMessage.findMany({
     where:   { senderId: req.user.id },
-    orderBy: { createdAt: 'desc' },
+    orderBy: { updatedAt: 'desc' },
+    include: messageInclude,
   })
 
-  res.json({ success: true, data: { messages } })
+  res.json({
+    success: true,
+    data: { messages: messages.map(serializeContactThread) },
+  })
+})
+
+/** GET /api/contact/:id — single thread for sender */
+const getMyMessage = asyncHandler(async (req, res) => {
+  const message = await findMessageForSender(req.params.id, req.user.id)
+  if (!message) {
+    return res.status(404).json({ success: false, error: { message: 'Message not found' } })
+  }
+  res.json({ success: true, data: { message: serializeContactThread(message) } })
+})
+
+/** POST /api/contact/:id/replies — sender follow-up in an existing ticket */
+const sendFollowUp = asyncHandler(async (req, res) => {
+  const body = typeof req.body?.message === 'string' ? req.body.message.trim() : ''
+  if (!body) {
+    return res.status(400).json({ success: false, error: { message: 'message is required' } })
+  }
+
+  const existing = await findMessageForSender(req.params.id, req.user.id)
+  if (!existing) {
+    return res.status(404).json({ success: false, error: { message: 'Message not found' } })
+  }
+
+  const attachments = buildContactAttachments(req.files)
+
+  const updated = await prisma.$transaction(async (tx) => {
+    await tx.contactMessageReply.create({
+      data: {
+        contactMessageId: existing.id,
+        authorId: req.user.id,
+        body,
+        attachments,
+        isAdmin: false,
+      },
+    })
+
+    return tx.contactMessage.update({
+      where: { id: existing.id },
+      data: {
+        status: 'UNREAD',
+        updatedAt: new Date(),
+      },
+      include: messageInclude,
+    })
+  })
+
+  res.status(201).json({ success: true, data: { message: serializeContactThread(updated) } })
 })
 
 /** GET /api/contact/unread-reply-count — number of unread admin replies for this user */
@@ -97,10 +155,8 @@ const adminListMessages = asyncHandler(async (req, res) => {
       where,
       skip,
       take:    Number(limit),
-      orderBy: { createdAt: 'desc' },
-      include: {
-        sender: { select: { id: true, email: true, role: true, companyName: true } },
-      },
+      orderBy: { updatedAt: 'desc' },
+      include: messageInclude,
     }),
     prisma.contactMessage.count({ where }),
   ])
@@ -108,7 +164,7 @@ const adminListMessages = asyncHandler(async (req, res) => {
   res.json({
     success: true,
     data: {
-      messages:   rows,
+      messages:   rows.map(serializeContactThread),
       pagination: {
         page:       Number(page),
         limit:      Number(limit),
@@ -117,6 +173,15 @@ const adminListMessages = asyncHandler(async (req, res) => {
       },
     },
   })
+})
+
+/** GET /api/admin/messages/:id — single thread for admin */
+const adminGetMessage = asyncHandler(async (req, res) => {
+  const message = await findMessageById(req.params.id)
+  if (!message) {
+    return res.status(404).json({ success: false, error: { message: 'Message not found' } })
+  }
+  res.json({ success: true, data: { message: serializeContactThread(message) } })
 })
 
 /** PATCH /api/admin/messages/:id/read — admin marks a message as read */
@@ -130,17 +195,18 @@ const adminMarkRead = asyncHandler(async (req, res) => {
   const updated = await prisma.contactMessage.update({
     where: { id },
     data:  { status: existing.status === 'UNREAD' ? 'READ' : existing.status },
+    include: messageInclude,
   })
 
-  res.json({ success: true, data: { message: updated } })
+  res.json({ success: true, data: { message: serializeContactThread(updated) } })
 })
 
-/** PATCH /api/admin/messages/:id/reply — admin replies to a message */
+/** PATCH /api/admin/messages/:id/reply — admin replies (appends to thread) */
 const adminReply = asyncHandler(async (req, res) => {
   const { id }        = req.params
-  const { adminReply } = req.body
+  const { adminReply: replyBody } = req.body
 
-  if (!adminReply?.trim()) {
+  if (!replyBody?.trim()) {
     return res.status(400).json({ success: false, error: { message: 'adminReply is required' } })
   }
 
@@ -149,20 +215,33 @@ const adminReply = asyncHandler(async (req, res) => {
     return res.status(404).json({ success: false, error: { message: 'Message not found' } })
   }
 
-  const updated = await prisma.contactMessage.update({
-    where: { id },
-    data: {
-      adminReply: adminReply.trim(),
-      status:     'REPLIED',
-      repliedAt:  new Date(),
-      replyRead:  false,
-    },
-    include: {
-      sender: { select: { id: true, email: true, role: true, companyName: true } },
-    },
+  const trimmed = replyBody.trim()
+  const now = new Date()
+
+  const updated = await prisma.$transaction(async (tx) => {
+    await tx.contactMessageReply.create({
+      data: {
+        contactMessageId: id,
+        authorId: req.user.id,
+        body: trimmed,
+        attachments: [],
+        isAdmin: true,
+      },
+    })
+
+    return tx.contactMessage.update({
+      where: { id },
+      data: {
+        adminReply: trimmed,
+        status:     'REPLIED',
+        repliedAt:  now,
+        replyRead:  false,
+      },
+      include: messageInclude,
+    })
   })
 
-  res.json({ success: true, data: { message: updated } })
+  res.json({ success: true, data: { message: serializeContactThread(updated) } })
 })
 
 /** GET /api/admin/messages/unread-count — count of UNREAD messages for admin badge */
@@ -174,10 +253,13 @@ const adminUnreadCount = asyncHandler(async (req, res) => {
 module.exports = {
   sendMessage,
   listMyMessages,
+  getMyMessage,
+  sendFollowUp,
   unreadReplyCount,
   markReplyRead,
   markAllRepliesRead,
   adminListMessages,
+  adminGetMessage,
   adminMarkRead,
   adminReply,
   adminUnreadCount,

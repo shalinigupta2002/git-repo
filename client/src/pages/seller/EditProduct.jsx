@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { getProduct, updateProduct } from '../../services/product.service.js'
-import { useShopCategoryTree } from '../../hooks/useShopCategoryTree.js'
+import { useShopCategoryTree, isCategorySelectionInvalid } from '../../hooks/useShopCategoryTree.js'
+import { CategoryFields } from '../../components/seller/CategoryFields.jsx'
 import { buildProductDescription, parseProductFormMeta } from '../../utils/productFormMeta.js'
 import { PageLoader } from '../../components/ui/PageLoader.jsx'
 
@@ -109,10 +110,19 @@ export function EditProduct() {
     [selectedSubcategoryNode],
   )
 
+  const categoryInvalid = useMemo(
+    () => isCategorySelectionInvalid(categoryTree, form),
+    [categoryTree, form],
+  )
+
   async function onSubmit(e) {
     e.preventDefault()
     setError('')
 
+    if (categoryInvalid) {
+      setError('This product uses a deleted category. Please select a valid category before saving.')
+      return
+    }
     if (!form.sku.trim() || !form.name.trim()) {
       setError('SKU and product name are required')
       return
@@ -197,38 +207,15 @@ export function EditProduct() {
                 </div>
               </div>
 
-              <div className="b2bFormRow2">
-                <div>
-                  <label className="b2bLabel" htmlFor="category">Category</label>
-                  <select id="category" className="b2bSelect" value={form.category} onChange={handleCategoryChange}>
-                    <option value="">Select category</option>
-                    {categoryTree.map((node) => (
-                      <option key={node.id} value={node.id}>{node.label}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="b2bLabel" htmlFor="subcategory">Subcategory</label>
-                  <select id="subcategory" className="b2bSelect" value={form.subcategory} onChange={handleSubcategoryChange} disabled={subcategoryOptions.length === 0}>
-                    <option value="">{subcategoryOptions.length === 0 ? 'Select a category first' : 'Select subcategory'}</option>
-                    {subcategoryOptions.map((node) => (
-                      <option key={node.id} value={node.id}>{node.label}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {subsubcategoryOptions.length > 0 ? (
-                <div>
-                  <label className="b2bLabel" htmlFor="subsubcategory">Product type</label>
-                  <select id="subsubcategory" className="b2bSelect" value={form.subsubcategory} onChange={(e) => updateField('subsubcategory', e.target.value)}>
-                    <option value="">Select product type</option>
-                    {subsubcategoryOptions.map((node) => (
-                      <option key={node.id} value={node.id}>{node.label}</option>
-                    ))}
-                  </select>
-                </div>
-              ) : null}
+              <CategoryFields
+                tree={categoryTree}
+                loading={categoriesLoading}
+                form={form}
+                onCategoryChange={handleCategoryChange}
+                onSubcategoryChange={handleSubcategoryChange}
+                onSubsubcategoryChange={(e) => updateField('subsubcategory', e.target.value)}
+                invalidSelection={categoryInvalid}
+              />
 
               <div className="b2bFormRow2">
                 <div>

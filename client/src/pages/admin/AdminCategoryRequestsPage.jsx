@@ -4,6 +4,8 @@ import {
   fetchAdminCategoryRequests,
   decideCategoryRequest,
 } from '../../services/admin.service.js'
+import { EmptyState } from '../../components/common/EmptyState.jsx'
+import { DealListSkeleton } from '../../components/deals/LoadingSkeleton.jsx'
 
 const STATUS_LABELS = {
   PENDING:  { label: 'Pending Approval',  color: '#d97706', bg: '#fef3c7', border: '#fde68a' },

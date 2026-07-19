@@ -99,8 +99,14 @@ async function listDeals(query = {}) {
     prisma.deal.count({ where }),
   ])
 
+  const { recalculatePendingDealCharges } = require('./dealChargeService.js')
+  const updatedRows = []
+  for (const row of rows) {
+    updatedRows.push(await recalculatePendingDealCharges(prisma, row))
+  }
+
   return {
-    deals: rows,
+    deals: updatedRows,
     pagination: {
       page,
       limit,
@@ -120,7 +126,8 @@ async function getDealById(dealId, include = DEAL_API_INCLUDE) {
     throw new AppError('Deal not found.', 404, 'DEAL_NOT_FOUND')
   }
 
-  return deal
+  const { recalculatePendingDealCharges } = require('./dealChargeService.js')
+  return recalculatePendingDealCharges(prisma, deal)
 }
 
 module.exports = {

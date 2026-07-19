@@ -57,6 +57,20 @@ export function fetchAdminStats() {
   return getJson('/admin/stats')
 }
 
+export function fetchAdminSubscribers(params) {
+  const qs = new URLSearchParams(params).toString()
+  return getJson(`/admin/subscribers?${qs}`)
+}
+
+export function fetchAdminSubscriberStats() {
+  return getJson('/admin/subscribers/stats')
+}
+
+export function fetchAdminAuditLogs(params) {
+  const qs = params ? `?${new URLSearchParams(params).toString()}` : ''
+  return getJson(`/admin/audit-logs${qs}`)
+}
+
 // ─── Category management ─────────────────────────────────────────────────────
 
 export function fetchAdminCategories() {

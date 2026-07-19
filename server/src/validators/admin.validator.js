@@ -39,4 +39,11 @@ const listAuditLogsQuery = paginationQuery.extend({
   to:         z.string().datetime({ offset: true }).optional(),
 })
 
-module.exports = { listUsersQuery, listTransactionsQuery, paginationQuery, listAuditLogsQuery }
+const listSubscribersQuery = paginationQuery.extend({
+  search: z.string().trim().max(200).optional(),
+  role: z.enum(['BUYER', 'SELLER', 'BOTH', 'ALL']).optional().default('ALL'),
+  status: z.enum(['ACTIVE', 'EXPIRED', 'CANCELLED', 'ALL']).optional().default('ALL'),
+  planType: z.enum(['MONTHLY', 'ANNUAL', 'LIFETIME', 'ALL']).optional().default('ALL'),
+})
+
+module.exports = { listUsersQuery, listTransactionsQuery, paginationQuery, listAuditLogsQuery, listSubscribersQuery }

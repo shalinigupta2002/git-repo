@@ -14,7 +14,7 @@ describe('dealChargeService', () => {
   const percentageConfig = {
     id: 'cfg-buyer',
     audience: 'BUYER',
-    planKey: 'BUYER_LIFETIME',
+    planKey: 'LIFETIME',
     chargeType: 'PERCENTAGE',
     value: new Prisma.Decimal('2.5'),
     currency: 'INR',
@@ -24,7 +24,7 @@ describe('dealChargeService', () => {
   const flatConfig = {
     id: 'cfg-seller',
     audience: 'SELLER',
-    planKey: 'SELLER_LIFETIME',
+    planKey: 'LIFETIME',
     chargeType: 'FLAT',
     value: new Prisma.Decimal('500'),
     currency: 'INR',
@@ -47,7 +47,7 @@ describe('dealChargeService', () => {
 
   test('findActiveChargeConfig throws when config missing', async () => {
     prisma.dealChargeConfig.findFirst.mockResolvedValue(null)
-    await expect(findActiveChargeConfig(prisma, 'BUYER', 'BUYER_GOLD')).rejects.toMatchObject({
+    await expect(findActiveChargeConfig(prisma, 'BUYER', 'LIFETIME')).rejects.toMatchObject({
       code: 'MISSING_CHARGE_CONFIG',
     })
   })
@@ -63,7 +63,7 @@ describe('dealChargeService', () => {
       currency: 'INR',
     })
 
-    expect(result.planKey).toBe('BUYER_LIFETIME')
+    expect(result.planKey).toBe('LIFETIME')
     expect(result.amount.toString()).toBe('500')
     expect(result.configId).toBe('cfg-buyer')
     expect(Object.isFrozen(result)).toBe(true)

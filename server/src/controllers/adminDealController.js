@@ -26,8 +26,19 @@ const getDealById = asyncHandler(async (req, res) => {
 
 const listChargeConfigs = asyncHandler(async (req, res) => {
   const configs = await listDealChargeConfigs()
+  const { getSubscriberCount, getPendingDealsCount } = require('../services/dealChargeService.js')
+  
+  const results = []
+  for (const c of configs) {
+    const serialized = serializeDealChargeConfig(c)
+    serialized.subscribersCount = await getSubscriberCount(c.planKey)
+    serialized.pendingDealsCount = await getPendingDealsCount(c.id)
+    serialized.updatedBy = c.updatedBy ? { email: c.updatedBy.email, companyName: c.updatedBy.companyName } : null
+    results.push(serialized)
+  }
+  
   sendSuccess(res, {
-    configs: configs.map(serializeDealChargeConfig),
+    configs: results,
   })
 })
 

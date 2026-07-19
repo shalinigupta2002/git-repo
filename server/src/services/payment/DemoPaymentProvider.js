@@ -50,7 +50,11 @@ class DemoPaymentProvider extends PaymentProvider {
       )
     }
 
-    await markPaymentSuccessful(tx, payment, actorUserId, 'demo')
+    const { recalculatePendingDealCharges } = require('../dealChargeService.js')
+    const updatedDeal = await recalculatePendingDealCharges(tx, deal)
+    const freshPayment = updatedDeal.payments.find(p => p.id === payment.id) || payment
+
+    await markPaymentSuccessful(tx, freshPayment, actorUserId, 'demo')
 
     const payments = await tx.dealPayment.findMany({
       where: { dealId: deal.id },

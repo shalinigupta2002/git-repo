@@ -156,20 +156,12 @@ export function AdminLayout() {
             Overview
           </NavLink>
           <NavLink
-            to="/admin/buyers"
+            to="/admin/subscribers"
             className={({ isActive }) =>
               isActive ? 'proNavLink proNavLink--active' : 'proNavLink'
             }
           >
-            Buyer listing
-          </NavLink>
-          <NavLink
-            to="/admin/sellers"
-            className={({ isActive }) =>
-              isActive ? 'proNavLink proNavLink--active' : 'proNavLink'
-            }
-          >
-            Seller listing
+            Subscribers
           </NavLink>
           <NavLink
             to="/admin/deals"

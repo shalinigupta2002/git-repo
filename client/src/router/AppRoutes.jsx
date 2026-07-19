@@ -116,11 +116,8 @@ const AdminLogin = lazy(() =>
 const AdminLayout = lazy(() =>
   import('../layouts/AdminLayout.jsx').then((m) => ({ default: m.AdminLayout })),
 )
-const BuyerListing = lazy(() =>
-  import('../pages/admin/BuyerListing.jsx').then((m) => ({ default: m.BuyerListing })),
-)
-const SellerListing = lazy(() =>
-  import('../pages/admin/SellerListing.jsx').then((m) => ({ default: m.SellerListing })),
+const SubscribersDashboard = lazy(() =>
+  import('../pages/admin/SubscribersDashboard.jsx').then((m) => ({ default: m.SubscribersDashboard })),
 )
 const TransactionReports = lazy(() =>
   import('../pages/admin/TransactionReports.jsx').then((m) => ({ default: m.TransactionReports })),
@@ -318,8 +315,9 @@ export function AppRoutes() {
           }
         >
           <Route index element={<AdminOverviewDashboard />} />
-          <Route path="buyers" element={<BuyerListing />} />
-          <Route path="sellers" element={<SellerListing />} />
+          <Route path="buyers" element={<Navigate to="/admin/subscribers" replace />} />
+          <Route path="sellers" element={<Navigate to="/admin/subscribers" replace />} />
+          <Route path="subscribers" element={<SubscribersDashboard />} />
           <Route path="transactions" element={<TransactionReports />} />
           <Route path="deals" element={<AdminDealsList />} />
           <Route path="deals/:dealId" element={<AdminDealDetail />} />

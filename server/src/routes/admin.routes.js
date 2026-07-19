@@ -17,6 +17,8 @@ router.use(authenticate, authorize('ADMIN'))
 
 router.get('/buyers',       validate(listUsersQuery,        'query'), adminController.listBuyers)
 router.get('/sellers',      validate(listUsersQuery,        'query'), adminController.listSellers)
+router.get('/subscribers',  validate(require('../validators/admin.validator.js').listSubscribersQuery, 'query'), adminController.listSubscribers)
+router.get('/subscribers/stats', adminController.subscriberStats)
 router.get('/transactions', validate(listTransactionsQuery, 'query'), adminController.listTransactions)
 router.get('/stats',        validate(paginationQuery,       'query'), adminController.stats)
 router.get('/audit-logs',   validate(listAuditLogsQuery,   'query'), adminController.listAuditLogs)

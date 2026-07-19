@@ -19,7 +19,18 @@ async function getAdminDealById(dealId) {
 
 async function listDealChargeConfigs() {
   return prisma.dealChargeConfig.findMany({
-    orderBy: [{ audience: 'asc' }, { planKey: 'asc' }],
+    where: {
+      OR: [
+        { planKey: 'MONTHLY', audience: 'SELLER' },
+        { planKey: 'ANNUAL', audience: 'BUYER' },
+        { planKey: 'LIFETIME', audience: 'BUYER' },
+      ],
+      isActive: true,
+    },
+    orderBy: [{ planKey: 'asc' }],
+    include: {
+      updatedBy: { select: { id: true, email: true, companyName: true } }
+    }
   })
 }
 
@@ -52,10 +63,52 @@ async function updateDealChargeConfig(configId, payload, adminUserId) {
     }
   }
 
-  return prisma.dealChargeConfig.update({
-    where: { id: configId },
-    data,
-  })
+  const configsToUpdate = [existing]
+  if (existing.planKey === 'LIFETIME') {
+    const other = await prisma.dealChargeConfig.findFirst({
+      where: {
+        planKey: 'LIFETIME',
+        id: { not: existing.id },
+      }
+    })
+    if (other) configsToUpdate.push(other)
+  }
+
+  const updatedConfigs = []
+  const { writeAuditLog } = require('../utils/audit.js')
+
+  for (const config of configsToUpdate) {
+    const updateData = {
+      updatedById: adminUserId,
+      value: data.value ?? config.value,
+      chargeType: data.chargeType ?? config.chargeType,
+      currency: data.currency ?? config.currency,
+      displayName: data.displayName ?? config.displayName,
+      isActive: data.isActive ?? config.isActive,
+    }
+
+    const updated = await prisma.dealChargeConfig.update({
+      where: { id: config.id },
+      data: updateData,
+    })
+
+    await writeAuditLog({
+      actorId: adminUserId,
+      action: 'UPDATE',
+      resource: 'deal_charge_config',
+      resourceId: config.id,
+      meta: {
+        planKey: config.planKey,
+        audience: config.audience,
+        previousValue: config.value.toString(),
+        newValue: updateData.value.toString(),
+      }
+    })
+
+    updatedConfigs.push(updated)
+  }
+
+  return updatedConfigs.find(c => c.id === configId) || updatedConfigs[0]
 }
 
 module.exports = {

@@ -22,8 +22,10 @@ const server = app.listen(env.port, async () => {
     const path = require('path')
     const { ensureCatalogSchema } = require(path.join(__dirname, '../prisma/seed/catalog.js'))
     const { ensureDefaultCategories } = require('./services/shopCategoryDbService.js')
+    const { ensureDefaultDealChargeConfigs } = require('./services/dealChargeService.js')
     await ensureCatalogSchema(prisma)
     await ensureDefaultCategories()
+    await ensureDefaultDealChargeConfigs(prisma)
     logger.info('[startup] Catalog schema and default categories ensured successfully')
   } catch (err) {
     logger.error({ err }, '[startup] Failed to ensure database catalog schema/categories')

@@ -6,24 +6,25 @@ import {
 } from '../../services/admin.service.js'
 
 const STATUS_LABELS = {
-  PENDING:  { label: 'Pending',  color: '#f59e0b' },
-  APPROVED: { label: 'Approved', color: '#10b981' },
-  REJECTED: { label: 'Rejected', color: '#ef4444' },
+  PENDING:  { label: 'Pending Approval',  color: '#d97706', bg: '#fef3c7', border: '#fde68a' },
+  APPROVED: { label: 'Approved', color: '#059669', bg: '#d1fae5', border: '#a7f3d0' },
+  REJECTED: { label: 'Rejected', color: '#dc2626', bg: '#fee2e2', border: '#fca5a5' },
 }
 
 function StatusBadge({ status }) {
-  const cfg = STATUS_LABELS[status] || { label: status, color: '#6b7280' }
+  const cfg = STATUS_LABELS[status] || { label: status, color: '#4b5563', bg: '#f3f4f6', border: '#e5e7eb' }
   return (
     <span
       style={{
-        display:      'inline-block',
-        padding:      '.2rem .55rem',
-        borderRadius: '999px',
-        fontSize:     '.75rem',
+        display:      'inline-flex',
+        alignItems:   'center',
+        padding:      '0.25rem 0.75rem',
+        borderRadius: '20px',
+        fontSize:     '0.75rem',
         fontWeight:   600,
-        background:   cfg.color + '20',
+        background:   cfg.bg,
         color:        cfg.color,
-        border:       `1px solid ${cfg.color}40`,
+        border:       `1px solid ${cfg.border}`,
       }}
     >
       {cfg.label}
@@ -42,7 +43,7 @@ function DecideModal({ request, onClose, onDecided }) {
     setSaving(true)
     try {
       await decideCategoryRequest(request.id, { decision, adminNote, name: catName })
-      toast.success(decision === 'APPROVED' ? 'Request approved & category created' : 'Request rejected')
+      toast.success(decision === 'APPROVED' ? 'Request approved & catalog updated' : 'Request rejected successfully')
       onDecided()
     } catch (err) {
       toast.error(err.message || 'Action failed')
@@ -52,92 +53,113 @@ function DecideModal({ request, onClose, onDecided }) {
   }
 
   return (
-    <div className="modalOverlay" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <h3 className="modal__title">Review Category Request</h3>
-        <div className="modal__meta">
-          <p><strong>Seller:</strong> {request.seller?.companyName || request.seller?.email}</p>
-          <p>
-            <strong>Type:</strong>{' '}
+    <div className="modalOverlay" onClick={onClose} role="presentation">
+      <div className="modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" style={{ borderRadius: '16px', padding: '2rem', maxWidth: '520px' }}>
+        <h3 className="modal__title" style={{ fontSize: '1.25rem', fontWeight: 800, color: '#111827', margin: '0 0 1.25rem' }}>Review Catalog Request</h3>
+        
+        {/* Meta summary panel */}
+        <div style={{ background: '#f9fafb', borderRadius: '12px', padding: '1rem', border: '1px solid #f3f4f6', marginBottom: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.875rem' }}>
+          <p style={{ margin: 0, color: '#4b5563' }}>
+            <strong style={{ color: '#111827' }}>Seller:</strong> {request.seller?.companyName || '—'} ({request.seller?.email})
+          </p>
+          <p style={{ margin: 0, color: '#4b5563', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <strong style={{ color: '#111827' }}>Type:</strong>{' '}
             <span style={{
-              padding: '.15rem .5rem', borderRadius: '.3rem', fontSize: '.78rem', fontWeight: 600,
-              background: request.requestType === 'SUBCATEGORY' ? '#ede9fe' : '#dbeafe',
-              color: request.requestType === 'SUBCATEGORY' ? '#5b21b6' : '#1e40af',
+              padding: '0.15rem 0.5rem', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700,
+              background: request.requestType === 'SUBCATEGORY' ? '#faf5ff' : '#eff6ff',
+              color: request.requestType === 'SUBCATEGORY' ? '#7e22ce' : '#1d4ed8',
+              border: `1px solid ${request.requestType === 'SUBCATEGORY' ? '#e9d5ff' : '#bfdbfe'}`
             }}>
-              {request.requestType === 'SUBCATEGORY' ? '📂 Subcategory' : '📁 Category'}
+              {request.requestType === 'SUBCATEGORY' ? 'Subcategory' : 'Root Category'}
             </span>
           </p>
-          <p><strong>Requested name:</strong> {request.categoryName}</p>
+          <p style={{ margin: 0, color: '#4b5563' }}>
+            <strong style={{ color: '#111827' }}>Requested Label:</strong> <code style={{ background: '#e5e7eb', padding: '0.1rem 0.3rem', borderRadius: '4px' }}>{request.categoryName}</code>
+          </p>
           {request.parentCategoryName && (
-            <p><strong>Parent category:</strong> {request.parentCategoryName}</p>
+            <p style={{ margin: 0, color: '#4b5563' }}>
+              <strong style={{ color: '#111827' }}>Under Parent:</strong> {request.parentCategoryName}
+            </p>
           )}
-          {request.description && <p><strong>Description:</strong> {request.description}</p>}
+          {request.description && (
+            <p style={{ margin: '0.25rem 0 0', color: '#6b7280', fontStyle: 'italic' }}>
+              &ldquo;{request.description}&rdquo;
+            </p>
+          )}
         </div>
 
-        <form onSubmit={handleSubmit} className="modal__form">
-          <div className="formGroup">
-            <label className="formLabel">Decision</label>
-            <div className="radioGroup">
-              <label className="radioOption">
-                <input type="radio" value="APPROVED" checked={decision === 'APPROVED'} onChange={() => setDecision('APPROVED')} />
-                <span style={{ color: '#10b981', fontWeight: 600 }}>Approve</span>
+        <form onSubmit={handleSubmit} className="modal__form" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            <label style={{ fontSize: '0.875rem', fontWeight: 600, color: '#374151' }}>Review Decision</label>
+            <div style={{ display: 'flex', gap: '1.5rem', marginTop: '0.25rem' }}>
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.875rem', fontWeight: 500 }}>
+                <input type="radio" value="APPROVED" checked={decision === 'APPROVED'} onChange={() => setDecision('APPROVED')} style={{ accentColor: '#059669' }} />
+                <span style={{ color: '#059669', fontWeight: 600 }}>Approve & Add to Catalog</span>
               </label>
-              <label className="radioOption">
-                <input type="radio" value="REJECTED" checked={decision === 'REJECTED'} onChange={() => setDecision('REJECTED')} />
-                <span style={{ color: '#ef4444', fontWeight: 600 }}>Reject</span>
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.875rem', fontWeight: 500 }}>
+                <input type="radio" value="REJECTED" checked={decision === 'REJECTED'} onChange={() => setDecision('REJECTED')} style={{ accentColor: '#dc2626' }} />
+                <span style={{ color: '#dc2626', fontWeight: 600 }}>Reject Request</span>
               </label>
             </div>
           </div>
 
           {decision === 'APPROVED' && (
-            <div className="formGroup">
-              <label className="formLabel" htmlFor="catName">Category name (editable)</label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              <label htmlFor="catName" style={{ fontSize: '0.875rem', fontWeight: 600, color: '#374151' }}>
+                Catalog Name (Adjust spelling/casing if needed)
+              </label>
               <input
                 id="catName"
                 className="formInput"
                 value={catName}
                 onChange={(e) => setCatName(e.target.value)}
+                style={{ width: '100%', padding: '0.625rem', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '0.875rem' }}
                 required
               />
             </div>
           )}
 
-          <div className="formGroup">
-            <label className="formLabel" htmlFor="adminNote">Note to seller (optional)</label>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            <label htmlFor="adminNote" style={{ fontSize: '0.875rem', fontWeight: 600, color: '#374151' }}>
+              Admin Explanation Note (Dispatched to seller)
+            </label>
             <textarea
               id="adminNote"
-              className="formInput"
               rows={3}
               value={adminNote}
               onChange={(e) => setAdminNote(e.target.value)}
-              placeholder="Explain your decision…"
-              style={{ resize: 'vertical' }}
+              placeholder="Provide context or explanation for this status decision…"
+              style={{ width: '100%', padding: '0.625rem', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '0.875rem', resize: 'vertical' }}
             />
           </div>
 
-          <div className="modal__footer">
-            <button type="submit" className={`btn ${decision === 'APPROVED' ? 'btn--primary' : 'btn--danger'}`} disabled={saving}>
-              {saving ? 'Saving…' : decision === 'APPROVED' ? 'Approve & create category' : 'Reject request'}
-            </button>
-            <button type="button" className="btn btn--ghost" onClick={onClose}>
+          <div className="modal__footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1rem' }}>
+            <button type="button" className="btnOutline" onClick={onClose} style={{ padding: '0.5rem 1rem', borderRadius: '8px' }}>
               Cancel
+            </button>
+            <button 
+              type="submit" 
+              style={{ 
+                padding: '0.5rem 1.25rem', 
+                borderRadius: '8px', 
+                background: decision === 'APPROVED' ? '#111827' : '#dc2626', 
+                color: '#fff', 
+                border: 0,
+                fontWeight: 600,
+                fontSize: '0.875rem',
+                cursor: 'pointer'
+              }}
+              disabled={saving}
+            >
+              {saving ? 'Processing…' : decision === 'APPROVED' ? 'Approve & Create' : 'Reject Request'}
             </button>
           </div>
         </form>
       </div>
 
       <style>{`
-        .modalOverlay { position:fixed; inset:0; background:rgba(0,0,0,.4); display:flex; align-items:center; justify-content:center; z-index:1000; }
-        .modal { background:#fff; border-radius:.75rem; padding:1.5rem; width:min(480px,92vw); box-shadow:0 20px 60px rgba(0,0,0,.2); }
-        .modal__title { margin:0 0 1rem; font-size:1.1rem; font-weight:700; }
-        .modal__meta { font-size:.875rem; color:#374151; margin-bottom:1rem; display:flex; flex-direction:column; gap:.25rem; }
-        .modal__meta p { margin:0; }
-        .modal__form { display:flex; flex-direction:column; gap:.875rem; }
-        .modal__footer { display:flex; gap:.5rem; }
-        .radioGroup { display:flex; gap:1.25rem; }
-        .radioOption { display:flex; align-items:center; gap:.4rem; cursor:pointer; font-size:.9rem; }
-        .btn--danger { background:#ef4444; color:#fff; border:none; border-radius:.4rem; padding:.5rem 1rem; font-weight:600; cursor:pointer; }
-        .btn--danger:hover { background:#dc2626; }
+        .modalOverlay { position:fixed; inset:0; background:rgba(17,24,39,0.5); backdrop-filter: blur(4px); display:flex; align-items:center; justify-content:center; z-index:1000; }
+        .modal { background:#fff; box-shadow:0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04); }
       `}</style>
     </div>
   )
@@ -164,93 +186,117 @@ export function AdminCategoryRequestsPage() {
   useEffect(() => { load() }, [load])
 
   return (
-    <section className="panel">
-      <div className="panelHeader">
+    <section className="panel dealPage" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+      <div className="panelHeader" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
-          <h2 className="panelTitle">Category Requests</h2>
-          <p className="panelSub">Review and approve or reject seller category requests.</p>
+          <h2 className="panelTitle" style={{ fontSize: '1.875rem', fontWeight: 700, color: '#111827', margin: 0 }}>Category Requests</h2>
+          <p className="panelSub" style={{ color: '#4b5563', marginTop: '0.25rem' }}>Moderate and approve custom categories requested by marketplace sellers.</p>
         </div>
-        <div className="filterTabs">
+        <div className="filterTabs" style={{ display: 'flex', gap: '0.5rem', background: '#f3f4f6', padding: '0.25rem', borderRadius: '10px' }}>
           {['PENDING', 'APPROVED', 'REJECTED', 'ALL'].map((s) => (
             <button
               key={s}
               type="button"
-              className={`filterTab${filter === s ? ' filterTab--active' : ''}`}
               onClick={() => setFilter(s)}
+              style={{
+                padding: '0.5rem 1rem',
+                borderRadius: '8px',
+                border: 0,
+                background: filter === s ? '#ffffff' : 'transparent',
+                color: filter === s ? '#111827' : '#4b5563',
+                fontSize: '0.825rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+                boxShadow: filter === s ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                transition: 'all 0.15s ease-in-out'
+              }}
             >
-              {s === 'ALL' ? 'All' : STATUS_LABELS[s]?.label || s}
+              {s === 'ALL' ? 'All Requests' : STATUS_LABELS[s]?.label.split(' ')[0] || s}
             </button>
           ))}
         </div>
       </div>
 
       {loading ? (
-        <p className="panelSub" style={{ padding: '1rem 0' }}>Loading…</p>
+        <DealListSkeleton rows={3} />
       ) : requests.length === 0 ? (
-        <p className="panelSub" style={{ padding: '1rem 0' }}>No requests found.</p>
+        <EmptyState title="No requests found" description={`There are no ${filter.toLowerCase()} category requests at the moment.`} />
       ) : (
-        <div className="tableWrap">
-          <table className="table">
+        <div className="tableWrap" style={{ background: '#ffffff', borderRadius: '16px', border: '1px solid #e5e7eb', overflow: 'hidden', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)' }}>
+          <table className="table" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.875rem' }}>
             <thead>
-              <tr>
-                <th>Seller</th>
-                <th>Category requested</th>
-                <th>Description</th>
-                <th>Status</th>
-                <th>Requested</th>
-                <th>Action</th>
+              <tr style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb', color: '#374151', fontWeight: 600 }}>
+                <th style={{ padding: '1rem 1.5rem' }}>Seller Company</th>
+                <th style={{ padding: '1rem 1.5rem' }}>Type & Requested Name</th>
+                <th style={{ padding: '1rem 1.5rem' }}>Purpose Description</th>
+                <th style={{ padding: '1rem 1.5rem' }}>Status Badge</th>
+                <th style={{ padding: '1rem 1.5rem' }}>Submitted</th>
+                <th style={{ padding: '1rem 1.5rem' }}>Action</th>
               </tr>
             </thead>
             <tbody>
               {requests.map((r) => (
-                <tr key={r.id}>
-                  <td>
-                    <span style={{ fontWeight: 600 }}>{r.seller?.companyName || '—'}</span>
-                    <br />
-                    <small style={{ color: '#6b7280' }}>{r.seller?.email}</small>
+                <tr key={r.id} style={{ borderBottom: '1px solid #f3f4f6', transition: 'background 0.2s', hover: { background: '#f9fafb' } }}>
+                  <td style={{ padding: '1rem 1.5rem' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                      <span style={{ fontWeight: 600, color: '#111827' }}>{r.seller?.companyName || '—'}</span>
+                      <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>{r.seller?.email}</span>
+                    </div>
                   </td>
-                  <td>
-                    <span style={{
-                      display: 'inline-block', marginBottom: '.3rem',
-                      padding: '.15rem .5rem', borderRadius: '.3rem', fontSize: '.72rem', fontWeight: 600,
-                      background: r.requestType === 'SUBCATEGORY' ? '#ede9fe' : '#dbeafe',
-                      color: r.requestType === 'SUBCATEGORY' ? '#5b21b6' : '#1e40af',
-                    }}>
-                      {r.requestType === 'SUBCATEGORY' ? '📂 Subcategory' : '📁 Category'}
-                    </span>
-                    <div style={{ fontWeight: 600 }}>{r.categoryName}</div>
-                    {r.parentCategoryName && (
-                      <div style={{ fontSize: '.78rem', color: '#6b7280', marginTop: '.2rem' }}>
-                        under: <em>{r.parentCategoryName}</em>
-                      </div>
-                    )}
+                  <td style={{ padding: '1rem 1.5rem' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', alignItems: 'flex-start' }}>
+                      <span style={{
+                        padding: '0.15rem 0.5rem', borderRadius: '6px', fontSize: '0.7rem', fontWeight: 700,
+                        background: r.requestType === 'SUBCATEGORY' ? '#faf5ff' : '#eff6ff',
+                        color: r.requestType === 'SUBCATEGORY' ? '#7e22ce' : '#1d4ed8',
+                        border: `1px solid ${r.requestType === 'SUBCATEGORY' ? '#e9d5ff' : '#bfdbfe'}`
+                      }}>
+                        {r.requestType === 'SUBCATEGORY' ? 'Subcategory' : 'Category'}
+                      </span>
+                      <strong style={{ fontSize: '0.9rem', color: '#111827' }}>{r.categoryName}</strong>
+                      {r.parentCategoryName && (
+                        <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+                          under parent: <em>{r.parentCategoryName}</em>
+                        </span>
+                      )}
+                    </div>
                   </td>
-                  <td style={{ maxWidth: 220, color: '#6b7280', fontSize: '.85rem' }}>
-                    {r.description || <em>No description</em>}
+                  <td style={{ padding: '1rem 1.5rem', maxWidth: 260, color: '#4b5563', fontSize: '0.825rem', lineBreak: 'anywhere' }}>
+                    {r.description || <em style={{ color: '#9ca3af' }}>No details provided</em>}
                   </td>
-                  <td>
-                    <StatusBadge status={r.status} />
-                    {r.adminNote && (
-                      <div style={{ fontSize: '.75rem', color: '#6b7280', marginTop: '.25rem' }}>
-                        Note: {r.adminNote}
-                      </div>
-                    )}
+                  <td style={{ padding: '1rem 1.5rem' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', alignItems: 'flex-start' }}>
+                      <StatusBadge status={r.status} />
+                      {r.adminNote && (
+                        <span style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.25rem', fontStyle: 'italic' }}>
+                          Note: &ldquo;{r.adminNote}&rdquo;
+                        </span>
+                      )}
+                    </div>
                   </td>
-                  <td style={{ fontSize: '.82rem', color: '#6b7280', whiteSpace: 'nowrap' }}>
+                  <td style={{ padding: '1rem 1.5rem', color: '#6b7280', fontSize: '0.825rem', whiteSpace: 'nowrap' }}>
                     {new Date(r.createdAt).toLocaleDateString()}
                   </td>
-                  <td>
+                  <td style={{ padding: '1rem 1.5rem' }}>
                     {r.status === 'PENDING' ? (
                       <button
                         type="button"
-                        className="btn btn--primary"
-                        style={{ fontSize: '.8rem', padding: '.35rem .75rem' }}
                         onClick={() => setReviewing(r)}
+                        style={{ 
+                          fontSize: '0.8rem', 
+                          padding: '0.4rem 0.85rem', 
+                          borderRadius: '8px', 
+                          background: '#111827', 
+                          color: '#fff', 
+                          border: 0,
+                          fontWeight: 600,
+                          cursor: 'pointer'
+                        }}
                       >
                         Review
                       </button>
                     ) : (
-                      <span style={{ color: '#9ca3af', fontSize: '.82rem' }}>Done</span>
+                      <span style={{ color: '#9ca3af', fontSize: '0.825rem', fontWeight: 500 }}>Completed</span>
                     )}
                   </td>
                 </tr>
@@ -267,13 +313,7 @@ export function AdminCategoryRequestsPage() {
           onDecided={() => { setReviewing(null); load() }}
         />
       )}
-
-      <style>{`
-        .filterTabs { display:flex; gap:.375rem; flex-wrap:wrap; }
-        .filterTab { padding:.375rem .75rem; border-radius:.4rem; border:1px solid var(--border,#e5e7eb); background:transparent; cursor:pointer; font-size:.82rem; font-weight:500; color:var(--text-muted,#6b7280); }
-        .filterTab--active { background:var(--primary,#2563eb); color:#fff; border-color:var(--primary,#2563eb); }
-        .filterTab:hover:not(.filterTab--active) { background:var(--surface-alt,#f3f4f6); }
-      `}</style>
     </section>
   )
 }
+export default AdminCategoryRequestsPage

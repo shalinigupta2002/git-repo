@@ -389,18 +389,19 @@ const decideCategoryRequest = asyncHandler(async (req, res) => {
     const slug    = slugify(catName)
 
     if (existing.requestType === 'SUBCATEGORY' && existing.parentCategoryName) {
+      const { normalizeCategoryName } = require('../services/shopCategoryTreeService.js')
       const parentLabel = resolveParentCategoryLabel(existing.parentCategoryName)
-      const { rows: parentRows } = await query(
-        `SELECT id FROM catalog.categories
-         WHERE parent_id IS NULL
-           AND (
-             LOWER(name) = LOWER($1)
-             OR LOWER(name) = LOWER($2)
-           )
-         LIMIT 1`,
-        [existing.parentCategoryName, parentLabel],
+      const { rows: allCategories } = await query(
+        `SELECT id, name FROM catalog.categories`,
+        []
       )
-      const parentId = parentRows[0]?.id || null
+      const normalizedReq = normalizeCategoryName(existing.parentCategoryName)
+      const normalizedLabel = normalizeCategoryName(parentLabel)
+      const matched = allCategories.find(row => {
+        const normName = normalizeCategoryName(row.name)
+        return normName === normalizedReq || normName === normalizedLabel
+      })
+      const parentId = matched ? matched.id : null
       await query(
         `INSERT INTO catalog.categories (name, slug, parent_id)
          VALUES ($1, $2, $3)
@@ -420,6 +421,226 @@ const decideCategoryRequest = asyncHandler(async (req, res) => {
   res.json({ success: true, data: { request: updated } })
 })
 
+const listSubscribers = asyncHandler(async (req, res) => {
+  const { page = 1, limit = 50, search, role, status, planType } = req.query
+  const skip = (Number(page) - 1) * Number(limit)
+
+  const where = {
+    role: { in: ['BUYER', 'SELLER'] }
+  }
+
+  if (search) {
+    where.OR = [
+      { email: { contains: search, mode: 'insensitive' } },
+      { companyName: { contains: search, mode: 'insensitive' } }
+    ]
+  }
+
+  if (role && role !== 'ALL') {
+    if (role === 'BOTH') {
+      where.buyerSubscriptionStatus = 'ACTIVE'
+      where.sellerSubscriptionStatus = 'ACTIVE'
+    } else {
+      where.role = role
+    }
+  }
+
+  if (status && status !== 'ALL') {
+    where.OR = [
+      { buyerSubscriptionStatus: status },
+      { sellerSubscriptionStatus: status }
+    ]
+  }
+
+  if (planType && planType !== 'ALL') {
+    const { resolveSubscriptionType } = require('../services/dealChargeService.js')
+    const buyerPlansMatching = []
+    const sellerPlansMatching = []
+    const plans = ['BUYER_STANDARD', 'BUYER_LIFETIME', 'SELLER_MONTH', 'SELLER_LIFETIME', 'BOTH_STANDARD_MONTH', 'BOTH_LIFETIME_LIFETIME', 'BOTH_LIFETIME_MONTH', 'BOTH_STANDARD_LIFETIME']
+    
+    for (const plan of plans) {
+      if (plan.startsWith('BOTH_')) {
+        if (resolveSubscriptionType(plan, 'BUYER') === planType) buyerPlansMatching.push(plan)
+        if (resolveSubscriptionType(plan, 'SELLER') === planType) sellerPlansMatching.push(plan)
+      } else {
+        if (resolveSubscriptionType(plan, plan.startsWith('BUYER_') ? 'BUYER' : 'SELLER') === planType) {
+          if (plan.startsWith('BUYER_')) buyerPlansMatching.push(plan)
+          else sellerPlansMatching.push(plan)
+        }
+      }
+    }
+
+    where.OR = [
+      { buyerSubscriptionPlan: { in: buyerPlansMatching } },
+      { sellerSubscriptionPlan: { in: sellerPlansMatching } }
+    ]
+  }
+
+  const [users, total] = await Promise.all([
+    prisma.user.findMany({
+      where,
+      skip,
+      take: Number(limit),
+      orderBy: { createdAt: 'desc' },
+      include: {
+        addresses: { where: { isDefault: true } },
+        subscriptions: { orderBy: { createdAt: 'desc' } }
+      }
+    }),
+    prisma.user.count({ where })
+  ])
+
+  const { resolveSubscriptionType } = require('../services/dealChargeService.js')
+  const mappedUsers = users.map(user => {
+    const buyerSub = user.subscriptions.find(s => s.plan.startsWith('BUYER_') || s.plan.startsWith('BOTH_'))
+    const sellerSub = user.subscriptions.find(s => s.plan.startsWith('SELLER_') || s.plan.startsWith('BOTH_'))
+    
+    return {
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      companyName: user.companyName,
+      createdAt: user.createdAt,
+      phone: user.addresses[0]?.phone || '—',
+      buyerSubscription: user.buyerSubscriptionStatus ? {
+        plan: user.buyerSubscriptionPlan,
+        status: user.buyerSubscriptionStatus,
+        activatedAt: user.buyerSubscriptionActivatedAt,
+        expiresAt: buyerSub ? buyerSub.expiresAt : null,
+        startsAt: buyerSub ? buyerSub.startsAt : null,
+        type: resolveSubscriptionType(user.buyerSubscriptionPlan, 'BUYER')
+      } : null,
+      sellerSubscription: user.sellerSubscriptionStatus ? {
+        plan: user.sellerSubscriptionPlan,
+        status: user.sellerSubscriptionStatus,
+        activatedAt: user.sellerSubscriptionActivatedAt,
+        expiresAt: sellerSub ? sellerSub.expiresAt : null,
+        startsAt: sellerSub ? sellerSub.startsAt : null,
+        type: resolveSubscriptionType(user.sellerSubscriptionPlan, 'SELLER')
+      } : null
+    }
+  })
+
+  res.json({
+    success: true,
+    data: {
+      subscribers: mappedUsers,
+      pagination: {
+        page: Number(page),
+        limit: Number(limit),
+        total,
+        totalPages: Math.ceil(total / Number(limit)) || 0
+      }
+    }
+  })
+})
+
+const subscriberStats = asyncHandler(async (req, res) => {
+  const buyersTotal = await prisma.user.count({
+    where: {
+      OR: [
+        { role: 'BUYER' },
+        { buyerSubscriptionStatus: { not: null } }
+      ]
+    }
+  })
+
+  const buyersActive = await prisma.user.count({
+    where: { buyerSubscriptionStatus: 'ACTIVE' }
+  })
+
+  const buyersExpired = await prisma.user.count({
+    where: { buyerSubscriptionStatus: { in: ['EXPIRED', 'CANCELLED'] } }
+  })
+
+  const sellersTotal = await prisma.user.count({
+    where: {
+      OR: [
+        { role: 'SELLER' },
+        { sellerSubscriptionStatus: { not: null } }
+      ]
+    }
+  })
+
+  const sellersActive = await prisma.user.count({
+    where: { sellerSubscriptionStatus: 'ACTIVE' }
+  })
+
+  const sellersExpired = await prisma.user.count({
+    where: { sellerSubscriptionStatus: { in: ['EXPIRED', 'CANCELLED'] } }
+  })
+
+  const bothActive = await prisma.user.count({
+    where: {
+      buyerSubscriptionStatus: 'ACTIVE',
+      sellerSubscriptionStatus: 'ACTIVE'
+    }
+  })
+
+  const bothTotal = await prisma.user.count({
+    where: {
+      buyerSubscriptionStatus: { not: null },
+      sellerSubscriptionStatus: { not: null }
+    }
+  })
+
+  const bothExpired = await prisma.user.count({
+    where: {
+      buyerSubscriptionStatus: { in: ['EXPIRED', 'CANCELLED'] },
+      sellerSubscriptionStatus: { in: ['EXPIRED', 'CANCELLED'] }
+    }
+  })
+
+  const paidPayments = await prisma.payment.findMany({
+    where: { status: 'PAID' },
+    select: { plan: true, amountPaise: true }
+  })
+
+  let buyerRevenue = 0
+  let sellerRevenue = 0
+  let bothRevenue = 0
+
+  const buyerPlans = ['BUYER_STANDARD', 'BUYER_LIFETIME']
+  const sellerPlans = ['SELLER_MONTH', 'SELLER_LIFETIME']
+  const bundlePlans = ['BOTH_STANDARD_MONTH', 'BOTH_LIFETIME_LIFETIME', 'BOTH_LIFETIME_MONTH', 'BOTH_STANDARD_LIFETIME']
+
+  for (const p of paidPayments) {
+    if (buyerPlans.includes(p.plan)) {
+      buyerRevenue += p.amountPaise
+    } else if (sellerPlans.includes(p.plan)) {
+      sellerRevenue += p.amountPaise
+    } else if (bundlePlans.includes(p.plan)) {
+      bothRevenue += p.amountPaise
+    }
+  }
+
+  const formatRevenue = (paise) => (paise / 100).toFixed(2)
+
+  res.json({
+    success: true,
+    data: {
+      buyers: {
+        total: buyersTotal,
+        active: buyersActive,
+        expired: buyersExpired,
+        revenue: formatRevenue(buyerRevenue)
+      },
+      sellers: {
+        total: sellersTotal,
+        active: sellersActive,
+        expired: sellersExpired,
+        revenue: formatRevenue(sellerRevenue)
+      },
+      both: {
+        total: bothTotal,
+        active: bothActive,
+        expired: bothExpired,
+        revenue: formatRevenue(bothRevenue)
+      }
+    }
+  })
+})
+
 module.exports = {
   listBuyers,
   listSellers,
@@ -432,4 +653,6 @@ module.exports = {
   deleteCategory,
   listCategoryRequests,
   decideCategoryRequest,
+  listSubscribers,
+  subscriberStats,
 }

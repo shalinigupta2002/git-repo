@@ -1,12 +1,20 @@
 'use strict'
 
 jest.mock('../config/env', () => ({
-  clientUrls: [
+  corsAllowedOrigins: [
     'http://localhost:5173',
+    'https://git-repo-gilt.vercel.app',
+    'https://git-repo-*.vercel.app',
     'https://*.example.com',
-    'https://b2-b-marketplace-r6sp8lrkt-shalini-guptas-projects-ccd2dc4c.vercel.app'
   ],
-  isDev: false
+  corsAllowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'Accept',
+    'Cache-Control',
+    'X-Requested-With',
+  ],
+  isDev: false,
 }))
 
 const corsOptions = require('../config/cors')
@@ -20,9 +28,21 @@ describe('CORS originValidator', () => {
     expect(callback).toHaveBeenCalledWith(null, true)
   })
 
-  test('allows exactly configured client URL', () => {
+  test('allows localhost in development allowlist', () => {
     const callback = jest.fn()
     originValidator('http://localhost:5173', callback)
+    expect(callback).toHaveBeenCalledWith(null, true)
+  })
+
+  test('allows production Vercel production domain', () => {
+    const callback = jest.fn()
+    originValidator('https://git-repo-gilt.vercel.app', callback)
+    expect(callback).toHaveBeenCalledWith(null, true)
+  })
+
+  test('allows Vercel preview deployments via wildcard pattern', () => {
+    const callback = jest.fn()
+    originValidator('https://git-repo-git-main-shalini-guptas-projects.vercel.app', callback)
     expect(callback).toHaveBeenCalledWith(null, true)
   })
 
@@ -30,41 +50,18 @@ describe('CORS originValidator', () => {
     const callback = jest.fn()
     originValidator('https://sub.example.com', callback)
     expect(callback).toHaveBeenCalledWith(null, true)
-    
-    const callback2 = jest.fn()
-    originValidator('https://another-sub.example.com', callback2)
-    expect(callback2).toHaveBeenCalledWith(null, true)
   })
 
-  test('allows project Vercel preview domain automatically', () => {
-    const callback = jest.fn()
-    originValidator('https://b2-b-marketplace-r6sp8lrkt-shalini-guptas-projects-ccd2dc4c.vercel.app', callback)
-    expect(callback).toHaveBeenCalledWith(null, true)
-
-    const callback2 = jest.fn()
-    originValidator('https://b2-b-marketplace-anybranch-shalini-guptas-projects-ccd2dc4c.vercel.app', callback2)
-    expect(callback2).toHaveBeenCalledWith(null, true)
-
-    const callback3 = jest.fn()
-    originValidator('https://b2-b-marketplace.vercel.app', callback3)
-    expect(callback3).toHaveBeenCalledWith(null, true)
-  })
-
-  test('rejects arbitrary attacker domains beginning with b2-b-marketplace-', () => {
-    const callback = jest.fn()
-    originValidator('https://b2-b-marketplace-attacker.vercel.app', callback)
-    expect(callback).toHaveBeenCalledWith(expect.any(Error))
-  })
-
-  test('rejects attacker domains targeting the same vercel project scope', () => {
-    const callback = jest.fn()
-    originValidator('https://attacker-shalini-guptas-projects-ccd2dc4c.vercel.app', callback)
-    expect(callback).toHaveBeenCalledWith(expect.any(Error))
-  })
-
-  test('rejects unrecognized origins', () => {
+  test('rejects unknown origins without throwing (callback false, not Error)', () => {
     const callback = jest.fn()
     originValidator('https://attacker.com', callback)
-    expect(callback).toHaveBeenCalledWith(expect.any(Error))
+    expect(callback).toHaveBeenCalledWith(null, false)
+    expect(callback).not.toHaveBeenCalledWith(expect.any(Error), expect.anything())
+  })
+
+  test('rejects unrelated vercel apps not covered by allowlist wildcards', () => {
+    const callback = jest.fn()
+    originValidator('https://other-project.vercel.app', callback)
+    expect(callback).toHaveBeenCalledWith(null, false)
   })
 })

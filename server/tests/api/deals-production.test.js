@@ -12,6 +12,8 @@ jest.mock('../../src/config/env.js', () => ({
   jwtSecret: process.env.JWT_SECRET || 'test-secret-for-jest-only',
   jwtExpiresIn: '7d',
   cookieMaxAge: 604800000,
+  corsAllowedOrigins: ['https://app.example.com'],
+  corsAllowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Cache-Control', 'X-Requested-With'],
   clientUrls: ['https://app.example.com'],
   useCrossSiteCookies: true,
   razorpayKeyId: '',

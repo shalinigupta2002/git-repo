@@ -69,7 +69,9 @@ Start command: `npm start` (`node src/index.js`)
 |----------|-------------|
 | `DATABASE_URL` | PostgreSQL connection string (Neon recommended, `?sslmode=require`) |
 | `JWT_SECRET` | Long random string (32+ chars) |
-| `CLIENT_URL` | Frontend origin for CORS (e.g. `https://your-app.vercel.app`) |
+| `CLIENT_URL` | Primary frontend origin for CORS + cross-site cookies (e.g. `https://git-repo-gilt.vercel.app`) |
+| `CORS_ALLOWED_ORIGINS` | Optional comma-separated allowlist merged with `CLIENT_URL`; supports wildcards for Vercel previews (e.g. `https://git-repo-*.vercel.app`) |
+| `CORS_ALLOWED_HEADERS` | Optional comma-separated `Access-Control-Allow-Headers` override; default includes `Cache-Control` for credentialed cross-origin requests |
 | `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` | Payment gateway (test keys OK in staging) |
 | `NODE_ENV` | `production` in production |
 

@@ -2,32 +2,31 @@
  * Centralised CORS configuration.
  *
  * Security guarantees:
- *  - Never emits a wildcard `Access-Control-Allow-Origin: *` — this would
- *    break `withCredentials` anyway (browsers refuse credentials + wildcard).
- *  - Requests without an `Origin` header (server-to-server, Postman, curl,
- *    mobile clients) are always allowed — `Origin` is browser-only.
- *  - In development, rejected origins are logged to stderr so engineers can
- *    diagnose proxy/port mismatches quickly.
- *  - In production, misconfigured origins are silently rejected (no leak of
- *    the allowed-list in the error).
+ *  - Never emits `Access-Control-Allow-Origin: *` — incompatible with credentials.
+ *  - Requests without an `Origin` header (server-to-server, Postman, curl) are allowed.
+ *  - Allowed origins come from env.corsAllowedOrigins (CLIENT_URL + CORS_ALLOWED_ORIGINS).
+ *  - Allowed request headers come from env.corsAllowedHeaders (override via CORS_ALLOWED_HEADERS).
+ *  - Wildcard patterns are supported in the origin allowlist only (e.g. https://*.vercel.app).
+ *  - Unknown origins are rejected via callback(null, false) — no thrown 500 errors.
  *
- * To add or change allowed origins set CLIENT_URL in the server .env file.
+ * Configure on Render:
+ *   CLIENT_URL=https://git-repo-gilt.vercel.app
+ *   CORS_ALLOWED_ORIGINS=https://git-repo-gilt.vercel.app,https://git-repo-*.vercel.app
  */
 
 const env = require('./env.js')
 
 /**
- * Check if the request origin matches the allowed pattern.
+ * Check if the request origin matches an allowed pattern.
  * Supports exact matches and wildcards (e.g. "https://*.vercel.app").
  */
 function matchOrigin(allowedPattern, origin) {
   if (allowedPattern === origin) return true
 
   if (allowedPattern.includes('*')) {
-    // Escape special regex characters except '*'
     const escaped = allowedPattern
       .replace(/[.+^${}()|[\]\\]/g, '\\$&')
-      .replace(/\*/g, '[^/]*') // match any character in the subdomain/host except '/'
+      .replace(/\*/g, '[^/]*')
     const regex = new RegExp(`^${escaped}$`, 'i')
     return regex.test(origin)
   }
@@ -36,46 +35,38 @@ function matchOrigin(allowedPattern, origin) {
 }
 
 /**
- * Express-compatible origin validator.
+ * Express-compatible origin validator for the cors() package.
  *
- * @param {string|undefined} origin - The value of the request `Origin` header.
- * @param {function} callback       - Node-style (err, allow) callback.
+ * @param {string|undefined} origin
+ * @param {function(Error|null, boolean): void} callback
  */
 function originValidator(origin, callback) {
-  // No Origin header → non-browser request; always allow
   if (!origin) return callback(null, true)
 
-  // 1. Check if matches any configured client URL (supporting wildcards)
-  const isAllowed = env.clientUrls.some((pattern) => matchOrigin(pattern, origin))
+  const isAllowed = env.corsAllowedOrigins.some((pattern) => matchOrigin(pattern, origin))
   if (isAllowed) {
-    return callback(null, true)
-  }
-
-  // 2. Fallback check for Vercel preview/deployment domains of this project
-  if (
-    /^https:\/\/(b2-b-marketplace|b2-b-marketplace-[a-z0-9-]+-shalini-guptas-projects-ccd2dc4c)\.vercel\.app$/i.test(origin)
-  ) {
     return callback(null, true)
   }
 
   if (env.isDev) {
     console.warn(
       `[CORS] Rejected origin: "${origin}"\n` +
-      `       Allowed origins: ${env.clientUrls.join(', ')}\n` +
-      `       To allow this origin add it to CLIENT_URL in server/.env`,
+      `       Allowed origins: ${env.corsAllowedOrigins.join(', ')}\n` +
+      `       Add it to CLIENT_URL or CORS_ALLOWED_ORIGINS in server/.env`,
     )
   }
 
-  callback(new Error(`CORS policy: origin "${origin}" is not allowed`))
+  return callback(null, false)
 }
 
 /** Ready-to-use options object for cors(). */
-module.exports = Object.freeze({
+const corsOptions = Object.freeze({
   origin:         originValidator,
   credentials:    true,
   methods:        ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: env.corsAllowedHeaders,
   exposedHeaders: [],
-  /** Cache preflight response for 10 minutes (600 s). */
   maxAge:         600,
 })
+
+module.exports = corsOptions

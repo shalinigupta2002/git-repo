@@ -12,7 +12,8 @@ const server = app.listen(env.port, async () => {
       port: env.port,
       env: env.nodeEnv,
       crossSiteCookies: env.useCrossSiteCookies,
-      clientUrls: env.clientUrls,
+      corsAllowedOrigins: env.corsAllowedOrigins,
+      corsAllowedHeaders: env.corsAllowedHeaders,
     },
     '[startup] API listening',
   )

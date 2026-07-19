@@ -48,39 +48,78 @@ const isDev   = !isProd
 
 const jwtExpiresIn = optional('JWT_EXPIRES_IN', '7d')
 
-// ─── CORS / CLIENT_URL ───────────────────────────────────────────────────────
+// ─── CORS allowlist (CLIENT_URL + CORS_ALLOWED_ORIGINS) ─────────────────────
 //
-// Development: fall back to the standard Vite dev-server ports so engineers
-//              can run the app without touching .env at all.
-// Production:  CLIENT_URL is mandatory — no wildcard, no localhost fallback.
+// Development: localhost Vite ports are allowed by default.
+// Production:  CLIENT_URL is mandatory; add preview/extra domains via
+//              CORS_ALLOWED_ORIGINS (comma-separated, supports wildcards).
 
 /** Strip trailing slashes so CORS matches the browser Origin header exactly. */
 function normalizeOrigins(list) {
   return list.map((u) => u.replace(/\/+$/, ''))
 }
 
-let clientUrls
+function parseOriginList(raw) {
+  if (!raw || !String(raw).trim()) return []
+  return normalizeOrigins(String(raw).split(',').map((s) => s.trim()).filter(Boolean))
+}
+
+function dedupeOrigins(list) {
+  return [...new Set(list)]
+}
+
+let corsAllowedOrigins
 
 if (isProd) {
-  // Will throw if CLIENT_URL is absent or blank
-  const raw = required('CLIENT_URL')
-  clientUrls = normalizeOrigins(raw.split(',').map((s) => s.trim()).filter(Boolean))
+  const clientUrlRaw = required('CLIENT_URL')
+  const corsExtraRaw = optional('CORS_ALLOWED_ORIGINS', '')
+  corsAllowedOrigins = dedupeOrigins([
+    ...parseOriginList(clientUrlRaw),
+    ...parseOriginList(corsExtraRaw),
+  ])
 
-  if (clientUrls.length === 0) {
-    throw new Error('[config] CLIENT_URL must contain at least one origin in production.')
+  if (corsAllowedOrigins.length === 0) {
+    throw new Error(
+      '[config] CLIENT_URL and/or CORS_ALLOWED_ORIGINS must contain at least one origin in production.',
+    )
   }
 
-  const hasLocalhost = clientUrls.some((u) => /localhost|127\.0\.0\.1/.test(u))
+  const hasLocalhost = corsAllowedOrigins.some((u) => /localhost|127\.0\.0\.1/i.test(u))
   if (hasLocalhost) {
     throw new Error(
-      '[config] CLIENT_URL must not contain localhost or 127.0.0.1 in production. ' +
+      '[config] CORS allowlist must not contain localhost or 127.0.0.1 in production. ' +
       'Provide your real domain(s), e.g. https://app.yourdomain.com',
     )
   }
 } else {
-  const raw = optional('CLIENT_URL', 'http://localhost:5173,http://localhost:3000')
-  clientUrls = normalizeOrigins(raw.split(',').map((s) => s.trim()).filter(Boolean))
+  const clientUrlRaw = optional('CLIENT_URL', 'http://localhost:5173,http://localhost:3000')
+  const corsExtraRaw = optional('CORS_ALLOWED_ORIGINS', '')
+  corsAllowedOrigins = dedupeOrigins([
+    ...parseOriginList(clientUrlRaw),
+    ...parseOriginList(corsExtraRaw),
+  ])
 }
+
+/** @deprecated Use corsAllowedOrigins — kept for backward-compatible imports. */
+const clientUrls = corsAllowedOrigins
+
+const DEFAULT_CORS_ALLOWED_HEADERS = Object.freeze([
+  'Content-Type',
+  'Authorization',
+  'Accept',
+  'Cache-Control',
+  'X-Requested-With',
+])
+
+function parseHeaderList(raw, defaults) {
+  if (!raw || !String(raw).trim()) return [...defaults]
+  return [...new Set(String(raw).split(',').map((s) => s.trim()).filter(Boolean))]
+}
+
+const corsAllowedHeaders = parseHeaderList(
+  optional('CORS_ALLOWED_HEADERS', ''),
+  DEFAULT_CORS_ALLOWED_HEADERS,
+)
 
 /**
  * True when the frontend is on a real HTTPS origin (e.g. Vercel), separate from
@@ -98,7 +137,7 @@ function detectCrossSiteCookies(urls) {
   })
 }
 
-const useCrossSiteCookies = detectCrossSiteCookies(clientUrls)
+const useCrossSiteCookies = detectCrossSiteCookies(corsAllowedOrigins)
 
 if (useCrossSiteCookies && !isProd) {
   console.warn(
@@ -141,6 +180,8 @@ module.exports = Object.freeze({
   jwtExpiresIn,
   cookieMaxAge:  parseDurationMs(jwtExpiresIn),
   clientUrls,
+  corsAllowedOrigins,
+  corsAllowedHeaders,
   useCrossSiteCookies,
   razorpayKeyId,
   razorpayKeySecret,

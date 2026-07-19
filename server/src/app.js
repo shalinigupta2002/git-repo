@@ -92,6 +92,8 @@ app.use('/api', routes)
 app.use('/api/catalog', catalogRoutes)
 
 // ── Error handling ────────────────────────────────────────────────────────────
+// Re-apply CORS so 4xx/5xx JSON responses still include ACAO for allowed origins.
+app.use(cors(corsOptions))
 app.use(notFoundHandler)
 app.use(errorHandler)
 

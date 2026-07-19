@@ -3,6 +3,7 @@ const { query }  = require('../db/pool.js')
 const { asyncHandler } = require('../utils/asyncHandler.js')
 const { serializeOrder } = require('../utils/serialize.js')
 const { resolveParentCategoryLabel } = require('../services/shopCategoryTreeService.js')
+const { AppError } = require('../utils/AppError.js')
 
 function serializeUserSafe(u) {
   if (!u) return u
@@ -205,6 +206,67 @@ function slugify(name) {
     .replace(/^-|-$/g, '')
 }
 
+async function fetchRootCategoryById(id) {
+  const numId = Number(id)
+  if (!Number.isFinite(numId)) return null
+  const { rows } = await query(
+    `SELECT id, name, slug FROM catalog.categories WHERE id = $1 AND parent_id IS NULL`,
+    [numId],
+  )
+  return rows[0] || null
+}
+
+async function findRootCategoryByName(name) {
+  if (!name?.trim()) return null
+  const { normalizeCategoryName } = require('../services/shopCategoryTreeService.js')
+  const parentLabel = resolveParentCategoryLabel(name)
+  const { rows } = await query(
+    `SELECT id, name, slug FROM catalog.categories WHERE parent_id IS NULL`,
+    [],
+  )
+  const normalizedReq = normalizeCategoryName(name)
+  const normalizedLabel = normalizeCategoryName(parentLabel)
+  return rows.find((row) => {
+    const normName = normalizeCategoryName(row.name)
+    return normName === normalizedReq || normName === normalizedLabel
+  }) || null
+}
+
+async function buildCategorySlug(name, parentId) {
+  const base = slugify(name)
+  if (!parentId) return base
+  const { rows } = await query(
+    `SELECT slug FROM catalog.categories WHERE id = $1`,
+    [Number(parentId)],
+  )
+  const parentSlug = rows[0]?.slug || 'category'
+  return `${parentSlug}-${base}`
+}
+
+async function resolveSubcategoryParentId(existing, bodyParentId) {
+  if (bodyParentId != null && bodyParentId !== '') {
+    const parent = await fetchRootCategoryById(bodyParentId)
+    if (!parent) {
+      throw new AppError('Selected parent category was not found', 400, 'PARENT_NOT_FOUND')
+    }
+    return parent.id
+  }
+
+  if (existing.parentCategoryId) {
+    const parent = await fetchRootCategoryById(existing.parentCategoryId)
+    if (parent) return parent.id
+  }
+
+  const matched = await findRootCategoryByName(existing.parentCategoryName)
+  if (matched) return matched.id
+
+  throw new AppError(
+    'Parent category not found. Approve the parent category first or select a valid parent before approving this subcategory.',
+    400,
+    'PARENT_NOT_FOUND',
+  )
+}
+
 const listCategories = asyncHandler(async (_req, res) => {
   const { rows } = await query(
     `SELECT id, name, slug, parent_id, created_at
@@ -241,13 +303,19 @@ const createCategory = asyncHandler(async (req, res) => {
   if (!name || !name.trim()) {
     return res.status(400).json({ success: false, error: { message: 'name is required' } })
   }
-  const slug = slugify(name)
+
+  const parent = parentId ? await fetchRootCategoryById(parentId) : null
+  if (parentId && !parent) {
+    return res.status(400).json({ success: false, error: { message: 'Invalid parent category' } })
+  }
+
+  const slug = await buildCategorySlug(name, parent?.id ?? null)
 
   const { rows } = await query(
     `INSERT INTO catalog.categories (name, slug, parent_id)
      VALUES ($1, $2, $3)
      RETURNING id, name, slug, parent_id, created_at`,
-    [name.trim(), slug, parentId || null],
+    [name.trim(), slug, parent?.id ?? null],
   )
 
   res.status(201).json({
@@ -361,7 +429,7 @@ const listCategoryRequests = asyncHandler(async (req, res) => {
 
 const decideCategoryRequest = asyncHandler(async (req, res) => {
   const { id }                 = req.params
-  const { decision, adminNote, name } = req.body
+  const { decision, adminNote, name, parentId } = req.body
 
   if (!['APPROVED', 'REJECTED'].includes(decision)) {
     return res.status(400).json({ success: false, error: { message: 'decision must be APPROVED or REJECTED' } })
@@ -386,33 +454,22 @@ const decideCategoryRequest = asyncHandler(async (req, res) => {
 
   if (decision === 'APPROVED') {
     const catName = (name?.trim()) || existing.categoryName
-    const slug    = slugify(catName)
 
-    if (existing.requestType === 'SUBCATEGORY' && existing.parentCategoryName) {
-      const { normalizeCategoryName } = require('../services/shopCategoryTreeService.js')
-      const parentLabel = resolveParentCategoryLabel(existing.parentCategoryName)
-      const { rows: allCategories } = await query(
-        `SELECT id, name FROM catalog.categories`,
-        []
-      )
-      const normalizedReq = normalizeCategoryName(existing.parentCategoryName)
-      const normalizedLabel = normalizeCategoryName(parentLabel)
-      const matched = allCategories.find(row => {
-        const normName = normalizeCategoryName(row.name)
-        return normName === normalizedReq || normName === normalizedLabel
-      })
-      const parentId = matched ? matched.id : null
+    if (existing.requestType === 'SUBCATEGORY') {
+      const resolvedParentId = await resolveSubcategoryParentId(existing, parentId)
+      const slug = await buildCategorySlug(catName, resolvedParentId)
       await query(
         `INSERT INTO catalog.categories (name, slug, parent_id)
          VALUES ($1, $2, $3)
          ON CONFLICT (slug) DO UPDATE SET name = EXCLUDED.name, parent_id = EXCLUDED.parent_id`,
-        [catName, slug, parentId],
+        [catName, slug, resolvedParentId],
       )
     } else {
+      const slug = await buildCategorySlug(catName, null)
       await query(
-        `INSERT INTO catalog.categories (name, slug)
-         VALUES ($1, $2)
-         ON CONFLICT (slug) DO UPDATE SET name = EXCLUDED.name`,
+        `INSERT INTO catalog.categories (name, slug, parent_id)
+         VALUES ($1, $2, NULL)
+         ON CONFLICT (slug) DO UPDATE SET name = EXCLUDED.name, parent_id = NULL`,
         [catName, slug],
       )
     }

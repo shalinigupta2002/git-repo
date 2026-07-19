@@ -8815,3 +8815,53 @@ body,
     border-bottom: 1px solid #e2e8f0;
   }
 }
+
+/* ── Add Product page polish ─────────────────────────────────────────────── */
+.anpPage {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.anpCard {
+  border-radius: 14px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+}
+
+.anpCard .b2bCard__hd {
+  padding-bottom: 14px;
+  border-bottom: 1px solid #eef2f7;
+}
+
+.anpCard .b2bCard__bd {
+  padding-top: 20px;
+}
+
+.anpCard .b2bForm {
+  gap: 1.15rem;
+}
+
+.anpCard .b2bFormRow2 {
+  gap: 1rem;
+}
+
+.anpCard .b2bLabel {
+  font-size: 0.84rem;
+  letter-spacing: 0.01em;
+}
+
+.anpCard .b2bInput,
+.anpCard .b2bSelect,
+.anpCard .b2bTextarea {
+  min-height: 42px;
+}
+
+.anpCard .anpUploadZone {
+  border-radius: 12px;
+}
+
+@media (max-width: 768px) {
+  .anpCard .b2bFormRow2 {
+    grid-template-columns: 1fr;
+  }
+}

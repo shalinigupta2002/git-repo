@@ -162,6 +162,7 @@ export function CategoryRequestPage({ audience = 'seller' }) {
           requestType: 'SUBCATEGORY',
           categoryName: subcategoryName.trim(),
           parentCategoryName: selectedCategoryNode.label,
+          parentCategoryId: selectedCategoryNode.dbId,
           description: desc.trim() || undefined,
         })
         toast.success(`Subcategory request for "${subcategoryName.trim()}" under "${selectedCategoryNode.label}" submitted!`)

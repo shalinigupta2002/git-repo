@@ -3,6 +3,7 @@ import toast from 'react-hot-toast'
 import {
   fetchAdminCategoryRequests,
   decideCategoryRequest,
+  fetchAdminCategories,
 } from '../../services/admin.service.js'
 import { EmptyState } from '../../components/common/EmptyState.jsx'
 import { DealListSkeleton } from '../../components/deals/LoadingSkeleton.jsx'
@@ -38,13 +39,44 @@ function DecideModal({ request, onClose, onDecided }) {
   const [decision, setDecision]   = useState('APPROVED')
   const [adminNote, setAdminNote] = useState('')
   const [catName, setCatName]     = useState(request.categoryName)
+  const [parentId, setParentId]   = useState(
+    request.parentCategoryId ? String(request.parentCategoryId) : '',
+  )
+  const [roots, setRoots]         = useState([])
   const [saving, setSaving]       = useState(false)
+
+  useEffect(() => {
+    if (request.requestType !== 'SUBCATEGORY') return
+    fetchAdminCategories()
+      .then((data) => {
+        const list = data.categories || []
+        setRoots(list)
+        if (request.parentCategoryId) {
+          setParentId(String(request.parentCategoryId))
+        } else if (request.parentCategoryName) {
+          const match = list.find(
+            (c) => c.name.toLowerCase() === request.parentCategoryName.toLowerCase(),
+          )
+          if (match) setParentId(String(match.id))
+        }
+      })
+      .catch(() => {})
+  }, [request.id, request.requestType, request.parentCategoryName, request.parentCategoryId])
 
   async function handleSubmit(e) {
     e.preventDefault()
+    if (decision === 'APPROVED' && request.requestType === 'SUBCATEGORY' && !parentId) {
+      toast.error('Select a parent category before approving this subcategory request')
+      return
+    }
     setSaving(true)
     try {
-      await decideCategoryRequest(request.id, { decision, adminNote, name: catName })
+      await decideCategoryRequest(request.id, {
+        decision,
+        adminNote,
+        name: catName,
+        parentId: request.requestType === 'SUBCATEGORY' ? Number(parentId) : undefined,
+      })
       toast.success(decision === 'APPROVED' ? 'Request approved & catalog updated' : 'Request rejected successfully')
       onDecided()
     } catch (err) {
@@ -65,29 +97,30 @@ function DecideModal({ request, onClose, onDecided }) {
             <strong style={{ color: '#111827' }}>Seller:</strong> {request.seller?.companyName || '—'} ({request.seller?.email})
           </p>
           <p style={{ margin: 0, color: '#4b5563', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <strong style={{ color: '#111827' }}>Type:</strong>{' '}
+            <strong style={{ color: '#111827' }}>Request type:</strong>{' '}
             <span style={{
               padding: '0.15rem 0.5rem', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700,
               background: request.requestType === 'SUBCATEGORY' ? '#faf5ff' : '#eff6ff',
               color: request.requestType === 'SUBCATEGORY' ? '#7e22ce' : '#1d4ed8',
               border: `1px solid ${request.requestType === 'SUBCATEGORY' ? '#e9d5ff' : '#bfdbfe'}`
             }}>
-              {request.requestType === 'SUBCATEGORY' ? 'Subcategory' : 'Root Category'}
+              {request.requestType === 'SUBCATEGORY' ? 'SUBCATEGORY' : 'CATEGORY'}
             </span>
           </p>
-          <p style={{ margin: 0, color: '#4b5563' }}>
-            <strong style={{ color: '#111827' }}>Requested Label:</strong> <code style={{ background: '#e5e7eb', padding: '0.1rem 0.3rem', borderRadius: '4px' }}>{request.categoryName}</code>
-          </p>
-          {request.parentCategoryName && (
+          {request.requestType === 'SUBCATEGORY' && request.parentCategoryName ? (
             <p style={{ margin: 0, color: '#4b5563' }}>
-              <strong style={{ color: '#111827' }}>Under Parent:</strong> {request.parentCategoryName}
+              <strong style={{ color: '#111827' }}>Parent category:</strong> {request.parentCategoryName}
             </p>
-          )}
-          {request.description && (
-            <p style={{ margin: '0.25rem 0 0', color: '#6b7280', fontStyle: 'italic' }}>
-              &ldquo;{request.description}&rdquo;
+          ) : null}
+          <p style={{ margin: 0, color: '#4b5563' }}>
+            <strong style={{ color: '#111827' }}>Requested name:</strong>{' '}
+            <code style={{ background: '#e5e7eb', padding: '0.1rem 0.3rem', borderRadius: '4px' }}>{request.categoryName}</code>
+          </p>
+          {request.description ? (
+            <p style={{ margin: '0.25rem 0 0', color: '#6b7280' }}>
+              <strong style={{ color: '#111827' }}>Reason:</strong> &ldquo;{request.description}&rdquo;
             </p>
-          )}
+          ) : null}
         </div>
 
         <form onSubmit={handleSubmit} className="modal__form" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
@@ -104,6 +137,27 @@ function DecideModal({ request, onClose, onDecided }) {
               </label>
             </div>
           </div>
+
+          {decision === 'APPROVED' && request.requestType === 'SUBCATEGORY' ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              <label htmlFor="parentId" style={{ fontSize: '0.875rem', fontWeight: 600, color: '#374151' }}>
+                Parent category (required)
+              </label>
+              <select
+                id="parentId"
+                className="formInput"
+                value={parentId}
+                onChange={(e) => setParentId(e.target.value)}
+                required
+                style={{ width: '100%', padding: '0.625rem', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '0.875rem' }}
+              >
+                <option value="">Select parent category</option>
+                {roots.map((cat) => (
+                  <option key={cat.id} value={cat.id}>{cat.name}</option>
+                ))}
+              </select>
+            </div>
+          ) : null}
 
           {decision === 'APPROVED' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>

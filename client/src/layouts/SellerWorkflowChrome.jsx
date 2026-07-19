@@ -22,6 +22,7 @@ export function SellerWorkflowChrome({
   nextTo,
   nextLabel = 'Continue',
   fullWidth = false,
+  showStepper = true,
 }) {
   const navigate = useNavigate()
   const hasSellerSub = useAppSelector(selectHasSellerSubscription)
@@ -72,18 +73,20 @@ export function SellerWorkflowChrome({
         </div>
       </div>
 
-      <nav className="swStepper" aria-label="Seller workflow steps">
-        <ol className="swStepper__list">
-          {steps.map((step, i) => (
-            <li key={step.id} className="swStepper__item">
-              {renderStep(step, i)}
-              {i < steps.length - 1 ? (
-                <span className="swStepper__sep" aria-hidden />
-              ) : null}
-            </li>
-          ))}
-        </ol>
-      </nav>
+      {showStepper ? (
+        <nav className="swStepper" aria-label="Seller workflow steps">
+          <ol className="swStepper__list">
+            {steps.map((step, i) => (
+              <li key={step.id} className="swStepper__item">
+                {renderStep(step, i)}
+                {i < steps.length - 1 ? (
+                  <span className="swStepper__sep" aria-hidden />
+                ) : null}
+              </li>
+            ))}
+          </ol>
+        </nav>
+      ) : null}
 
       <div className="swChrome__body">{children}</div>
 

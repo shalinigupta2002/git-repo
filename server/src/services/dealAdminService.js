@@ -20,14 +20,10 @@ async function getAdminDealById(dealId) {
 async function listDealChargeConfigs() {
   return prisma.dealChargeConfig.findMany({
     where: {
-      OR: [
-        { planKey: 'MONTHLY', audience: 'SELLER' },
-        { planKey: 'ANNUAL', audience: 'BUYER' },
-        { planKey: 'LIFETIME', audience: 'BUYER' },
-      ],
+      planKey: { in: ['MONTHLY', 'ANNUAL', 'LIFETIME'] },
       isActive: true,
     },
-    orderBy: [{ planKey: 'asc' }],
+    orderBy: [{ planKey: 'asc' }, { audience: 'asc' }],
     include: {
       updatedBy: { select: { id: true, email: true, companyName: true } }
     }

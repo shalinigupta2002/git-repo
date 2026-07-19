@@ -425,6 +425,8 @@ model CategoryRequest {
   categoryName       String               @map("category_name")     @db.VarChar(200)
   /// Filled when requestType = SUBCATEGORY: name of the parent category
   parentCategoryName String?              @map("parent_category_name") @db.VarChar(200)
+  /// Stable catalog.categories.id when seller picks an existing parent
+  parentCategoryId   Int?                 @map("parent_category_id")
   description        String?              @db.VarChar(1000)
   status             CategoryRequestStatus @default(PENDING)
   adminNote          String?              @map("admin_note")         @db.VarChar(500)

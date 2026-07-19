@@ -203,6 +203,7 @@ export function AddNewProduct() {
   return (
     <SellerWorkflowChrome
       fullWidth
+      showStepper={false}
       title="Add new product"
       subtitle="Create a wholesale listing with SKU, category, and commercial terms. Publishing makes it immediately visible to buyers — no admin approval required."
       activeStepId="add"
@@ -211,8 +212,9 @@ export function AddNewProduct() {
       nextTo="/seller/products"
       nextLabel="View my listings"
     >
+      <div className="anpPage">
       <div className="b2bGrid2 b2bGrid2--single">
-        <div className="b2bCard">
+        <div className="b2bCard anpCard">
           <div className="b2bCard__hd">
             <div>
               <h2 className="b2bCard__title">Product details</h2>
@@ -479,6 +481,7 @@ export function AddNewProduct() {
             </form>
           </div>
         </div>
+      </div>
       </div>
     </SellerWorkflowChrome>
   )

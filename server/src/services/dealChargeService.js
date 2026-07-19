@@ -299,7 +299,7 @@ async function getPendingDealsCount(configId) {
   const { prisma } = require('../config/database.js')
   return prisma.deal.count({
     where: {
-      status: { notIn: ['CONTACT_UNLOCKED', 'COMPLETED', 'CANCELLED'] },
+      status: { in: ['QUOTATION_ACCEPTED', 'DEAL_CREATED', 'PAYMENT_PENDING', 'ACTIVE', 'DISPUTED'] },
       OR: [
         {
           buyerChargeConfigId: configId,

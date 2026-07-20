@@ -1,6 +1,6 @@
 'use strict'
 
-const { Prisma } = require('@prisma/client')
+const { Prisma, SubscriptionPlan } = require('@prisma/client')
 const { AppError } = require('../utils/AppError.js')
 const logger = require('../config/logger.js')
 const { resolveCanonicalPlanKey } = require('./subscriptionMasterService.js')
@@ -18,26 +18,22 @@ const PUBLIC_DEAL_CHARGE_PLAN_KEYS = Object.freeze([
   'BOTH_LIFETIME',
 ])
 
-const LEGACY_SUBSCRIPTION_PLANS = Object.freeze([
-  'BUYER_STANDARD',
-  'SELLER_MONTH',
-  'BOTH_STANDARD_MONTH',
-  'BOTH_LIFETIME_LIFETIME',
-  'BOTH_LIFETIME_MONTH',
-  'BOTH_STANDARD_LIFETIME',
-])
+/**
+ * Values stored on Subscription.plan — must match Prisma SubscriptionPlan enum.
+ * Canonical V2 keys (e.g. BUYER_MONTHLY) must never be passed to Prisma filters.
+ */
+const PRISMA_SUBSCRIPTION_PLAN_VALUES = Object.freeze(Object.values(SubscriptionPlan))
 
-const ALL_SUBSCRIPTION_PLANS = Object.freeze([
-  ...PUBLIC_DEAL_CHARGE_PLAN_KEYS,
-  ...LEGACY_SUBSCRIPTION_PLANS,
-])
-
-const BUYER_SUBSCRIPTION_PLANS = ALL_SUBSCRIPTION_PLANS.filter(
-  (plan) => plan.startsWith('BUYER_') || plan.startsWith('BOTH_'),
+const BUYER_SUBSCRIPTION_PLANS = Object.freeze(
+  PRISMA_SUBSCRIPTION_PLAN_VALUES.filter(
+    (plan) => plan.startsWith('BUYER_') || plan.startsWith('BOTH_'),
+  ),
 )
 
-const SELLER_SUBSCRIPTION_PLANS = ALL_SUBSCRIPTION_PLANS.filter(
-  (plan) => plan.startsWith('SELLER_') || plan.startsWith('BOTH_'),
+const SELLER_SUBSCRIPTION_PLANS = Object.freeze(
+  PRISMA_SUBSCRIPTION_PLAN_VALUES.filter(
+    (plan) => plan.startsWith('SELLER_') || plan.startsWith('BOTH_'),
+  ),
 )
 
 function plansForAudience(audience) {
@@ -60,11 +56,12 @@ function planAppliesToAudience(planKey, audience) {
  */
 async function resolveActivePlanKey(client, userId, audience) {
   const now = new Date()
+  const prismaPlans = plansForAudience(audience)
   const subscriptions = await client.subscription.findMany({
     where: {
       userId,
       status: 'ACTIVE',
-      plan: { in: ALL_SUBSCRIPTION_PLANS },
+      plan: { in: [...prismaPlans] },
       OR: [
         { expiresAt: null },
         { expiresAt: { gt: now } },

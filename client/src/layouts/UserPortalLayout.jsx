@@ -13,7 +13,6 @@ import { BUYER_SUBSCRIBE_MESSAGE } from '../utils/buyerSubscription.js'
 import {
   isBuyerSection,
   isSellerSection,
-  PORTAL_HOME,
   portalRoleLabel,
   visiblePortalPrimaryNav,
   visibleBuyerSubNav,
@@ -196,7 +195,6 @@ export function UserPortalLayout() {
   }
 
   function primaryActive(item) {
-    if (item.to === PORTAL_HOME) return pathname === PORTAL_HOME
     if (item.to === '/portal/profile') return pathname === '/portal/profile'
     if (item.section === 'buyer') return inBuyer
     if (item.section === 'seller') return inSeller
@@ -292,9 +290,6 @@ export function UserPortalLayout() {
         </nav>
 
         <div className="proSidebar__footer">
-          <Link to="/" className="proNavLink" onClick={closeSidebar}>
-            Marketing home
-          </Link>
           <SidebarLogoutButton onClick={onLogout} />
         </div>
       </aside>

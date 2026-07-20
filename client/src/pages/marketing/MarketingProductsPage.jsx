@@ -526,9 +526,6 @@ export function MarketingProductsPage() {
                 </button>
               )
             ) : null}
-            <Link to="/contact" className="mpNav__link">
-              Help &amp; Contact
-            </Link>
             {authInitialized && isAuthenticated ? (
               <MyDashboardMenu
                 linkClassName="mpNav__link mpNav__link--dashboard"

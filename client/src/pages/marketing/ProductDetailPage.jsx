@@ -172,7 +172,6 @@ export function ProductDetailPage() {
             <Link to="/" className="mpNav__link">Home</Link>
             <Link to="/products" className="mpNav__link mpNav__link--current">Products</Link>
             <Link to="/pricing" className="mpNav__link">Pricing</Link>
-            <Link to="/contact" className="mpNav__link">Help &amp; Contact</Link>
             {authInitialized && isAuthenticated ? (
               <MyDashboardMenu
                 linkClassName="mpNav__link mpNav__link--dashboard"

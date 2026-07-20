@@ -271,26 +271,31 @@ async function recalculatePendingDealCharges(client, deal) {
 
 async function getSubscriberCount(planKey) {
   const { prisma } = require('../config/database.js')
-  const activeBuyers = await prisma.user.findMany({
+  const activeBuyers = (await prisma.user.findMany({
     where: { buyerSubscriptionStatus: 'ACTIVE' },
-    select: { buyerSubscriptionPlan: true }
-  })
-  const activeSellers = await prisma.user.findMany({
+    select: { buyerSubscriptionPlan: true },
+  })) || []
+  const activeSellers = (await prisma.user.findMany({
     where: { sellerSubscriptionStatus: 'ACTIVE' },
-    select: { sellerSubscriptionPlan: true }
-  })
+    select: { sellerSubscriptionPlan: true },
+  })) || []
 
-  let count = 0
-  if (planKey === 'MONTHLY') {
-    count = activeSellers.filter(s => resolveSubscriptionType(s.sellerSubscriptionPlan, 'SELLER') === 'MONTHLY').length
-  } else if (planKey === 'ANNUAL') {
-    count = activeBuyers.filter(b => resolveSubscriptionType(b.buyerSubscriptionPlan, 'BUYER') === 'ANNUAL').length
-  } else if (planKey === 'LIFETIME') {
-    const buyerLft = activeBuyers.filter(b => resolveSubscriptionType(b.buyerSubscriptionPlan, 'BUYER') === 'LIFETIME').length
-    const sellerLft = activeSellers.filter(s => resolveSubscriptionType(s.sellerSubscriptionPlan, 'SELLER') === 'LIFETIME').length
-    count = buyerLft + sellerLft
+  const buyerType = resolveSubscriptionType(planKey, 'BUYER')
+  const sellerType = resolveSubscriptionType(planKey, 'SELLER')
+  const chargeType = buyerType || sellerType || planKey
+
+  if (chargeType === 'MONTHLY') {
+    return activeSellers.filter((s) => resolveSubscriptionType(s.sellerSubscriptionPlan, 'SELLER') === 'MONTHLY').length
   }
-  return count
+  if (chargeType === 'ANNUAL') {
+    return activeBuyers.filter((b) => resolveSubscriptionType(b.buyerSubscriptionPlan, 'BUYER') === 'ANNUAL').length
+  }
+  if (chargeType === 'LIFETIME') {
+    const buyerLft = activeBuyers.filter((b) => resolveSubscriptionType(b.buyerSubscriptionPlan, 'BUYER') === 'LIFETIME').length
+    const sellerLft = activeSellers.filter((s) => resolveSubscriptionType(s.sellerSubscriptionPlan, 'SELLER') === 'LIFETIME').length
+    return buyerLft + sellerLft
+  }
+  return 0
 }
 
 async function getPendingDealsCount(configId) {

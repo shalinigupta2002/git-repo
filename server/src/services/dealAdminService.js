@@ -31,15 +31,51 @@ async function listDealChargeConfigs() {
   })
 }
 
-async function updateDealChargeConfig(configId, payload, adminUserId) {
-  let existing = await prisma.dealChargeConfig.findFirst({
-    where: {
-      OR: [
-        { id: configId },
-        { planKey: configId },
-      ]
-    },
+const LEGACY_CHARGE_CONFIG_ALIASES = {
+  'setting-lifetime-buyer': { audience: 'BUYER', planKey: 'LIFETIME' },
+  'setting-lifetime-seller': { audience: 'SELLER', planKey: 'LIFETIME' },
+  'setting-monthly': { audience: 'SELLER', planKey: 'MONTHLY' },
+  'setting-annual': { audience: 'BUYER', planKey: 'ANNUAL' },
+  'setting-buyer-monthly': { audience: 'BUYER', planKey: 'BUYER_MONTHLY' },
+  'setting-buyer-annual': { audience: 'BUYER', planKey: 'BUYER_ANNUAL' },
+  'setting-buyer-lifetime': { audience: 'BUYER', planKey: 'BUYER_LIFETIME' },
+  'setting-seller-monthly': { audience: 'SELLER', planKey: 'SELLER_MONTHLY' },
+  'setting-seller-annual': { audience: 'SELLER', planKey: 'SELLER_ANNUAL' },
+  'setting-seller-lifetime': { audience: 'SELLER', planKey: 'SELLER_LIFETIME' },
+}
+
+async function resolveDealChargeConfig(configId) {
+  const direct = await prisma.dealChargeConfig.findUnique({
+    where: { id: configId },
   })
+  if (direct) return direct
+
+  const alias = LEGACY_CHARGE_CONFIG_ALIASES[configId]
+  if (alias) {
+    const byAlias = await prisma.dealChargeConfig.findFirst({ where: alias })
+    if (byAlias) return byAlias
+  }
+
+  const byPlanKey = await prisma.dealChargeConfig.findFirst({
+    where: { planKey: configId },
+  })
+  if (byPlanKey) return byPlanKey
+
+  const { resolveSubscriptionType } = require('./dealChargeService.js')
+  for (const audience of ['BUYER', 'SELLER']) {
+    const mappedType = resolveSubscriptionType(configId, audience)
+    if (!mappedType) continue
+    const byMappedType = await prisma.dealChargeConfig.findFirst({
+      where: { audience, planKey: mappedType },
+    })
+    if (byMappedType) return byMappedType
+  }
+
+  return null
+}
+
+async function updateDealChargeConfig(configId, payload, adminUserId) {
+  const existing = await resolveDealChargeConfig(configId)
 
   if (!existing) {
     throw new AppError('Deal charge configuration not found.', 404, 'CHARGE_CONFIG_NOT_FOUND')
@@ -110,7 +146,7 @@ async function updateDealChargeConfig(configId, payload, adminUserId) {
     updatedConfigs.push(updated)
   }
 
-  return updatedConfigs.find(c => c.id === configId) || updatedConfigs[0]
+  return updatedConfigs.find((c) => c.id === existing.id) || updatedConfigs[0]
 }
 
 module.exports = {

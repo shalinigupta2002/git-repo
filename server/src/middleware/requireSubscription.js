@@ -36,7 +36,6 @@ async function hasActiveSubscription(userId, type) {
   })
   if (!user) return false
   if (user.role === 'ADMIN') return true
-  if (user.role === type) return true
 
   if (type === 'BUYER' && user.buyerSubscriptionStatus === 'ACTIVE') return true
   if (type === 'SELLER' && user.sellerSubscriptionStatus === 'ACTIVE') return true

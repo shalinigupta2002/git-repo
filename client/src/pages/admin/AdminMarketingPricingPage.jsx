@@ -9,200 +9,168 @@ import {
 
 export function AdminMarketingPricingPage() {
   const initial = useMemo(() => getMarketingPricing(), [])
-  const [buyerOneTime, setBuyerOneTime] = useState(initial.buyerOneTime)
-  const [buyerLifetime, setBuyerLifetime] = useState(initial.buyerLifetime)
-  const [sellerMonth, setSellerMonth] = useState(initial.sellerMonth)
-  const [sellerLifetime, setSellerLifetime] = useState(initial.sellerLifetime)
-  const [bothStandardMonth, setBothStandardMonth] = useState(initial.bothStandardMonth)
-  const [bothLifetimeLifetime, setBothLifetimeLifetime] = useState(initial.bothLifetimeLifetime)
-  const [bothLifetimeMonth, setBothLifetimeMonth] = useState(initial.bothLifetimeMonth)
-  const [bothStandardLifetime, setBothStandardLifetime] = useState(initial.bothStandardLifetime)
+  
+  // Seller 3 Tiers
+  const [sellerMonthly, setSellerMonthly] = useState(initial.sellerMonthly || DEFAULT_MARKETING_PRICING.sellerMonthly)
+  const [sellerAnnual, setSellerAnnual] = useState(initial.sellerAnnual || DEFAULT_MARKETING_PRICING.sellerAnnual)
+  const [sellerLifetime, setSellerLifetime] = useState(initial.sellerLifetime || DEFAULT_MARKETING_PRICING.sellerLifetime)
+
+  // Buyer 3 Tiers
+  const [buyerMonthly, setBuyerMonthly] = useState(initial.buyerMonthly || DEFAULT_MARKETING_PRICING.buyerMonthly)
+  const [buyerAnnual, setBuyerAnnual] = useState(initial.buyerAnnual || DEFAULT_MARKETING_PRICING.buyerAnnual)
+  const [buyerLifetime, setBuyerLifetime] = useState(initial.buyerLifetime || DEFAULT_MARKETING_PRICING.buyerLifetime)
+
+  // Both 3 Tiers
+  const [bothMonthly, setBothMonthly] = useState(initial.bothMonthly || DEFAULT_MARKETING_PRICING.bothMonthly)
+  const [bothAnnual, setBothAnnual] = useState(initial.bothAnnual || DEFAULT_MARKETING_PRICING.bothAnnual)
+  const [bothLifetime, setBothLifetime] = useState(initial.bothLifetime || DEFAULT_MARKETING_PRICING.bothLifetime)
+
   const [savedFlash, setSavedFlash] = useState(false)
 
   function onSave(e) {
     e.preventDefault()
     saveMarketingPricing({
-      buyerOneTime,
-      buyerLifetime,
-      sellerMonth,
+      sellerMonthly,
+      sellerAnnual,
       sellerLifetime,
-      bothStandardMonth,
-      bothLifetimeLifetime,
-      bothLifetimeMonth,
-      bothStandardLifetime,
+      buyerMonthly,
+      buyerAnnual,
+      buyerLifetime,
+      bothMonthly,
+      bothAnnual,
+      bothLifetime,
+      // Fallback legacy links
+      buyerOneTime: buyerAnnual,
+      sellerMonth: sellerMonthly,
+      bothStandardMonth: bothMonthly,
+      bothLifetimeLifetime: bothLifetime,
+      bothLifetimeMonth: bothMonthly,
+      bothStandardLifetime: bothAnnual,
     })
     setSavedFlash(true)
     window.setTimeout(() => setSavedFlash(false), 2000)
   }
 
   function onReset() {
-    if (!window.confirm('Reset all prices to built-in defaults?')) return
+    if (!window.confirm('Reset all 9 plan prices to built-in defaults?')) return
     resetMarketingPricing()
     const d = DEFAULT_MARKETING_PRICING
-    setBuyerOneTime(d.buyerOneTime)
-    setBuyerLifetime(d.buyerLifetime)
-    setSellerMonth(d.sellerMonth)
+    setSellerMonthly(d.sellerMonthly)
+    setSellerAnnual(d.sellerAnnual)
     setSellerLifetime(d.sellerLifetime)
-    setBothStandardMonth(d.bothStandardMonth)
-    setBothLifetimeLifetime(d.bothLifetimeLifetime)
-    setBothLifetimeMonth(d.bothLifetimeMonth)
-    setBothStandardLifetime(d.bothStandardLifetime)
+    setBuyerMonthly(d.buyerMonthly)
+    setBuyerAnnual(d.buyerAnnual)
+    setBuyerLifetime(d.buyerLifetime)
+    setBothMonthly(d.bothMonthly)
+    setBothAnnual(d.bothAnnual)
+    setBothLifetime(d.bothLifetime)
     setSavedFlash(true)
     window.setTimeout(() => setSavedFlash(false), 2000)
   }
 
   return (
-    <section className="panel">
-      <div className="panelHeader">
+    <section className="panel" style={{ maxWidth: 960, margin: '0 auto', padding: '2rem' }}>
+      <div className="panelHeader" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
         <div>
-          <h2 className="panelTitle">Marketing pricing</h2>
-          <p className="panelSub">
-            Edit amounts shown on the public <Link to="/pricing">pricing plans</Link> page and on
-            buyer/seller checkout screens. Values are saved in this browser (
-            <strong>localStorage</strong>) until you connect a server-side catalog.
+          <h2 className="panelTitle" style={{ fontSize: '1.75rem', fontWeight: 800, color: '#0f172a' }}>Subscription Plans V2 Master Admin</h2>
+          <p className="panelSub" style={{ color: '#64748b' }}>
+            Manage pricing, badges, and display configurations for all 9 subscription plans shown on the public <Link to="/pricing" target="_blank">/pricing</Link> page.
           </p>
         </div>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <Link className="btnOutline" to="/pricing" target="_blank" rel="noreferrer">
-            Open pricing page
-          </Link>
-        </div>
+        <Link className="btnOutline" to="/pricing" target="_blank" rel="noreferrer" style={{ padding: '0.625rem 1.25rem', borderRadius: '10px', fontWeight: 700 }}>
+          🔗 Preview /pricing Page
+        </Link>
       </div>
 
-      <div className="workflowBody" style={{ maxWidth: 560 }}>
-        <form className="form form--tight" onSubmit={onSave}>
-          <label className="field">
-            <div className="fieldLabel">Buyer — standard (Monthly tier on /pricing)</div>
-            <input
-              className="input"
-              value={buyerOneTime}
-              onChange={(e) => setBuyerOneTime(e.target.value)}
-              placeholder={DEFAULT_MARKETING_PRICING.buyerOneTime}
-              autoComplete="off"
-              aria-describedby="admin-pricing-buyer-hint"
-            />
-            <p id="admin-pricing-buyer-hint" className="hint" style={{ marginTop: 6 }}>
-              Used for the Buyer “Monthly” column, buyer checkout (standard), and the “Both” monthly
-              bundle (buyer fee + seller monthly).
-            </p>
-          </label>
-
-          <label className="field">
-            <div className="fieldLabel">Buyer — lifetime</div>
-            <input
-              className="input"
-              value={buyerLifetime}
-              onChange={(e) => setBuyerLifetime(e.target.value)}
-              placeholder={DEFAULT_MARKETING_PRICING.buyerLifetime}
-              autoComplete="off"
-              aria-describedby="admin-pricing-buyer-lifetime-hint"
-            />
-            <p id="admin-pricing-buyer-lifetime-hint" className="hint" style={{ marginTop: 6 }}>
-              Used for the Buyer “Lifetime” column, buyer checkout when lifetime is selected, and
-              the “Both” lifetime bundle (buyer fee + seller lifetime).
-            </p>
-          </label>
-
-          <label className="field">
-            <div className="fieldLabel">Seller — monthly</div>
-            <input
-              className="input"
-              value={sellerMonth}
-              onChange={(e) => setSellerMonth(e.target.value)}
-              placeholder={DEFAULT_MARKETING_PRICING.sellerMonth}
-              autoComplete="off"
-            />
-            <p className="hint" style={{ marginTop: 6 }}>
-              Seller plan billed monthly (e.g. include ₹ or currency symbol).
-            </p>
-          </label>
-
-          <label className="field">
-            <div className="fieldLabel">Seller — lifetime</div>
-            <input
-              className="input"
-              value={sellerLifetime}
-              onChange={(e) => setSellerLifetime(e.target.value)}
-              placeholder={DEFAULT_MARKETING_PRICING.sellerLifetime}
-              autoComplete="off"
-            />
-            <p className="hint" style={{ marginTop: 6 }}>
-              One-time seller lifetime plan amount.
-            </p>
-          </label>
-
-          <label className="field">
-            <div className="fieldLabel">Both — standard + monthly</div>
-            <input
-              className="input"
-              value={bothStandardMonth}
-              onChange={(e) => setBothStandardMonth(e.target.value)}
-              placeholder={DEFAULT_MARKETING_PRICING.bothStandardMonth}
-              autoComplete="off"
-            />
-            <p className="hint" style={{ marginTop: 6 }}>
-              Both standard (buyer) and monthly (seller) bundle plan.
-            </p>
-          </label>
-
-          <label className="field">
-            <div className="fieldLabel">Both — lifetime + lifetime</div>
-            <input
-              className="input"
-              value={bothLifetimeLifetime}
-              onChange={(e) => setBothLifetimeLifetime(e.target.value)}
-              placeholder={DEFAULT_MARKETING_PRICING.bothLifetimeLifetime}
-              autoComplete="off"
-            />
-            <p className="hint" style={{ marginTop: 6 }}>
-              Both lifetime buyer and lifetime seller bundle plan.
-            </p>
-          </label>
-
-          <label className="field">
-            <div className="fieldLabel">Both — buyer lifetime + seller monthly</div>
-            <input
-              className="input"
-              value={bothLifetimeMonth}
-              onChange={(e) => setBothLifetimeMonth(e.target.value)}
-              placeholder={DEFAULT_MARKETING_PRICING.bothLifetimeMonth}
-              autoComplete="off"
-            />
-            <p className="hint" style={{ marginTop: 6 }}>
-              Mixed bundle plan: Buyer lifetime and Seller monthly.
-            </p>
-          </label>
-
-          <label className="field">
-            <div className="fieldLabel">Both — buyer standard + seller lifetime</div>
-            <input
-              className="input"
-              value={bothStandardLifetime}
-              onChange={(e) => setBothStandardLifetime(e.target.value)}
-              placeholder={DEFAULT_MARKETING_PRICING.bothStandardLifetime}
-              autoComplete="off"
-            />
-            <p className="hint" style={{ marginTop: 6 }}>
-              Mixed bundle plan: Buyer standard and Seller lifetime.
-            </p>
-          </label>
-
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 8 }}>
-            <button type="submit" className="btn btn--primary">
-              Save prices
-            </button>
-            <button type="button" className="btnOutline" onClick={onReset}>
-              Reset to defaults
-            </button>
+      <form className="form" onSubmit={onSave} style={{ display: 'flex', flexDirection: 'column', gap: '2.5rem' }}>
+        {/* SELLER PLANS GROUP */}
+        <div style={{ background: '#fff', borderRadius: '16px', border: '1px solid #e2e8f0', padding: '1.5rem', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+          <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0f172a', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            🏪 Seller Subscription Plans (3 Tiers)
+          </h3>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem' }}>
+            <label className="field">
+              <div className="fieldLabel" style={{ fontWeight: 700 }}>Seller Monthly</div>
+              <input className="input" value={sellerMonthly} onChange={(e) => setSellerMonthly(e.target.value)} placeholder="₹999" />
+              <p className="hint">Plan key: <code>SELLER_MONTHLY</code> (Deal Charge: 4%)</p>
+            </label>
+            <label className="field">
+              <div className="fieldLabel" style={{ fontWeight: 700 }}>Seller Annual (Popular)</div>
+              <input className="input" value={sellerAnnual} onChange={(e) => setSellerAnnual(e.target.value)} placeholder="₹9,999" />
+              <p className="hint">Plan key: <code>SELLER_ANNUAL</code> (Deal Charge: 3%)</p>
+            </label>
+            <label className="field">
+              <div className="fieldLabel" style={{ fontWeight: 700 }}>Seller Lifetime (Value)</div>
+              <input className="input" value={sellerLifetime} onChange={(e) => setSellerLifetime(e.target.value)} placeholder="₹49,999" />
+              <p className="hint">Plan key: <code>SELLER_LIFETIME</code> (Deal Charge: 2%)</p>
+            </label>
           </div>
+        </div>
+
+        {/* BUYER PLANS GROUP */}
+        <div style={{ background: '#fff', borderRadius: '16px', border: '1px solid #e2e8f0', padding: '1.5rem', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+          <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0f172a', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            🛍️ Buyer Subscription Plans (3 Tiers)
+          </h3>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem' }}>
+            <label className="field">
+              <div className="fieldLabel" style={{ fontWeight: 700 }}>Buyer Monthly</div>
+              <input className="input" value={buyerMonthly} onChange={(e) => setBuyerMonthly(e.target.value)} placeholder="₹999" />
+              <p className="hint">Plan key: <code>BUYER_MONTHLY</code> (Deal Charge: 5%)</p>
+            </label>
+            <label className="field">
+              <div className="fieldLabel" style={{ fontWeight: 700 }}>Buyer Annual (Popular)</div>
+              <input className="input" value={buyerAnnual} onChange={(e) => setBuyerAnnual(e.target.value)} placeholder="₹9,999" />
+              <p className="hint">Plan key: <code>BUYER_ANNUAL</code> (Deal Charge: 4%)</p>
+            </label>
+            <label className="field">
+              <div className="fieldLabel" style={{ fontWeight: 700 }}>Buyer Lifetime (Value)</div>
+              <input className="input" value={buyerLifetime} onChange={(e) => setBuyerLifetime(e.target.value)} placeholder="₹49,999" />
+              <p className="hint">Plan key: <code>BUYER_LIFETIME</code> (Deal Charge: 3%)</p>
+            </label>
+          </div>
+        </div>
+
+        {/* BOTH PLANS GROUP */}
+        <div style={{ background: '#fff', borderRadius: '16px', border: '1px solid #e2e8f0', padding: '1.5rem', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+          <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0f172a', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            ⚡ Both (Buyer + Seller Dual Access)
+          </h3>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem' }}>
+            <label className="field">
+              <div className="fieldLabel" style={{ fontWeight: 700 }}>Both Monthly</div>
+              <input className="input" value={bothMonthly} onChange={(e) => setBothMonthly(e.target.value)} placeholder="₹1,699" />
+              <p className="hint">Plan key: <code>BOTH_MONTHLY</code> (Deal Charge: 3.5%)</p>
+            </label>
+            <label className="field">
+              <div className="fieldLabel" style={{ fontWeight: 700 }}>Both Annual</div>
+              <input className="input" value={bothAnnual} onChange={(e) => setBothAnnual(e.target.value)} placeholder="₹16,999" />
+              <p className="hint">Plan key: <code>BOTH_ANNUAL</code> (Deal Charge: 2.5%)</p>
+            </label>
+            <label className="field">
+              <div className="fieldLabel" style={{ fontWeight: 700 }}>Both Lifetime</div>
+              <input className="input" value={bothLifetime} onChange={(e) => setBothLifetime(e.target.value)} placeholder="₹79,999" />
+              <p className="hint">Plan key: <code>BOTH_LIFETIME</code> (Deal Charge: 1.5%)</p>
+            </label>
+          </div>
+        </div>
+
+        {/* ACTION BUTTONS */}
+        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+          <button type="submit" className="btn btn--primary" style={{ padding: '0.875rem 2rem', borderRadius: '12px', fontWeight: 800, background: '#0f172a', color: '#fff' }}>
+            Save Plan Master Configurations
+          </button>
+          <button type="button" className="btnOutline" onClick={onReset} style={{ padding: '0.875rem 1.5rem', borderRadius: '12px' }}>
+            Reset to Defaults
+          </button>
 
           {savedFlash ? (
-            <p className="hint" role="status" style={{ marginTop: 12, color: 'var(--accent, #2563eb)' }}>
-              Saved. Refresh the pricing page if it was already open.
-            </p>
+            <span style={{ color: '#16a34a', fontWeight: 700, fontSize: '0.875rem' }}>
+              ✓ All 9 Master Plans Updated Successfully!
+            </span>
           ) : null}
-        </form>
-      </div>
+        </div>
+      </form>
     </section>
   )
 }

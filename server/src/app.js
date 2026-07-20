@@ -88,8 +88,8 @@ app.get(
 )
 
 // ── Route namespaces ──────────────────────────────────────────────────────────
-app.use('/api', routes)
 app.use('/api/catalog', catalogRoutes)
+app.use('/api', routes)
 
 // ── Error handling ────────────────────────────────────────────────────────────
 // Re-apply CORS so 4xx/5xx JSON responses still include ACAO for allowed origins.

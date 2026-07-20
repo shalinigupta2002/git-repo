@@ -1,23 +1,34 @@
 import { useCallback, useEffect, useState } from 'react'
 
-/** Default labels shown on /pricing and checkout until admin overrides them. */
 export const DEFAULT_MARKETING_PRICING = {
-  buyerOneTime: '₹9,999',
-  buyerLifetime: '₹49,999',
-  sellerMonth: '₹9,999',
+  sellerMonthly: '₹999',
+  sellerAnnual: '₹9,999',
   sellerLifetime: '₹49,999',
-  bothStandardMonth: '₹14,999',
+  buyerMonthly: '₹999',
+  buyerAnnual: '₹9,999',
+  buyerLifetime: '₹49,999',
+  bothMonthly: '₹1,699',
+  bothAnnual: '₹16,999',
+  bothLifetime: '₹79,999',
+  // Legacy backward compatibility fallbacks
+  buyerOneTime: '₹9,999',
+  sellerMonth: '₹999',
+  bothStandardMonth: '₹1,699',
   bothLifetimeLifetime: '₹79,999',
   bothLifetimeMonth: '₹54,999',
   bothStandardLifetime: '₹54,999',
 }
 
-/** Numeric amounts (INR) for totals on the pricing page. */
 export const DEFAULT_PLAN_AMOUNTS = {
-  buyerAnnual: 9999,
-  buyerLifetime: 49999,
+  sellerMonthly: 999,
   sellerAnnual: 9999,
   sellerLifetime: 49999,
+  buyerMonthly: 999,
+  buyerAnnual: 9999,
+  buyerLifetime: 49999,
+  bothMonthly: 1699,
+  bothAnnual: 16999,
+  bothLifetime: 79999,
 }
 
 export function formatInr(amount) {

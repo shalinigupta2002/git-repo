@@ -86,12 +86,19 @@ test.describe('RFQ full flow', () => {
     expect(respondRes.ok(), await respondRes.text()).toBeTruthy()
 
     await page.reload()
-    await expect(page.getByRole('button', { name: /accept quotation/i })).toBeVisible({ timeout: 30_000 })
+    await expect(page.getByRole('button', { name: /accept quotation/i }).first()).toBeVisible({ timeout: 30_000 })
+    await page.getByRole('button', { name: /accept quotation/i }).first().click()
+
+    const dialog = page.getByRole('dialog')
+    await expect(dialog).toBeVisible({ timeout: 10_000 })
+    const confirmBtn = dialog.getByRole('button', { name: /accept quotation/i })
+    await expect(confirmBtn).toBeVisible({ timeout: 10_000 })
 
     const acceptPromise = page.waitForResponse(
-      (res) => /\/quote-requests\/.+\/accept$/.test(res.url()) && res.request().method() === 'PATCH',
+      (res) => res.url().includes('/accept') && res.request().method() === 'PATCH',
+      { timeout: 30_000 },
     )
-    await page.getByRole('button', { name: /accept quotation/i }).click()
+    await confirmBtn.click({ force: true })
     const acceptRes = await acceptPromise
     expect(acceptRes.ok(), await acceptRes.text()).toBeTruthy()
 

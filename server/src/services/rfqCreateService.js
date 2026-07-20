@@ -156,7 +156,7 @@ async function createQuoteRequests({
       }
 
       return { rfqGroupId, rfqNumber, rows }
-    })
+    }, { timeout: 20_000, maxWait: 10_000 })
   } catch (error) {
     if (error?.code === 'P2002') {
       const target = error?.meta?.target || []

@@ -18,9 +18,10 @@ async function getAdminDealById(dealId) {
 }
 
 async function listDealChargeConfigs() {
+  const { ensureDefaultDealChargeConfigs } = require('./dealChargeService.js')
+  await ensureDefaultDealChargeConfigs(prisma)
   return prisma.dealChargeConfig.findMany({
     where: {
-      planKey: { in: ['MONTHLY', 'ANNUAL', 'LIFETIME'] },
       isActive: true,
     },
     orderBy: [{ planKey: 'asc' }, { audience: 'asc' }],
@@ -31,8 +32,13 @@ async function listDealChargeConfigs() {
 }
 
 async function updateDealChargeConfig(configId, payload, adminUserId) {
-  const existing = await prisma.dealChargeConfig.findUnique({
-    where: { id: configId },
+  let existing = await prisma.dealChargeConfig.findFirst({
+    where: {
+      OR: [
+        { id: configId },
+        { planKey: configId },
+      ]
+    },
   })
 
   if (!existing) {

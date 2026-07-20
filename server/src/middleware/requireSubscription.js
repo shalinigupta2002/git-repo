@@ -15,7 +15,7 @@ const PLANS_BY_TYPE = {
     'BOTH_LIFETIME_MONTH',
     'BOTH_STANDARD_LIFETIME',
   ],
-  BUYER:  [
+  BUYER: [
     'BUYER_STANDARD',
     'BUYER_LIFETIME',
     'BOTH_STANDARD_MONTH',
@@ -26,6 +26,21 @@ const PLANS_BY_TYPE = {
 }
 
 async function hasActiveSubscription(userId, type) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      role: true,
+      buyerSubscriptionStatus: true,
+      sellerSubscriptionStatus: true,
+    },
+  })
+  if (!user) return false
+  if (user.role === 'ADMIN') return true
+  if (user.role === type) return true
+
+  if (type === 'BUYER' && user.buyerSubscriptionStatus === 'ACTIVE') return true
+  if (type === 'SELLER' && user.sellerSubscriptionStatus === 'ACTIVE') return true
+
   const plans = PLANS_BY_TYPE[type]
   if (!plans) return false
 
@@ -33,7 +48,7 @@ async function hasActiveSubscription(userId, type) {
   const activeSub = await prisma.subscription.findFirst({
     where: {
       userId,
-      plan:   { in: plans },
+      plan: { in: plans },
       status: 'ACTIVE',
       OR: [
         { expiresAt: null },

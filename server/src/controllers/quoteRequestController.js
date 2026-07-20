@@ -582,7 +582,7 @@ const respond = asyncHandler(async (req, res) => {
     })
 
     return row
-  })
+  }, { timeout: 15_000, maxWait: 10_000 })
 
   const revisions = await listQuoteRevisions(prisma, updated.id)
 
@@ -658,7 +658,8 @@ const buyerAccept = asyncHandler(async (req, res) => {
     throw new AppError('This quote has expired', 410, 'QUOTE_EXPIRED')
   }
 
-  const result = await prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(
+    async (tx) => {
     const locked = await tx.quoteRequest.findUnique({ where: { id: existing.id } })
     if (!locked || locked.status !== 'RESPONDED') {
       throw new AppError('Quote status changed. Please refresh and try again.', 409, 'CONFLICT')
@@ -768,7 +769,7 @@ const buyerAccept = asyncHandler(async (req, res) => {
     })
 
     return { order, deal, request: updated, notSelectedSiblingCount }
-  }, { timeout: 15_000 })
+  }, { timeout: 30_000, maxWait: 15_000 })
 
   res.json({
     success: true,

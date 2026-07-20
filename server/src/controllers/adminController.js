@@ -513,7 +513,7 @@ const listSubscribers = asyncHandler(async (req, res) => {
     const { resolveSubscriptionType } = require('../services/dealChargeService.js')
     const buyerPlansMatching = []
     const sellerPlansMatching = []
-    const plans = ['BUYER_STANDARD', 'BUYER_LIFETIME', 'SELLER_MONTH', 'SELLER_LIFETIME', 'BOTH_STANDARD_MONTH', 'BOTH_LIFETIME_LIFETIME', 'BOTH_LIFETIME_MONTH', 'BOTH_STANDARD_LIFETIME']
+    const plans = ['BUYER_STANDARD', 'BUYER_MONTHLY', 'BUYER_ANNUAL', 'BUYER_LIFETIME', 'SELLER_MONTH', 'SELLER_MONTHLY', 'SELLER_ANNUAL', 'SELLER_LIFETIME', 'BOTH_MONTHLY', 'BOTH_ANNUAL', 'BOTH_LIFETIME', 'BOTH_STANDARD_MONTH', 'BOTH_LIFETIME_LIFETIME', 'BOTH_LIFETIME_MONTH', 'BOTH_STANDARD_LIFETIME']
     
     for (const plan of plans) {
       if (plan.startsWith('BOTH_')) {
@@ -657,9 +657,9 @@ const subscriberStats = asyncHandler(async (req, res) => {
   let sellerRevenue = 0
   let bothRevenue = 0
 
-  const buyerPlans = ['BUYER_STANDARD', 'BUYER_LIFETIME']
-  const sellerPlans = ['SELLER_MONTH', 'SELLER_LIFETIME']
-  const bundlePlans = ['BOTH_STANDARD_MONTH', 'BOTH_LIFETIME_LIFETIME', 'BOTH_LIFETIME_MONTH', 'BOTH_STANDARD_LIFETIME']
+  const buyerPlans = ['BUYER_STANDARD', 'BUYER_MONTHLY', 'BUYER_ANNUAL', 'BUYER_LIFETIME']
+  const sellerPlans = ['SELLER_MONTH', 'SELLER_MONTHLY', 'SELLER_ANNUAL', 'SELLER_LIFETIME']
+  const bundlePlans = ['BOTH_MONTHLY', 'BOTH_ANNUAL', 'BOTH_LIFETIME', 'BOTH_STANDARD_MONTH', 'BOTH_LIFETIME_LIFETIME', 'BOTH_LIFETIME_MONTH', 'BOTH_STANDARD_LIFETIME']
 
   for (const p of paidPayments) {
     if (buyerPlans.includes(p.plan)) {

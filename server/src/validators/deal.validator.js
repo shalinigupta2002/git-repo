@@ -39,7 +39,7 @@ const verifyDealPaymentBody = z.object({
 })
 
 const chargeConfigIdParam = z.object({
-  id: z.string().uuid(),
+  id: z.string().min(1, 'Config ID or key is required'),
 })
 
 const updateDealChargeConfigBody = z.object({

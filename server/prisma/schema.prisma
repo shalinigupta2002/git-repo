@@ -193,6 +193,29 @@ model Subscription {
   @@map("subscriptions")
 }
 
+/// Database-driven master configuration for subscription plans (V2 & future tiers).
+model SubscriptionPlanMaster {
+  id           String   @id @default(uuid())
+  planKey      String   @unique @map("plan_key") @db.VarChar(64)
+  planName     String   @map("plan_name") @db.VarChar(120)
+  role         Role
+  duration     String   @db.VarChar(32)
+  price        Decimal  @db.Decimal(12, 2)
+  amountPaise  Int      @map("amount_paise")
+  status       String   @default("ACTIVE") @db.VarChar(32)
+  displayOrder Int      @default(0) @map("display_order")
+  description  String?  @db.VarChar(500)
+  features     Json?    @default("[]")
+  icon         String?  @db.VarChar(64)
+  badge        String?  @db.VarChar(64)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@index([status])
+  @@index([role])
+  @@map("subscription_plans")
+}
+
 model Payment {
   id                String           @id @default(uuid())
   userId            String           @map("user_id")

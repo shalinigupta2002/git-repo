@@ -172,55 +172,57 @@ async function calculateDealCharge(client, { userId, audience, totalAmount, curr
 }
 
 /**
- * Seeds default configs for MONTHLY, ANNUAL, LIFETIME.
+ * Seeds default configs for all V2 plans (Monthly, Annual, Lifetime).
  */
 async function ensureDefaultDealChargeConfigs(client) {
   const defaults = [
-    { id: 'setting-monthly', audience: 'SELLER', planKey: 'MONTHLY', displayName: 'Monthly', value: new Prisma.Decimal('10.00'), chargeType: 'PERCENTAGE', currency: 'INR', isActive: true },
-    { id: 'setting-annual', audience: 'BUYER', planKey: 'ANNUAL', displayName: 'Annual', value: new Prisma.Decimal('7.50'), chargeType: 'PERCENTAGE', currency: 'INR', isActive: true },
-    { id: 'setting-lifetime-buyer', audience: 'BUYER', planKey: 'LIFETIME', displayName: 'Lifetime', value: new Prisma.Decimal('5.00'), chargeType: 'PERCENTAGE', currency: 'INR', isActive: true },
-    { id: 'setting-lifetime-seller', audience: 'SELLER', planKey: 'LIFETIME', displayName: 'Lifetime', value: new Prisma.Decimal('5.00'), chargeType: 'PERCENTAGE', currency: 'INR', isActive: true },
+    { id: 'setting-seller-monthly', audience: 'SELLER', planKey: 'SELLER_MONTHLY', displayName: 'Seller Monthly', value: new Prisma.Decimal('4.00'), chargeType: 'PERCENTAGE', currency: 'INR', isActive: true },
+    { id: 'setting-seller-annual', audience: 'SELLER', planKey: 'SELLER_ANNUAL', displayName: 'Seller Annual', value: new Prisma.Decimal('3.00'), chargeType: 'PERCENTAGE', currency: 'INR', isActive: true },
+    { id: 'setting-seller-lifetime', audience: 'SELLER', planKey: 'SELLER_LIFETIME', displayName: 'Seller Lifetime', value: new Prisma.Decimal('2.00'), chargeType: 'PERCENTAGE', currency: 'INR', isActive: true },
+    { id: 'setting-buyer-monthly', audience: 'BUYER', planKey: 'BUYER_MONTHLY', displayName: 'Buyer Monthly', value: new Prisma.Decimal('5.00'), chargeType: 'PERCENTAGE', currency: 'INR', isActive: true },
+    { id: 'setting-buyer-annual', audience: 'BUYER', planKey: 'BUYER_ANNUAL', displayName: 'Buyer Annual', value: new Prisma.Decimal('4.00'), chargeType: 'PERCENTAGE', currency: 'INR', isActive: true },
+    { id: 'setting-buyer-lifetime', audience: 'BUYER', planKey: 'BUYER_LIFETIME', displayName: 'Buyer Lifetime', value: new Prisma.Decimal('3.00'), chargeType: 'PERCENTAGE', currency: 'INR', isActive: true },
+    { id: 'setting-both-monthly', audience: 'BUYER', planKey: 'BOTH_MONTHLY', displayName: 'Both Monthly', value: new Prisma.Decimal('3.50'), chargeType: 'PERCENTAGE', currency: 'INR', isActive: true },
+    { id: 'setting-both-annual', audience: 'BUYER', planKey: 'BOTH_ANNUAL', displayName: 'Both Annual', value: new Prisma.Decimal('2.50'), chargeType: 'PERCENTAGE', currency: 'INR', isActive: true },
+    { id: 'setting-both-lifetime', audience: 'BUYER', planKey: 'BOTH_LIFETIME', displayName: 'Both Lifetime', value: new Prisma.Decimal('1.50'), chargeType: 'PERCENTAGE', currency: 'INR', isActive: true },
+    
+    // Legacy fallbacks for backward compatibility
+    { id: 'setting-monthly', audience: 'SELLER', planKey: 'MONTHLY', displayName: 'Monthly', value: new Prisma.Decimal('4.00'), chargeType: 'PERCENTAGE', currency: 'INR', isActive: true },
+    { id: 'setting-annual', audience: 'BUYER', planKey: 'ANNUAL', displayName: 'Annual', value: new Prisma.Decimal('4.00'), chargeType: 'PERCENTAGE', currency: 'INR', isActive: true },
+    { id: 'setting-lifetime-buyer', audience: 'BUYER', planKey: 'LIFETIME', displayName: 'Lifetime', value: new Prisma.Decimal('3.00'), chargeType: 'PERCENTAGE', currency: 'INR', isActive: true },
+    { id: 'setting-lifetime-seller', audience: 'SELLER', planKey: 'LIFETIME', displayName: 'Lifetime', value: new Prisma.Decimal('2.00'), chargeType: 'PERCENTAGE', currency: 'INR', isActive: true },
   ]
+
   for (const item of defaults) {
     await client.dealChargeConfig.upsert({
       where: {
         audience_planKey: {
           audience: item.audience,
           planKey: item.planKey,
-        }
+        },
       },
       create: item,
       update: {
         displayName: item.displayName,
         isActive: true,
-      }
+      },
     })
   }
-
-  // Deactivate old, non-standard configuration rows to prevent showing them in Admin UI
-  await client.dealChargeConfig.updateMany({
-    where: {
-      planKey: { notIn: ['MONTHLY', 'ANNUAL', 'LIFETIME'] }
-    },
-    data: {
-      isActive: false
-    }
-  })
 }
 
 /**
- * Dynamically recalculates any pending deal payments when fetched or processed.
- * Ensures unpaid deal charges are kept in sync with the latest admin settings.
+ * Ensures missing deal charges are calculated upon creation.
+ * Frozen Deal Charge Rule: Historical deals preserve their frozen charge rate.
  */
 async function recalculatePendingDealCharges(client, deal) {
   if (!deal || !deal.payments) return deal
 
-  const pendingPayments = deal.payments.filter((p) => p.paymentStatus === 'PENDING')
-  if (pendingPayments.length === 0) return deal
+  const unassignedPayments = deal.payments.filter((p) => !p.amount || Number(p.amount) === 0)
+  if (unassignedPayments.length === 0) return deal
 
   let hasChanges = false
 
-  for (const payment of pendingPayments) {
+  for (const payment of unassignedPayments) {
     const role = payment.payerRole
     const userId = role === 'BUYER' ? deal.buyerId : deal.sellerId
 
@@ -228,36 +230,32 @@ async function recalculatePendingDealCharges(client, deal) {
     try {
       planType = await resolveActivePlanType(client, userId, role)
     } catch (e) {
-      logger.warn({ dealId: deal.id, userId, role, err: e.message }, 'Failed to resolve active subscription plan type during charge recalculation')
+      logger.warn({ dealId: deal.id, userId, role, err: e.message }, 'Failed to resolve active subscription plan type')
       continue
     }
 
     const config = await findActiveChargeConfig(client, role, planType)
     const newAmount = calculateChargeAmount(config, deal.totalAmount)
 
-    const currentAmount = new Prisma.Decimal(payment.amount.toString())
-    if (!newAmount.equals(currentAmount)) {
-      hasChanges = true
+    hasChanges = true
+    await client.dealPayment.update({
+      where: { id: payment.id },
+      data: { amount: newAmount },
+    })
 
-      await client.dealPayment.update({
-        where: { id: payment.id },
-        data: { amount: newAmount },
-      })
-
-      const dealData = {}
-      if (role === 'BUYER') {
-        dealData.buyerDealCharge = newAmount
-        dealData.buyerChargeConfigId = config.id
-      } else {
-        dealData.sellerDealCharge = newAmount
-        dealData.sellerChargeConfigId = config.id
-      }
-
-      await client.deal.update({
-        where: { id: deal.id },
-        data: dealData,
-      })
+    const dealData = {}
+    if (role === 'BUYER') {
+      dealData.buyerDealCharge = newAmount
+      dealData.buyerChargeConfigId = config.id
+    } else {
+      dealData.sellerDealCharge = newAmount
+      dealData.sellerChargeConfigId = config.id
     }
+
+    await client.deal.update({
+      where: { id: deal.id },
+      data: dealData,
+    })
   }
 
   if (hasChanges) {

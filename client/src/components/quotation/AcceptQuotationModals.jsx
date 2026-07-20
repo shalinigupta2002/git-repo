@@ -19,10 +19,10 @@ export function AcceptConfirmModal({ open, request, busy, onConfirm, onCancel })
           An order will be created and you will proceed to pay the platform deal charge.
         </p>
         <div className="modal__footer">
-          <button type="button" className="btnOutline" onClick={onCancel} disabled={busy}>
+          <button type="button" className="btnOutline" onClick={(e) => { e.stopPropagation(); onCancel() }} disabled={busy}>
             Cancel
           </button>
-          <button type="button" className="btnPrimary" onClick={onConfirm} disabled={busy}>
+          <button type="button" className="btnPrimary" onClick={(e) => { e.stopPropagation(); onConfirm() }} disabled={busy}>
             {busy ? 'Accepting…' : 'Accept Quotation'}
           </button>
         </div>

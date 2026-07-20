@@ -396,6 +396,10 @@ describe('Deal Management APIs', () => {
 
   test('200 – admin lists charge configs', async () => {
     mockAuthenticatedAdmin()
+    prisma.dealChargeConfig.upsert.mockResolvedValue({})
+    prisma.dealChargeConfig.updateMany.mockResolvedValue({ count: 0 })
+    prisma.user.findMany.mockResolvedValue([])
+    prisma.deal.count.mockResolvedValue(0)
     prisma.dealChargeConfig.findMany.mockResolvedValue([
       {
         id: 'cfg-buyer',
@@ -420,6 +424,8 @@ describe('Deal Management APIs', () => {
 
   test('200 – admin updates charge config', async () => {
     mockAuthenticatedAdmin()
+    prisma.dealChargeConfig.upsert.mockResolvedValue({})
+    prisma.dealChargeConfig.updateMany.mockResolvedValue({ count: 0 })
     prisma.dealChargeConfig.findUnique.mockResolvedValue({
       id: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee',
       audience: 'BUYER',

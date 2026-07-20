@@ -72,9 +72,9 @@ describe('dealCreationService integration', () => {
       moq: 5,
       name: 'Industrial Pump',
     })
-    prisma.subscription.findFirst
-      .mockResolvedValueOnce({ plan: 'BUYER_LIFETIME' })
-      .mockResolvedValueOnce({ plan: 'SELLER_LIFETIME' })
+    prisma.subscription.findMany
+      .mockResolvedValueOnce([{ plan: 'BUYER_LIFETIME' }])
+      .mockResolvedValueOnce([{ plan: 'SELLER_LIFETIME' }])
     prisma.dealChargeConfig.findFirst
       .mockResolvedValueOnce(buyerConfig)
       .mockResolvedValueOnce(sellerConfig)
@@ -168,7 +168,7 @@ describe('dealCreationService integration', () => {
     prisma.deal.findUnique.mockResolvedValue(null)
     prisma.dealNumberCounter.upsert.mockResolvedValue({ year: 2026, lastValue: 2 })
     prisma.product.findUnique.mockResolvedValue({ id: 'product-1', sku: 'SKU-001', moq: 1, name: 'Pump' })
-    prisma.subscription.findFirst.mockResolvedValue({ plan: 'BUYER_LIFETIME' })
+    prisma.subscription.findMany.mockResolvedValue([{ plan: 'BUYER_LIFETIME' }])
     prisma.dealChargeConfig.findFirst.mockResolvedValue(null)
 
     await expect(createDealFromAcceptedQuote(prisma, {

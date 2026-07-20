@@ -112,8 +112,8 @@ export function AdminDealChargeConfig() {
   }
 
   const getCardGradient = (planKey) => {
-    if (planKey === 'MONTHLY') return 'linear-gradient(135deg, #14b8a6 0%, #0d9488 100%)'
-    if (planKey === 'ANNUAL') return 'linear-gradient(135deg, #4f46e5 0%, #3730a3 100%)'
+    if (planKey.includes('MONTHLY')) return 'linear-gradient(135deg, #14b8a6 0%, #0d9488 100%)'
+    if (planKey.includes('ANNUAL')) return 'linear-gradient(135deg, #4f46e5 0%, #3730a3 100%)'
     return 'linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%)'
   }
 
@@ -155,7 +155,7 @@ export function AdminDealChargeConfig() {
                 {/* Header Band */}
                 <div style={{ background: getCardGradient(config.planKey), padding: '1.5rem', color: '#fff' }}>
                   <span style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', background: 'rgba(255,255,255,0.2)', padding: '0.25rem 0.625rem', borderRadius: '20px' }}>
-                    {config.audience} PLAN
+                    {config.planKey.startsWith('BOTH_') ? 'BOTH PLAN' : `${config.audience} PLAN`}
                   </span>
                   <h3 style={{ margin: '0.75rem 0 0', fontSize: '1.5rem', fontWeight: 800 }}>{config.displayName}</h3>
                 </div>

@@ -93,9 +93,9 @@ function mockDealCreationForAccept() {
     })
 
   prisma.dealNumberCounter.upsert.mockResolvedValue({ year: 2026, lastValue: 1 })
-  prisma.subscription.findFirst
-    .mockResolvedValueOnce({ id: 'sub-buyer', plan: 'BUYER_LIFETIME', status: 'ACTIVE' })
-    .mockResolvedValueOnce({ id: 'sub-seller', plan: 'SELLER_LIFETIME', status: 'ACTIVE' })
+  prisma.subscription.findMany
+    .mockResolvedValueOnce([{ id: 'sub-buyer', plan: 'BUYER_LIFETIME', status: 'ACTIVE' }])
+    .mockResolvedValueOnce([{ id: 'sub-seller', plan: 'SELLER_LIFETIME', status: 'ACTIVE' }])
   prisma.dealChargeConfig.findFirst
     .mockResolvedValueOnce(buyerConfig)
     .mockResolvedValueOnce(sellerConfig)

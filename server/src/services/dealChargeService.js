@@ -3,24 +3,42 @@
 const { Prisma } = require('@prisma/client')
 const { AppError } = require('../utils/AppError.js')
 const logger = require('../config/logger.js')
+const { resolveCanonicalPlanKey } = require('./subscriptionMasterService.js')
 
-const BUYER_SUBSCRIPTION_PLANS = [
-  'BUYER_STANDARD',
+/** Public pricing-page plans — exactly one deal charge config each. */
+const PUBLIC_DEAL_CHARGE_PLAN_KEYS = Object.freeze([
+  'BUYER_MONTHLY',
+  'BUYER_ANNUAL',
   'BUYER_LIFETIME',
-  'BOTH_STANDARD_MONTH',
-  'BOTH_LIFETIME_LIFETIME',
-  'BOTH_LIFETIME_MONTH',
-  'BOTH_STANDARD_LIFETIME',
-]
-
-const SELLER_SUBSCRIPTION_PLANS = [
-  'SELLER_MONTH',
+  'SELLER_MONTHLY',
+  'SELLER_ANNUAL',
   'SELLER_LIFETIME',
+  'BOTH_MONTHLY',
+  'BOTH_ANNUAL',
+  'BOTH_LIFETIME',
+])
+
+const LEGACY_SUBSCRIPTION_PLANS = Object.freeze([
+  'BUYER_STANDARD',
+  'SELLER_MONTH',
   'BOTH_STANDARD_MONTH',
   'BOTH_LIFETIME_LIFETIME',
   'BOTH_LIFETIME_MONTH',
   'BOTH_STANDARD_LIFETIME',
-]
+])
+
+const ALL_SUBSCRIPTION_PLANS = Object.freeze([
+  ...PUBLIC_DEAL_CHARGE_PLAN_KEYS,
+  ...LEGACY_SUBSCRIPTION_PLANS,
+])
+
+const BUYER_SUBSCRIPTION_PLANS = ALL_SUBSCRIPTION_PLANS.filter(
+  (plan) => plan.startsWith('BUYER_') || plan.startsWith('BOTH_'),
+)
+
+const SELLER_SUBSCRIPTION_PLANS = ALL_SUBSCRIPTION_PLANS.filter(
+  (plan) => plan.startsWith('SELLER_') || plan.startsWith('BOTH_'),
+)
 
 function plansForAudience(audience) {
   if (audience === 'BUYER') return BUYER_SUBSCRIPTION_PLANS
@@ -28,17 +46,25 @@ function plansForAudience(audience) {
   throw new AppError(`Unknown charge audience: ${audience}`, 500, 'INVALID_AUDIENCE')
 }
 
+function planAppliesToAudience(planKey, audience) {
+  const canonical = resolveCanonicalPlanKey(planKey)
+  if (canonical.startsWith('BOTH_')) return true
+  if (audience === 'BUYER' && canonical.startsWith('BUYER_')) return true
+  if (audience === 'SELLER' && canonical.startsWith('SELLER_')) return true
+  return false
+}
+
 /**
- * Resolve the active subscription plan key for charge lookup.
+ * Resolve the active subscription plan key for deal charge lookup.
  * @param {import('@prisma/client').Prisma.TransactionClient} client
  */
 async function resolveActivePlanKey(client, userId, audience) {
   const now = new Date()
-  const subscription = await client.subscription.findFirst({
+  const subscriptions = await client.subscription.findMany({
     where: {
       userId,
       status: 'ACTIVE',
-      plan: { in: plansForAudience(audience) },
+      plan: { in: ALL_SUBSCRIPTION_PLANS },
       OR: [
         { expiresAt: null },
         { expiresAt: { gt: now } },
@@ -48,76 +74,62 @@ async function resolveActivePlanKey(client, userId, audience) {
     select: { plan: true },
   })
 
-  if (!subscription) {
-    throw new AppError(
-      `Active ${audience.toLowerCase()} subscription is required for deal charges.`,
-      403,
-      'INACTIVE_SUBSCRIPTION',
-    )
+  for (const subscription of subscriptions) {
+    const canonical = resolveCanonicalPlanKey(subscription.plan)
+    if (planAppliesToAudience(canonical, audience)) {
+      return canonical
+    }
   }
 
-  return subscription.plan
+  throw new AppError(
+    `Active ${audience.toLowerCase()} subscription is required for deal charges.`,
+    403,
+    'INACTIVE_SUBSCRIPTION',
+  )
 }
 
 /**
- * Single source of truth for resolving subscription plans to one of:
- * - MONTHLY
- * - ANNUAL
- * - LIFETIME
+ * Legacy helper — maps any plan key to MONTHLY | ANNUAL | LIFETIME for admin analytics.
+ * Kept for backward compatibility with existing admin reporting.
  */
 function resolveSubscriptionType(plan, audience) {
   if (!plan) return null
 
-  let resolvedPlan = plan
-  if (plan.startsWith('BOTH_')) {
-    const { grantsForPlan } = require('../config/subscriptionPlans.js')
-    const grants = grantsForPlan(plan) || []
-    const match = grants.find((g) => {
-      if (audience === 'BUYER') return g.plan.startsWith('BUYER_')
-      if (audience === 'SELLER') return g.plan.startsWith('SELLER_')
-      return false
-    })
-    if (match) {
-      resolvedPlan = match.plan
-    }
-  }
+  const canonical = resolveCanonicalPlanKey(plan)
+  if (canonical.endsWith('_MONTHLY')) return 'MONTHLY'
+  if (canonical.endsWith('_ANNUAL')) return 'ANNUAL'
+  if (canonical.endsWith('_LIFETIME')) return 'LIFETIME'
 
-  if (resolvedPlan === 'BUYER_STANDARD') return 'ANNUAL'
-  if (resolvedPlan === 'BUYER_LIFETIME') return 'LIFETIME'
-  if (resolvedPlan === 'SELLER_MONTH') return 'MONTHLY'
-  if (resolvedPlan === 'SELLER_LIFETIME') return 'LIFETIME'
+  if (canonical === 'MONTHLY' || canonical === 'ANNUAL' || canonical === 'LIFETIME') {
+    return canonical
+  }
 
   return null
 }
 
-async function resolveActivePlanType(client, userId, audience) {
-  const planKey = await resolveActivePlanKey(client, userId, audience)
-  const planType = resolveSubscriptionType(planKey, audience)
-  if (!planType) {
-    throw new AppError(
-      `Unable to map plan ${planKey} to a subscription type for audience ${audience}.`,
-      500,
-      'INVALID_PLAN_MAPPING',
-    )
-  }
-  return planType
+async function resolveActiveChargePlanKey(client, userId, audience) {
+  return resolveActivePlanKey(client, userId, audience)
 }
 
 /**
  * @param {import('@prisma/client').Prisma.TransactionClient} client
  */
 async function findActiveChargeConfig(client, audience, planKey) {
-  const config = await client.dealChargeConfig.findFirst({
-    where: {
-      audience,
-      planKey,
-      isActive: true,
-    },
-  })
+  const canonical = resolveCanonicalPlanKey(planKey)
+  const where = {
+    planKey: canonical,
+    isActive: true,
+  }
+
+  if (!canonical.startsWith('BOTH_')) {
+    where.audience = audience
+  }
+
+  const config = await client.dealChargeConfig.findFirst({ where })
 
   if (!config) {
     throw new AppError(
-      `No active deal charge configuration for ${audience} plan ${planKey}.`,
+      `No active deal charge configuration for plan ${canonical}.`,
       422,
       'MISSING_CHARGE_CONFIG',
     )
@@ -142,13 +154,13 @@ function calculateChargeAmount(config, totalAmount) {
  * @param {import('@prisma/client').Prisma.TransactionClient} client
  */
 async function calculateDealCharge(client, { userId, audience, totalAmount, currency = 'INR' }) {
-  const planType = await resolveActivePlanType(client, userId, audience)
-  const config = await findActiveChargeConfig(client, audience, planType)
+  const chargePlanKey = await resolveActiveChargePlanKey(client, userId, audience)
+  const config = await findActiveChargeConfig(client, audience, chargePlanKey)
   const amount = calculateChargeAmount(config, totalAmount)
 
   const result = Object.freeze({
     audience,
-    planKey: planType,
+    planKey: chargePlanKey,
     configId: config.id,
     chargeType: config.chargeType,
     rate: config.value,
@@ -161,7 +173,7 @@ async function calculateDealCharge(client, { userId, audience, totalAmount, curr
     {
       userId,
       audience,
-      planType,
+      chargePlanKey,
       chargeType: config.chargeType,
       amount: amount.toString(),
     },
@@ -171,29 +183,23 @@ async function calculateDealCharge(client, { userId, audience, totalAmount, curr
   return result
 }
 
+const DEFAULT_PUBLIC_CHARGE_CONFIGS = [
+  { id: 'setting-buyer-monthly', audience: 'BUYER', planKey: 'BUYER_MONTHLY', displayName: 'Buyer Monthly', value: new Prisma.Decimal('5.00'), chargeType: 'PERCENTAGE', currency: 'INR', isActive: true },
+  { id: 'setting-buyer-annual', audience: 'BUYER', planKey: 'BUYER_ANNUAL', displayName: 'Buyer Annual', value: new Prisma.Decimal('4.00'), chargeType: 'PERCENTAGE', currency: 'INR', isActive: true },
+  { id: 'setting-buyer-lifetime', audience: 'BUYER', planKey: 'BUYER_LIFETIME', displayName: 'Buyer Lifetime', value: new Prisma.Decimal('3.00'), chargeType: 'PERCENTAGE', currency: 'INR', isActive: true },
+  { id: 'setting-seller-monthly', audience: 'SELLER', planKey: 'SELLER_MONTHLY', displayName: 'Seller Monthly', value: new Prisma.Decimal('4.00'), chargeType: 'PERCENTAGE', currency: 'INR', isActive: true },
+  { id: 'setting-seller-annual', audience: 'SELLER', planKey: 'SELLER_ANNUAL', displayName: 'Seller Annual', value: new Prisma.Decimal('3.00'), chargeType: 'PERCENTAGE', currency: 'INR', isActive: true },
+  { id: 'setting-seller-lifetime', audience: 'SELLER', planKey: 'SELLER_LIFETIME', displayName: 'Seller Lifetime', value: new Prisma.Decimal('2.00'), chargeType: 'PERCENTAGE', currency: 'INR', isActive: true },
+  { id: 'setting-both-monthly', audience: 'BUYER', planKey: 'BOTH_MONTHLY', displayName: 'Both Monthly', value: new Prisma.Decimal('3.50'), chargeType: 'PERCENTAGE', currency: 'INR', isActive: true },
+  { id: 'setting-both-annual', audience: 'BUYER', planKey: 'BOTH_ANNUAL', displayName: 'Both Annual', value: new Prisma.Decimal('2.50'), chargeType: 'PERCENTAGE', currency: 'INR', isActive: true },
+  { id: 'setting-both-lifetime', audience: 'BUYER', planKey: 'BOTH_LIFETIME', displayName: 'Both Lifetime', value: new Prisma.Decimal('1.50'), chargeType: 'PERCENTAGE', currency: 'INR', isActive: true },
+]
+
 /**
- * Seeds default configs for all V2 plans (Monthly, Annual, Lifetime).
+ * Seeds the 9 public deal charge configs and hides deprecated rows from admin UI.
  */
 async function ensureDefaultDealChargeConfigs(client) {
-  const defaults = [
-    { id: 'setting-seller-monthly', audience: 'SELLER', planKey: 'SELLER_MONTHLY', displayName: 'Seller Monthly', value: new Prisma.Decimal('4.00'), chargeType: 'PERCENTAGE', currency: 'INR', isActive: true },
-    { id: 'setting-seller-annual', audience: 'SELLER', planKey: 'SELLER_ANNUAL', displayName: 'Seller Annual', value: new Prisma.Decimal('3.00'), chargeType: 'PERCENTAGE', currency: 'INR', isActive: true },
-    { id: 'setting-seller-lifetime', audience: 'SELLER', planKey: 'SELLER_LIFETIME', displayName: 'Seller Lifetime', value: new Prisma.Decimal('2.00'), chargeType: 'PERCENTAGE', currency: 'INR', isActive: true },
-    { id: 'setting-buyer-monthly', audience: 'BUYER', planKey: 'BUYER_MONTHLY', displayName: 'Buyer Monthly', value: new Prisma.Decimal('5.00'), chargeType: 'PERCENTAGE', currency: 'INR', isActive: true },
-    { id: 'setting-buyer-annual', audience: 'BUYER', planKey: 'BUYER_ANNUAL', displayName: 'Buyer Annual', value: new Prisma.Decimal('4.00'), chargeType: 'PERCENTAGE', currency: 'INR', isActive: true },
-    { id: 'setting-buyer-lifetime', audience: 'BUYER', planKey: 'BUYER_LIFETIME', displayName: 'Buyer Lifetime', value: new Prisma.Decimal('3.00'), chargeType: 'PERCENTAGE', currency: 'INR', isActive: true },
-    { id: 'setting-both-monthly', audience: 'BUYER', planKey: 'BOTH_MONTHLY', displayName: 'Both Monthly', value: new Prisma.Decimal('3.50'), chargeType: 'PERCENTAGE', currency: 'INR', isActive: true },
-    { id: 'setting-both-annual', audience: 'BUYER', planKey: 'BOTH_ANNUAL', displayName: 'Both Annual', value: new Prisma.Decimal('2.50'), chargeType: 'PERCENTAGE', currency: 'INR', isActive: true },
-    { id: 'setting-both-lifetime', audience: 'BUYER', planKey: 'BOTH_LIFETIME', displayName: 'Both Lifetime', value: new Prisma.Decimal('1.50'), chargeType: 'PERCENTAGE', currency: 'INR', isActive: true },
-    
-    // Legacy fallbacks for backward compatibility
-    { id: 'setting-monthly', audience: 'SELLER', planKey: 'MONTHLY', displayName: 'Monthly', value: new Prisma.Decimal('4.00'), chargeType: 'PERCENTAGE', currency: 'INR', isActive: true },
-    { id: 'setting-annual', audience: 'BUYER', planKey: 'ANNUAL', displayName: 'Annual', value: new Prisma.Decimal('4.00'), chargeType: 'PERCENTAGE', currency: 'INR', isActive: true },
-    { id: 'setting-lifetime-buyer', audience: 'BUYER', planKey: 'LIFETIME', displayName: 'Lifetime', value: new Prisma.Decimal('3.00'), chargeType: 'PERCENTAGE', currency: 'INR', isActive: true },
-    { id: 'setting-lifetime-seller', audience: 'SELLER', planKey: 'LIFETIME', displayName: 'Lifetime', value: new Prisma.Decimal('2.00'), chargeType: 'PERCENTAGE', currency: 'INR', isActive: true },
-  ]
-
-  for (const item of defaults) {
+  for (const item of DEFAULT_PUBLIC_CHARGE_CONFIGS) {
     await client.dealChargeConfig.upsert({
       where: {
         audience_planKey: {
@@ -208,6 +214,13 @@ async function ensureDefaultDealChargeConfigs(client) {
       },
     })
   }
+
+  await client.dealChargeConfig.updateMany({
+    where: {
+      planKey: { notIn: [...PUBLIC_DEAL_CHARGE_PLAN_KEYS] },
+    },
+    data: { isActive: false },
+  })
 }
 
 /**
@@ -226,15 +239,15 @@ async function recalculatePendingDealCharges(client, deal) {
     const role = payment.payerRole
     const userId = role === 'BUYER' ? deal.buyerId : deal.sellerId
 
-    let planType
+    let chargePlanKey
     try {
-      planType = await resolveActivePlanType(client, userId, role)
+      chargePlanKey = await resolveActiveChargePlanKey(client, userId, role)
     } catch (e) {
       logger.warn({ dealId: deal.id, userId, role, err: e.message }, 'Failed to resolve active subscription plan type')
       continue
     }
 
-    const config = await findActiveChargeConfig(client, role, planType)
+    const config = await findActiveChargeConfig(client, role, chargePlanKey)
     const newAmount = calculateChargeAmount(config, deal.totalAmount)
 
     hasChanges = true
@@ -269,8 +282,15 @@ async function recalculatePendingDealCharges(client, deal) {
   return deal
 }
 
+function countPlansMatching(users, planField, targetPlanKey) {
+  const canonicalTarget = resolveCanonicalPlanKey(targetPlanKey)
+  return users.filter((user) => resolveCanonicalPlanKey(user[planField]) === canonicalTarget).length
+}
+
 async function getSubscriberCount(planKey) {
   const { prisma } = require('../config/database.js')
+  const canonical = resolveCanonicalPlanKey(planKey)
+
   const activeBuyers = (await prisma.user.findMany({
     where: { buyerSubscriptionStatus: 'ACTIVE' },
     select: { buyerSubscriptionPlan: true },
@@ -280,21 +300,20 @@ async function getSubscriberCount(planKey) {
     select: { sellerSubscriptionPlan: true },
   })) || []
 
-  const buyerType = resolveSubscriptionType(planKey, 'BUYER')
-  const sellerType = resolveSubscriptionType(planKey, 'SELLER')
-  const chargeType = buyerType || sellerType || planKey
+  if (canonical.startsWith('BOTH_')) {
+    const buyerMatches = countPlansMatching(activeBuyers, 'buyerSubscriptionPlan', canonical)
+    const sellerMatches = countPlansMatching(activeSellers, 'sellerSubscriptionPlan', canonical)
+    return buyerMatches + sellerMatches
+  }
 
-  if (chargeType === 'MONTHLY') {
-    return activeSellers.filter((s) => resolveSubscriptionType(s.sellerSubscriptionPlan, 'SELLER') === 'MONTHLY').length
+  if (canonical.startsWith('BUYER_')) {
+    return countPlansMatching(activeBuyers, 'buyerSubscriptionPlan', canonical)
   }
-  if (chargeType === 'ANNUAL') {
-    return activeBuyers.filter((b) => resolveSubscriptionType(b.buyerSubscriptionPlan, 'BUYER') === 'ANNUAL').length
+
+  if (canonical.startsWith('SELLER_')) {
+    return countPlansMatching(activeSellers, 'sellerSubscriptionPlan', canonical)
   }
-  if (chargeType === 'LIFETIME') {
-    const buyerLft = activeBuyers.filter((b) => resolveSubscriptionType(b.buyerSubscriptionPlan, 'BUYER') === 'LIFETIME').length
-    const sellerLft = activeSellers.filter((s) => resolveSubscriptionType(s.sellerSubscriptionPlan, 'SELLER') === 'LIFETIME').length
-    return buyerLft + sellerLft
-  }
+
   return 0
 }
 
@@ -310,8 +329,8 @@ async function getPendingDealsCount(configId) {
             some: {
               payerRole: 'BUYER',
               paymentStatus: 'PENDING',
-            }
-          }
+            },
+          },
         },
         {
           sellerChargeConfigId: configId,
@@ -319,19 +338,21 @@ async function getPendingDealsCount(configId) {
             some: {
               payerRole: 'SELLER',
               paymentStatus: 'PENDING',
-            }
-          }
-        }
-      ]
-    }
+            },
+          },
+        },
+      ],
+    },
   })
 }
 
 module.exports = {
+  PUBLIC_DEAL_CHARGE_PLAN_KEYS,
   BUYER_SUBSCRIPTION_PLANS,
   SELLER_SUBSCRIPTION_PLANS,
   plansForAudience,
   resolveActivePlanKey,
+  resolveActiveChargePlanKey,
   resolveSubscriptionType,
   findActiveChargeConfig,
   calculateChargeAmount,

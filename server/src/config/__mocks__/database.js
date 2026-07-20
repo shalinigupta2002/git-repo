@@ -105,6 +105,7 @@ const mockPrisma = {
     findMany:  jest.fn(),
     upsert:    jest.fn(),
     update:    jest.fn(),
+    updateMany: jest.fn(),
   },
   dealPayment: {
     findUnique: jest.fn(),

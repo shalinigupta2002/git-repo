@@ -3379,16 +3379,20 @@ button.subBenefitCard.subBenefitCard--selectable.subBenefitCard--selected {
   line-height: 1.6;
 }
 
-/* Pricing page: single-screen layout — no page scroll */
+/* Pricing page: natural scroll, compact layout at 100% zoom */
 html.isPricingPlansPage {
-  overflow: hidden;
-  height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  height: auto;
+  min-height: 100%;
 }
 
 html.isPricingPlansPage,
 html.isPricingPlansPage body {
-  height: 100%;
-  overflow: hidden;
+  height: auto;
+  min-height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 html.isPricingPlansPage,
@@ -3397,11 +3401,11 @@ html.isPricingPlansPage .subPage--pricing {
 }
 
 .subPage--pricing {
-  overflow: hidden;
+  overflow: visible;
   display: flex;
   flex-direction: column;
-  height: 100dvh;
-  max-height: 100dvh;
+  min-height: 100dvh;
+  height: auto;
   background:
     radial-gradient(ellipse 120% 70% at 50% -15%, rgba(37, 99, 235, 0.09), transparent 58%),
     radial-gradient(ellipse 80% 50% at 100% 100%, rgba(59, 130, 246, 0.05), transparent 55%),
@@ -3415,17 +3419,16 @@ html.isPricingPlansPage .subPage--pricing {
 
 .subMain.pricingPlans {
   box-sizing: border-box;
-  max-width: 720px;
+  max-width: 1180px;
   width: 100%;
   margin-left: auto;
   margin-right: auto;
-  padding: 12px 20px 14px;
+  padding: 16px 20px 32px;
   flex: 1 1 auto;
   min-height: 0;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
-  justify-content: center;
+  overflow: visible;
   gap: 0;
 }
 
@@ -3436,18 +3439,17 @@ html.isPricingPlansPage .subPage--pricing {
 @media (max-width: 767.98px) {
   html.isPricingPlansPage,
   html.isPricingPlansPage body {
-    height: 100dvh;
-    overflow: hidden;
+    min-height: 100dvh;
+    overflow-y: auto;
   }
 
   .subPage--pricing {
-    height: 100dvh;
-    max-height: 100dvh;
+    min-height: 100dvh;
+    height: auto;
   }
 
   .subMain.pricingPlans {
-    padding: 10px 16px 12px;
-    justify-content: flex-start;
+    padding: 12px 16px 24px;
   }
 
   .subPage--pricing .subNav {
@@ -9555,4 +9557,310 @@ body,
   background: var(--accent-hover);
   transform: translateY(-1px);
   box-shadow: var(--shadow-lift-sm);
+}
+
+/* ── Pricing V2 compact cards (public /pricing) ── */
+.pricingV2__header {
+  text-align: center;
+  margin-bottom: 1.25rem;
+}
+
+.pricingV2__eyebrow {
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #2563eb;
+  background: #eff6ff;
+  padding: 0.25rem 0.75rem;
+  border-radius: 999px;
+}
+
+.pricingV2__title {
+  font-size: clamp(1.5rem, 2.2vw, 2rem);
+  font-weight: 900;
+  color: #0f172a;
+  margin: 0.75rem 0 0.35rem;
+  letter-spacing: -0.02em;
+}
+
+.pricingV2__subtitle {
+  font-size: 0.9375rem;
+  color: #64748b;
+  max-width: 36rem;
+  margin: 0 auto;
+  line-height: 1.45;
+}
+
+.pricingV2__tabs {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+}
+
+.pricingV2__tab {
+  padding: 0.625rem 1.125rem;
+  border-radius: 12px;
+  font-weight: 800;
+  font-size: 0.875rem;
+  border: 0;
+  cursor: pointer;
+  background: #ffffff;
+  color: #475569;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.pricingV2__tab:hover {
+  color: #0f172a;
+}
+
+.pricingV2__tab--active {
+  background: #0f172a;
+  color: #ffffff;
+  box-shadow: 0 8px 20px -8px rgba(15, 23, 42, 0.35);
+}
+
+.pricingV2__tabBadge {
+  background: #2563eb;
+  color: #fff;
+  font-size: 0.625rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  font-weight: 800;
+}
+
+.pricingV2__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  align-items: stretch;
+}
+
+@media (max-width: 1023.98px) {
+  .pricingV2__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 767.98px) {
+  .pricingV2__grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.pricingV2__card {
+  background: #ffffff;
+  border-radius: 16px;
+  border: 1px solid #e2e8f0;
+  padding: 1.125rem 1rem 1rem;
+  box-shadow: 0 8px 24px -12px rgba(0, 0, 0, 0.12);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 100%;
+  position: relative;
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.pricingV2__card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 16px 32px -14px rgba(37, 99, 235, 0.18);
+}
+
+.pricingV2__card--popular {
+  border: 2px solid #2563eb;
+  box-shadow: 0 14px 28px -12px rgba(37, 99, 235, 0.22);
+}
+
+.pricingV2__badge {
+  position: absolute;
+  top: -10px;
+  right: 14px;
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  color: #fff;
+  font-size: 0.625rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 0.25rem 0.625rem;
+  border-radius: 999px;
+}
+
+.pricingV2__cardBody {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.pricingV2__cardTitle {
+  font-size: 1.0625rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0 0 0.35rem;
+}
+
+.pricingV2__cardDesc {
+  font-size: 0.8125rem;
+  color: #64748b;
+  margin: 0 0 0.875rem;
+  min-height: 2.25rem;
+  line-height: 1.4;
+}
+
+.pricingV2__priceRow {
+  display: flex;
+  align-items: baseline;
+  gap: 0.25rem;
+  margin-bottom: 0.625rem;
+}
+
+.pricingV2__price {
+  font-size: 1.75rem;
+  font-weight: 900;
+  color: #0f172a;
+  letter-spacing: -0.03em;
+}
+
+.pricingV2__period {
+  font-size: 0.8125rem;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.pricingV2__dealFee {
+  background: #f1f5f9;
+  border-radius: 10px;
+  padding: 0.45rem 0.75rem;
+  margin-bottom: 0.875rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.75rem;
+}
+
+.pricingV2__dealFee strong {
+  color: #2563eb;
+  font-size: 0.8125rem;
+}
+
+.pricingV2__features {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  flex: 1 1 auto;
+}
+
+.pricingV2__feature {
+  font-size: 0.8125rem;
+  color: #334155;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+  line-height: 1.35;
+}
+
+.pricingV2__featureMark {
+  color: #16a34a;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+.pricingV2__cta {
+  width: 100%;
+  margin-top: auto;
+  padding: 0.625rem 1rem;
+  border-radius: 12px;
+  font-weight: 800;
+  font-size: 0.875rem;
+  border: 0;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.pricingV2__cta--primary {
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  color: #ffffff;
+  box-shadow: 0 8px 18px -8px rgba(37, 99, 235, 0.45);
+}
+
+.pricingV2__cta--dark {
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  color: #ffffff;
+  box-shadow: 0 8px 18px -8px rgba(15, 23, 42, 0.35);
+}
+
+.pricingV2__cta:disabled {
+  background: #e2e8f0;
+  color: #64748b;
+  cursor: default;
+  box-shadow: none;
+}
+
+.pricingV2__cta:not(:disabled):hover {
+  transform: translateY(-1px);
+}
+
+.pricingV2__compare {
+  margin-top: 1.75rem;
+  background: #fff;
+  border-radius: 16px;
+  border: 1px solid #e2e8f0;
+  padding: 1.25rem 1rem;
+  box-shadow: 0 8px 24px -14px rgba(0, 0, 0, 0.08);
+}
+
+.pricingV2__compareTitle {
+  font-size: 1.125rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0 0 0.25rem;
+  text-align: center;
+}
+
+.pricingV2__compareSub {
+  color: #64748b;
+  font-size: 0.8125rem;
+  text-align: center;
+  margin: 0 0 1rem;
+}
+
+.pricingV2__compareTableWrap {
+  overflow-x: auto;
+}
+
+.pricingV2__compareTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+
+.pricingV2__compareTable th,
+.pricingV2__compareTable td {
+  padding: 0.625rem 0.75rem;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.pricingV2__foot {
+  margin-top: 1.5rem;
+  text-align: center;
+}
+
+.pricingV2__homeLink {
+  color: #64748b;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.pricingV2__homeLink:hover {
+  color: #2563eb;
 }

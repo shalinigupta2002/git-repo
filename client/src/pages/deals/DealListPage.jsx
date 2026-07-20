@@ -39,7 +39,7 @@ export function DealListPage({
   const chargeLabel = role === 'ADMIN' ? 'Charges' : 'Platform Deal Charge'
 
   return (
-    <section className="panel dealPage">
+    <section className="panel dealPage" data-testid="deal-list-page">
       <div className="panelHeader">
         <div>
           <h2 className="panelTitle">{title}</h2>

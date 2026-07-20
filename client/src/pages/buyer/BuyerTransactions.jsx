@@ -78,7 +78,7 @@ export function BuyerTransactions() {
   })
 
   return (
-    <section className="panel">
+    <section className="panel" data-testid="buyer-transactions-page">
       <div className="panelHeader">
         <div>
           <BackNavButton fallback="/buyer/dashboard" label="← Back" className="backNavBtn backNavBtn--inline" />

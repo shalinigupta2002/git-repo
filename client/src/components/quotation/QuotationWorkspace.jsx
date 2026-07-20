@@ -850,7 +850,7 @@ export function QuotationWorkspace({ mode, basePath }) {
   }
 
   return (
-    <div className="rfqWs">
+    <div className="rfqWs" data-testid="quotation-workspace">
       <header className="rfqWsHeader">
         <div className="rfqWsHeader__top">
           <div>
@@ -914,7 +914,7 @@ export function QuotationWorkspace({ mode, basePath }) {
       ) : null}
 
       <div className={`rfqWsMain${mode !== 'buyer' ? ' rfqWsMain--twoCol' : ''}`}>
-        <aside className="rfqWsList rfqWs__card">
+        <aside className="rfqWsList rfqWs__card" data-testid="quotation-workspace-list">
           <div className="rfqWsList__head">
             <div className="rfqWsList__titleRow">
               <h2 className="rfqWsList__title">RFQ List{unreadCount ? ` · ${unreadCount} new` : ''}</h2>

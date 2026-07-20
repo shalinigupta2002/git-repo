@@ -18,9 +18,10 @@ test.describe('Regression — end-to-end marketplace journeys', () => {
   test('buyer session persists across quotation and deals pages', async ({ page }) => {
     await loginViaUi(page, TEST_USERS.buyer)
     await page.goto('/buyer/quotations')
-    await expect(page.getByRole('heading', { name: /RFQs & quotations/i })).toBeVisible()
-    await page.goto('/buyer/transactions')
-    await expect(page.getByRole('heading', { name: /your deals/i })).toBeVisible()
+    await expect(page.getByTestId('quotation-workspace')).toBeVisible()
+    await page.goto('/buyer/deals')
+    await expect(page.getByTestId('deal-list-page')).toBeVisible()
+    await expect(page.getByRole('heading', { name: /my orders/i })).toBeVisible()
   })
 
   test('seller can access products and quotations workspaces', async ({ page }) => {
@@ -29,6 +30,7 @@ test.describe('Regression — end-to-end marketplace journeys', () => {
     await expect(page.getByRole('heading').first()).toBeVisible()
     await page.goto('/seller/quotations')
     await expect(page.getByRole('heading', { name: /Incoming RFQs/i })).toBeVisible()
+    await expect(page.getByTestId('quotation-workspace-list')).toBeVisible()
   })
 
   test('catalog API returns masked seller identity', async ({ request }) => {

@@ -192,7 +192,7 @@ export function BuyerDashboard() {
             </p>
           </div>
 
-          <div className="metricCard metricCard--blue">
+          <div className="metricCard metricCard--blue" data-testid="metric-active-orders">
             <div className="metricCard__label">Active orders</div>
             <div className={`metricCard__value${stats.loading ? ' metricCard__value--loading' : ''}`}>
               {stats.loading ? <Spinner size="sm" /> : stats.active}

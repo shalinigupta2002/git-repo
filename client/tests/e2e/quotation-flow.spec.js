@@ -11,8 +11,8 @@ test.describe('Quotation flow (API-assisted)', () => {
     await page.goto('/buyer/quotations')
     const listResponse = await listResponsePromise
 
-    await expect(page.getByRole('heading', { name: /RFQs & quotations/i, level: 1 })).toBeVisible()
-    await expect(page.getByRole('heading', { name: 'Inbox', level: 2 })).toBeVisible()
+    await expect(page.getByTestId('quotation-workspace')).toBeVisible()
+    await expect(page.getByTestId('quotation-workspace-list')).toBeVisible()
 
     if (listResponse.ok()) {
       const body = await listResponse.json()
@@ -35,7 +35,7 @@ test.describe('Quotation flow (API-assisted)', () => {
     const listResponse = await listResponsePromise
 
     await expect(page.getByRole('heading', { name: /Incoming RFQs/i, level: 1 })).toBeVisible()
-    await expect(page.getByRole('heading', { name: 'Inbox', level: 2 })).toBeVisible()
+    await expect(page.getByTestId('quotation-workspace-list')).toBeVisible()
 
     if (listResponse.ok()) {
       const body = await listResponse.json()
@@ -46,7 +46,8 @@ test.describe('Quotation flow (API-assisted)', () => {
 
   test('buyer deals page loads after accept flow path', async ({ page }) => {
     await loginViaUi(page, TEST_USERS.buyer)
-    await page.goto('/buyer/transactions')
-    await expect(page.getByRole('heading', { name: /your deals/i, level: 2 })).toBeVisible()
+    await page.goto('/buyer/deals')
+    await expect(page.getByTestId('deal-list-page')).toBeVisible()
+    await expect(page.getByRole('heading', { name: /my orders/i, level: 2 })).toBeVisible()
   })
 })

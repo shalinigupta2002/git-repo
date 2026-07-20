@@ -14,6 +14,10 @@ const DEAL_API_INCLUDE = {
       id: true,
       rfqNumber: true,
       status: true,
+      message: true,
+      deliveryLocation: true,
+      expectedDeliveryDate: true,
+      freightNote: true,
     },
   },
 }

@@ -1,11 +1,27 @@
 /** Shared deal formatting and payment helpers for buyer, seller, and admin UI. */
 
+export const BUYER_LIFECYCLE_STATUS = Object.freeze({
+  QUOTATION_ACCEPTED: 'Quotation Accepted',
+  ORDER_CREATED: 'Order Created',
+  DEAL_CHARGE_PENDING: 'Deal Charge Pending',
+  CONTACT_UNLOCKED: 'Contact Unlocked',
+  CANCELLED: 'Cancelled',
+})
+
+export const BUYER_STATUS_BADGE = Object.freeze({
+  QUOTATION_ACCEPTED: 'b2bBadge--blue',
+  ORDER_CREATED: 'b2bBadge--blue',
+  DEAL_CHARGE_PENDING: 'b2bBadge--amber',
+  CONTACT_UNLOCKED: 'b2bBadge--green',
+  CANCELLED: 'b2bBadge--grey',
+})
+
 export const DEAL_STATUS_LABELS = Object.freeze({
-  QUOTATION_ACCEPTED: 'Quotation accepted',
-  DEAL_CREATED: 'Deal created',
-  PAYMENT_PENDING: 'Payment pending',
-  ACTIVE: 'Active',
-  COMPLETED: 'Completed',
+  QUOTATION_ACCEPTED: 'Quotation Accepted',
+  DEAL_CREATED: 'Order Created',
+  PAYMENT_PENDING: 'Deal Charge Pending',
+  ACTIVE: 'Contact Unlocked',
+  COMPLETED: 'Contact Unlocked',
   CANCELLED: 'Cancelled',
   DISPUTED: 'Disputed',
 })
@@ -20,6 +36,11 @@ export const DEAL_STATUS_BADGE = Object.freeze({
   DISPUTED: 'b2bBadge--amber',
 })
 
+export const UNLOCKED_INFO_NOTICE = Object.freeze({
+  TITLE: 'Contact Details Unlocked',
+  DESC: 'Contact details have been unlocked successfully. From this point onward Buyer and Seller will communicate directly. Pricing, logistics, delivery, payment settlement and order execution happen outside the platform. The platform does not monitor or track offline business after contact details are unlocked.',
+})
+
 export const PAYMENT_STATUS_BADGE = Object.freeze({
   PENDING: 'b2bBadge--amber',
   SUCCESS: 'b2bBadge--green',
@@ -27,15 +48,15 @@ export const PAYMENT_STATUS_BADGE = Object.freeze({
 })
 
 export const TIMELINE_EVENT_LABELS = Object.freeze({
-  DEAL_CREATED: 'Deal created',
-  CHARGE_CALCULATED: 'Platform charges calculated',
-  PAYMENT_CREATED: 'Payment pending',
-  PAYMENT_SUCCESS: 'Payment received',
-  PAYMENT_FAILED: 'Payment failed',
-  STATUS_CHANGED: 'Status updated',
-  CONTACT_UNLOCKED: 'Contact unlocked',
-  DEAL_COMPLETED: 'Deal completed',
-  ADMIN_OVERRIDE: 'Admin override',
+  DEAL_CREATED: 'Order Created',
+  CHARGE_CALCULATED: 'Platform Deal Charge Calculated',
+  PAYMENT_CREATED: 'Deal Charge Pending',
+  PAYMENT_SUCCESS: 'Payment Completed',
+  PAYMENT_FAILED: 'Payment Failed',
+  STATUS_CHANGED: 'Status Updated',
+  CONTACT_UNLOCKED: 'Contact Details Unlocked',
+  DEAL_COMPLETED: 'Business Continues Offline',
+  ADMIN_OVERRIDE: 'Admin Override',
 })
 
 export const DEAL_SORT_OPTIONS = Object.freeze([
@@ -106,6 +127,8 @@ export function buildCounterpartyProfile(user) {
     phone: address?.phone ?? user?.phone ?? null,
     email: user?.email ?? null,
     gst: user?.gst ?? null,
+    website: user?.website ?? null,
+    businessDescription: user?.businessDescription ?? null,
     addressLine1: address?.line1 ?? user?.addressLine1 ?? null,
     addressLine2: address?.line2 ?? user?.addressLine2 ?? null,
     postalCode: address?.postalCode ?? user?.postalCode ?? null,
@@ -113,7 +136,38 @@ export function buildCounterpartyProfile(user) {
 }
 
 export function isDealContactUnlocked(deal) {
-  return deal?.contactUnlockStatus === 'UNLOCKED'
+  if (!deal) return false
+  if (deal.contactUnlockStatus === 'UNLOCKED') return true
+  const buyerPayment = getDealPayment(deal, 'BUYER')
+  const sellerPayment = getDealPayment(deal, 'SELLER')
+  return Boolean(
+    buyerPayment?.paymentStatus === 'SUCCESS'
+    && sellerPayment?.paymentStatus === 'SUCCESS',
+  )
+}
+
+export function getBuyerVisibleStatus(deal) {
+  if (!deal) return 'Unknown'
+  if (isDealContactUnlocked(deal)) return 'Contact Unlocked'
+  return DEAL_STATUS_LABELS[deal.status] || deal.status || 'Unknown'
+}
+
+export function getSellerVisibleStatus(deal) {
+  if (!deal) return 'Unknown'
+  if (isDealContactUnlocked(deal)) return 'Contact Unlocked'
+  return DEAL_STATUS_LABELS[deal.status] || deal.status || 'Unknown'
+}
+
+export function getAdminVisibleStatus(deal) {
+  if (!deal) return 'Unknown'
+  if (isDealContactUnlocked(deal)) return 'Contact Unlocked'
+  return DEAL_STATUS_LABELS[deal.status] || deal.status || 'Unknown'
+}
+
+export function getRoleVisibleStatus(deal, role = 'BUYER') {
+  if (role === 'SELLER') return getSellerVisibleStatus(deal)
+  if (role === 'ADMIN') return getAdminVisibleStatus(deal)
+  return getBuyerVisibleStatus(deal)
 }
 
 export function canPayDealCharge(deal, viewerRole) {

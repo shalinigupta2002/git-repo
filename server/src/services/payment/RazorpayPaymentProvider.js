@@ -2,19 +2,18 @@
 
 const PaymentProvider = require('./PaymentProvider.js')
 const { AppError } = require('../../utils/AppError.js')
+const { isRazorpayDealPaymentsAvailable } = require('./dealRazorpayService.js')
 
 class RazorpayPaymentProvider extends PaymentProvider {
   isAvailable() {
-    // Razorpay provider is not available yet (requires credential config / keys).
-    return false
+    return isRazorpayDealPaymentsAvailable()
   }
 
-  async processPayment(tx, { dealId, payerRole, actorUserId }) {
-    // Structural support for future Razorpay integration.
+  async processPayment() {
     throw new AppError(
-      'Razorpay deal payments are not available. Configure a production payment provider.',
-      503,
-      'PAYMENT_PROVIDER_UNAVAILABLE',
+      'Use POST /pay/order and POST /pay/verify for Razorpay deal charge payments.',
+      400,
+      'USE_RAZORPAY_CHECKOUT',
     )
   }
 }

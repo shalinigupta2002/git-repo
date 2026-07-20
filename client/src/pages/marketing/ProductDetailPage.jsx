@@ -2,6 +2,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import toast from 'react-hot-toast'
 import { BrandLogo } from '../../components/common/BrandLogo.jsx'
+import { BackNavButton } from '../../components/common/BackNavButton.jsx'
 import { MyDashboardMenu } from '../../components/common/MyDashboardMenu.jsx'
 import { ErrorState } from '../../components/common/ErrorState.jsx'
 import { SubscribeFeatureAlert } from '../../components/common/SubscribeFeatureAlert.jsx'
@@ -169,7 +170,7 @@ export function ProductDetailPage() {
 
           <nav className="mpNav" aria-label="Primary">
             <Link to="/" className="mpNav__link">Home</Link>
-            <Link to="/products" className="mpNav__link mpNav__link--current">Product</Link>
+            <Link to="/products" className="mpNav__link mpNav__link--current">Products</Link>
             <Link to="/pricing" className="mpNav__link">Pricing</Link>
             <Link to="/contact" className="mpNav__link">Help &amp; Contact</Link>
             {authInitialized && isAuthenticated ? (
@@ -184,6 +185,7 @@ export function ProductDetailPage() {
 
       <main className="pdMain">
         <div className="pdShell">
+          <BackNavButton fallback="/products" label="← Back" className="backNavBtn backNavBtn--inline" />
           <nav className="pdBreadcrumb" aria-label="Breadcrumb">
             <Link to="/">Home</Link>
             <span aria-hidden>/</span>
@@ -248,7 +250,7 @@ export function ProductDetailPage() {
 
                   <div className="pdInfo__supplier">
                     {product.source === 'seller' && product.seller ? (
-                      <SellerIdentity seller={product.seller} />
+                      <SellerIdentity seller={product.seller} compact showLabel showId={true} />
                     ) : (
                       <>
                         <strong>Supplier:</strong> {product.brand?.name || '—'}

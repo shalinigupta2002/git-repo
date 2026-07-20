@@ -23,6 +23,7 @@ const { recordQuoteRevision, listQuoteRevisions, serializeRevision } = require('
 const { pickUserCity, mapMaskedParty, USER_PUBLIC_SELECT, buildPartyMetaFromRequest } = require('../services/sellerProfileService.js')
 const { serializeCounterpartyUser } = require('../services/counterpartyProfileService.js')
 const { serializeOrder } = require('../utils/serialize.js')
+const { serializeDeal } = require('../utils/serializeDeal.js')
 const {
   displayRfqRef,
   listGroupedFromRows,
@@ -774,6 +775,7 @@ const buyerAccept = asyncHandler(async (req, res) => {
     data: {
       request: sanitizeQuoteRequestForBuyer(result.request),
       order: serializeOrder(result.order),
+      deal: serializeDeal(result.deal),
       notSelectedSiblingCount: result.notSelectedSiblingCount,
     },
   })

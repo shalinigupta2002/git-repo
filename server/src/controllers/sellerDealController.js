@@ -9,6 +9,13 @@ const {
 } = require('../services/dealAccessService.js')
 const { prisma } = require('../config/database.js')
 const { processDealPayment } = require('../services/dealPaymentService.js')
+const {
+  createDealPaymentOrder,
+  verifyDealPayment,
+  isRazorpayDealPaymentsAvailable,
+} = require('../services/payment/dealRazorpayService.js')
+const PaymentProviderFactory = require('../services/payment/PaymentProviderFactory.js')
+const { AppError } = require('../utils/AppError.js')
 
 const list = asyncHandler(async (req, res) => {
   const result = await listDeals({
@@ -26,13 +33,13 @@ const getById = asyncHandler(async (req, res) => {
   const deal = await getDealById(req.params.dealId)
   assertSellerDealOwnership(req.user, deal)
 
-  sendSuccess(res, { deal: serializeDeal(deal) })
+  sendSuccess(res, {
+    deal: serializeDeal(deal),
+    paymentProvider: isRazorpayDealPaymentsAvailable() ? 'razorpay' : 'demo',
+  })
 })
 
 const pay = asyncHandler(async (req, res) => {
-  const PaymentProviderFactory = require('../services/payment/PaymentProviderFactory.js')
-  const { AppError } = require('../utils/AppError.js')
-
   const provider = PaymentProviderFactory.getProvider()
   if (!provider.isAvailable()) {
     throw new AppError(
@@ -54,4 +61,52 @@ const pay = asyncHandler(async (req, res) => {
   sendSuccess(res, { deal: serializeDeal(updated) })
 })
 
-module.exports = { list, getById, pay }
+const createPayOrder = asyncHandler(async (req, res) => {
+  if (!isRazorpayDealPaymentsAvailable()) {
+    throw new AppError(
+      'Razorpay deal payments are not configured.',
+      503,
+      'RAZORPAY_NOT_CONFIGURED',
+    )
+  }
+
+  const deal = await getDealById(req.params.dealId)
+  assertSellerDealOwnership(req.user, deal)
+
+  const order = await createDealPaymentOrder(prisma, {
+    dealId: deal.id,
+    payerRole: 'SELLER',
+    actorUserId: req.user.id,
+  })
+
+  if (order.alreadyPaid) {
+    sendSuccess(res, { deal: serializeDeal(order.deal), alreadyPaid: true })
+    return
+  }
+
+  sendSuccess(res, order)
+})
+
+const verifyPay = asyncHandler(async (req, res) => {
+  if (!isRazorpayDealPaymentsAvailable()) {
+    throw new AppError(
+      'Razorpay deal payments are not configured.',
+      503,
+      'RAZORPAY_NOT_CONFIGURED',
+    )
+  }
+
+  const deal = await getDealById(req.params.dealId)
+  assertSellerDealOwnership(req.user, deal)
+
+  const updated = await verifyDealPayment(prisma, {
+    dealId: deal.id,
+    payerRole: 'SELLER',
+    actorUserId: req.user.id,
+    ...req.body,
+  })
+
+  sendSuccess(res, { deal: serializeDeal(updated) })
+})
+
+module.exports = { list, getById, pay, createPayOrder, verifyPay }

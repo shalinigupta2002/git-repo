@@ -16,6 +16,8 @@ export const UNLOCKED_COUNTERPARTY_FIELDS = [
   'phone',
   'email',
   'gst',
+  'website',
+  'businessDescription',
   'addressLine1',
   'addressLine2',
   'postalCode',

@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { SellerIdentity, BuyerIdentity } from '../common/SellerIdentity.jsx'
 import { SubscribeFeatureAlert } from '../common/SubscribeFeatureAlert.jsx'
-import { PageLoader } from '../ui/PageLoader.jsx'
 import { Spinner } from '../ui/Spinner.jsx'
+import './rfqWorkspace.css'
 import {
   acceptQuote,
   cancelQuoteRequest,
@@ -18,7 +18,6 @@ import {
 } from '../../services/quoteRequest.service.js'
 import { useRfqNotifications } from '../../hooks/useRfqNotifications.js'
 import {
-  QUOTE_STATUS_BADGE,
   QUOTE_STATUS_LABELS,
   formatQuotationDate,
   formatQuoteMoney,
@@ -27,11 +26,14 @@ import {
   isQuoteExpired,
   quoteLineTotal,
 } from '../../utils/quotationHelpers.js'
+import { BackNavButton } from '../common/BackNavButton.jsx'
+import { InlineRfqComparison } from './InlineRfqComparison.jsx'
+import { AcceptConfirmModal, OrderCreatedModal } from './AcceptQuotationModals.jsx'
 import { RfqAttachmentsList } from './RfqAttachmentsList.jsx'
 
 const BUYER_FILTERS = [
   { id: 'all', label: 'My RFQs' },
-  { id: 'PENDING', label: 'Waiting response' },
+  { id: 'PENDING', label: 'Waiting For Seller' },
   { id: 'RESPONDED', label: 'Responses' },
   { id: 'ACCEPTED', label: 'Accepted' },
   { id: 'DECLINED', label: 'Rejected' },
@@ -57,139 +59,357 @@ function StatusBadge({ status, expired = false, mode = 'buyer' }) {
   return <span className={`b2bBadge ${badge}`}>{label}</span>
 }
 
-function RfqStatsBar({ stats, mode }) {
-  if (!stats) return null
-  const items = mode === 'buyer'
-    ? [
-        { label: 'My RFQs', value: stats.myRfqs },
-        { label: 'Waiting', value: stats.pending },
-        { label: 'Responses', value: stats.sellerResponses },
-        { label: 'Accepted', value: stats.accepted },
-        { label: 'Rejected', value: stats.rejected },
-        { label: 'Expired', value: stats.expired },
-      ]
-    : [
-        { label: 'Incoming', value: stats.incoming },
-        { label: 'Pending', value: stats.pendingResponses },
-        { label: 'Responded', value: stats.responded },
-        { label: 'Accepted', value: stats.acceptedDeals },
-        { label: 'Rejected', value: stats.rejected },
-        { label: 'Expired', value: stats.expired },
-      ]
+const BUYER_EMPTY_MESSAGES = {
+  all: { title: 'No RFQs Yet', desc: 'Browse products and send your first quotation request.' },
+  PENDING: { title: 'No RFQs Waiting For Seller', desc: 'All active RFQs have received seller responses or are closed.' },
+  RESPONDED: { title: 'No Seller Quotations Yet', desc: 'Waiting for sellers to respond to your RFQs.' },
+  ACCEPTED: { title: 'No Accepted Quotations', desc: 'Accepted seller quotations will appear here.' },
+  DECLINED: { title: 'No Rejected Quotations', desc: 'Quotations you reject will appear here.' },
+  CANCELLED: { title: 'No Cancelled RFQs', desc: 'Cancelled RFQ requests will appear here.' },
+  expired: { title: 'No Expired Quotations', desc: 'Expired seller quotations will appear here.' },
+}
+
+const DEFAULT_BUYER_STATS = {
+  myRfqs: 0,
+  pending: 0,
+  sellerResponses: 0,
+  accepted: 0,
+  rejected: 0,
+  cancelled: 0,
+  expired: 0,
+}
+
+const DEFAULT_SELLER_STATS = {
+  incoming: 0,
+  pendingResponses: 0,
+  responded: 0,
+  acceptedDeals: 0,
+  rejected: 0,
+  expired: 0,
+}
+
+const BUYER_STAT_CARDS = [
+  { id: 'all', label: 'Total RFQs', key: 'myRfqs', tone: 'blue', icon: 'folder' },
+  { id: 'PENDING', label: 'Waiting', key: 'pending', tone: 'amber', icon: 'clock' },
+  { id: 'RESPONDED', label: 'Responses', key: 'sellerResponses', tone: 'violet', icon: 'inbox' },
+  { id: 'ACCEPTED', label: 'Accepted', key: 'accepted', tone: 'green', icon: 'check' },
+  { id: 'DECLINED', label: 'Rejected', key: 'rejected', tone: 'rose', icon: 'x' },
+  { id: 'CANCELLED', label: 'Cancelled', key: 'cancelled', tone: 'slate', icon: 'ban' },
+  { id: 'expired', label: 'Expired', key: 'expired', tone: 'orange', icon: 'alert' },
+]
+
+function StatCardIcon({ name }) {
+  const icons = {
+    folder: <path strokeLinecap="round" strokeLinejoin="round" d="M3 7h5l2 2h11v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />,
+    clock: <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 2M12 22a10 10 0 110-20 10 10 0 010 20z" />,
+    inbox: <path strokeLinecap="round" strokeLinejoin="round" d="M20 13V7a2 2 0 00-2-2H6a2 2 0 00-2 2v6m16 0v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4m16 0H4" />,
+    check: <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />,
+    x: <path strokeLinecap="round" strokeLinejoin="round" d="M10 10l4 4m0-4l-4 4M12 22a10 10 0 110-20 10 10 0 010 20z" />,
+    ban: <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 5.636a9 9 0 11-12.728 0M12 8v4" />,
+    alert: <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />,
+  }
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+      {icons[name] || icons.folder}
+    </svg>
+  )
+}
+
+function RfqSummaryCards({ stats, activeFilter, onFilterChange, mode }) {
+  if (mode !== 'buyer') return null
+  const data = stats || DEFAULT_BUYER_STATS
 
   return (
-    <div className="quoteStatsBar panel panel--flush">
-      {items.map((item) => (
-        <div key={item.label} className="quoteStatsBar__item">
-          <span className="quoteStatsBar__value">{item.value ?? 0}</span>
-          <span className="quoteStatsBar__label">{item.label}</span>
-        </div>
+    <div className="rfqWsStats" role="group" aria-label="RFQ summary">
+      {BUYER_STAT_CARDS.map((card) => (
+        <button
+          key={card.id}
+          type="button"
+          className={`rfqWsStatCard${activeFilter === card.id ? ' rfqWsStatCard--active' : ''}`}
+          onClick={() => onFilterChange(card.id)}
+        >
+          <span className={`rfqWsStatCard__icon rfqWsStatCard__icon--${card.tone}`}>
+            <StatCardIcon name={card.icon} />
+          </span>
+          <span>
+            <span className="rfqWsStatCard__value">{data[card.key] ?? 0}</span>
+            <span className="rfqWsStatCard__label">{card.label}</span>
+          </span>
+        </button>
       ))}
     </div>
   )
 }
 
-function QuotationTimeline({ request, mode }) {
-  const currency = request?.sellerCurrency || 'INR'
+function CollapsibleSection({ title, defaultOpen = false, children }) {
+  const [open, setOpen] = useState(defaultOpen)
 
   return (
-    <div className="quoteThread panel">
-      <h3 className="quoteSide__title">Quotation timeline · {request?.rfqNumber || request?.rfqRef || 'RFQ'}</h3>
-
-      <section className="quoteTimelineBlock">
-        <p className="quoteTimelineBlock__label">
-          {mode === 'buyer' ? 'Your RFQ' : 'Buyer RFQ'}
-        </p>
-        <p>{request?.message || 'No requirement provided.'}</p>
-        <dl className="b2bRfqMeta quoteTimelineMeta">
-          <div>
-            <dt>Quantity</dt>
-            <dd>{request?.quantity}</dd>
-          </div>
-          <div>
-            <dt>Delivery location</dt>
-            <dd>{request?.deliveryLocation || '—'}</dd>
-          </div>
-          <div>
-            <dt>Expected delivery</dt>
-            <dd>{formatQuotationDate(request?.expectedDeliveryDate)}</dd>
-          </div>
-          {request?.targetPrice != null ? (
-            <div>
-              <dt>Indicative budget (unit)</dt>
-              <dd>{formatQuoteMoney(request.targetPrice, currency)}</dd>
-            </div>
-          ) : null}
-        </dl>
-        <RfqAttachmentsList attachments={request?.attachments} />
-        <p className="quoteTimelineBlock__date">{formatQuotationDate(request?.createdAt)}</p>
-      </section>
-
-      {request?.status !== 'PENDING' ? (
-        <section className="quoteTimelineBlock">
-          <p className="quoteTimelineBlock__label">
-            {mode === 'seller' ? 'Your quotation' : 'Seller quotation'}
-          </p>
-          <dl className="b2bRfqMeta quoteTimelineMeta">
-            <div>
-              <dt>Final unit price</dt>
-              <dd>{formatQuoteMoney(request?.sellerUnitPrice, currency)}</dd>
-            </div>
-            <div>
-              <dt>Line total</dt>
-              <dd>{formatQuoteMoney(quoteLineTotal(request), currency)}</dd>
-            </div>
-            {request?.quoteValidUntil ? (
-              <div>
-                <dt>Valid until</dt>
-                <dd>{formatQuotationDate(request.quoteValidUntil)}</dd>
-              </div>
-            ) : null}
-            {request?.taxNote ? (
-              <div>
-                <dt>Tax</dt>
-                <dd>{request.taxNote}</dd>
-              </div>
-            ) : null}
-            {request?.freightNote ? (
-              <div>
-                <dt>Delivery time / freight</dt>
-                <dd>{request.freightNote}</dd>
-              </div>
-            ) : null}
-            {request?.exclusionsNote ? (
-              <div>
-                <dt>Remarks</dt>
-                <dd>{request.exclusionsNote}</dd>
-              </div>
-            ) : null}
-          </dl>
-          <p className="quoteTimelineBlock__date">
-            {formatQuotationDate(request?.sellerRespondedAt || request?.updatedAt)}
-          </p>
-        </section>
-      ) : (
-        <div className="quoteTimelineWaiting">
-          {mode === 'seller'
-            ? 'Send your final quotation below.'
-            : 'Waiting for the seller to send a quotation.'}
-        </div>
-      )}
-
-      {request?.status === 'ACCEPTED' ? (
-        <div className="quoteTimelineOutcome quoteTimelineOutcome--success">
-          Quotation accepted
-          {request?.order?.orderNumber ? (
-            <span> · Deal {request.order.orderNumber}</span>
-          ) : null}
-        </div>
-      ) : null}
-
-      {request?.status === 'DECLINED' ? (
-        <div className="quoteTimelineOutcome quoteTimelineOutcome--muted">Quotation declined</div>
-      ) : null}
+    <div className="rfqWsCollapse">
+      <button
+        type="button"
+        className="rfqWsCollapse__trigger"
+        onClick={() => setOpen((value) => !value)}
+        aria-expanded={open}
+      >
+        <span>{title}</span>
+        <svg className={`rfqWsCollapse__chevron${open ? ' rfqWsCollapse__chevron--open' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M6 9l6 6 6-6" />
+        </svg>
+      </button>
+      {open ? <div className="rfqWsCollapse__body">{children}</div> : null}
     </div>
   )
+}
+
+function RfqProgressSteps({ status, hasOrder = false }) {
+  const steps = [
+    { label: 'RFQ Sent', done: true },
+    { label: 'Seller Quoted', done: ['RESPONDED', 'ACCEPTED', 'DECLINED', 'NOT_SELECTED'].includes(status) },
+    { label: 'Accepted', done: status === 'ACCEPTED' || hasOrder },
+    { label: 'Order Created', done: hasOrder },
+  ]
+  const activeIndex = steps.findIndex((step) => !step.done)
+  const currentIndex = activeIndex === -1 ? steps.length - 1 : activeIndex
+
+  return (
+    <ol className="rfqWsProgress">
+      {steps.map((step, index) => (
+        <li
+          key={step.label}
+          className={[
+            'rfqWsProgress__step',
+            step.done ? 'rfqWsProgress__step--done' : '',
+            index === currentIndex && !step.done ? 'rfqWsProgress__step--current' : '',
+          ].filter(Boolean).join(' ')}
+        >
+          <span className="rfqWsProgress__dot" aria-hidden />
+          <span>{step.label}</span>
+        </li>
+      ))}
+    </ol>
+  )
+}
+
+function RecentActivity({ subject, selected }) {
+  const events = []
+
+  if (subject?.createdAt) {
+    events.push({ text: 'RFQ submitted', time: subject.createdAt })
+  }
+  if (selected?.sellerRespondedAt) {
+    events.push({ text: 'Seller sent quotation', time: selected.sellerRespondedAt })
+  } else if (selected?.status === 'RESPONDED' && selected?.updatedAt) {
+    events.push({ text: 'Seller quotation received', time: selected.updatedAt })
+  }
+  if (selected?.status === 'ACCEPTED') {
+    events.push({ text: 'Quotation accepted', time: selected.updatedAt || selected.createdAt })
+  }
+  if (selected?.order?.orderNumber) {
+    events.push({ text: `Order ${selected.order.orderNumber} created`, time: selected.updatedAt })
+  }
+  if (selected?.status === 'DECLINED') {
+    events.push({ text: 'Quotation rejected', time: selected.updatedAt })
+  }
+  if (selected?.status === 'CANCELLED') {
+    events.push({ text: 'RFQ cancelled', time: selected.updatedAt })
+  }
+
+  if (!events.length) {
+    return <p className="rfqWsNextAction__text">Activity will appear here as your RFQ progresses.</p>
+  }
+
+  return (
+    <ul className="rfqWsActivity">
+      {events.map((event) => (
+        <li key={`${event.text}-${event.time}`} className="rfqWsActivity__item">
+          <p className="rfqWsActivity__text">{event.text}</p>
+          <p className="rfqWsActivity__time">{formatQuotationDate(event.time)}</p>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+function RfqSidebarPanel({ mode, selected, activeGroup, rfqGroupId }) {
+  if (mode !== 'buyer') return null
+
+  const subject = selected || activeGroup
+  if (!subject) {
+    return (
+      <aside className="rfqWsSidebar">
+        <div className="rfqWsSidebar__unified rfqWs__card">
+          <h3 className="rfqWsSidebar__title">Deal overview</h3>
+          <p className="rfqWsNextAction__text">Select an RFQ to view summary, progress, and next steps.</p>
+        </div>
+      </aside>
+    )
+  }
+
+  const status = selected?.status || activeGroup?.aggregateStatus
+  const hasOrder = Boolean(selected?.order?.orderNumber)
+  const currency = selected?.sellerCurrency || 'INR'
+
+  return (
+    <aside className="rfqWsSidebar">
+      <div className="rfqWsSidebar__unified rfqWs__card">
+        <h3 className="rfqWsSidebar__title">Deal overview</h3>
+        <dl>
+          <div className="rfqWsSidebar__row"><dt>Product</dt><dd>{selected?.productTitle || activeGroup?.productTitle}</dd></div>
+          {(selected?.rfqNumber || selected?.rfqRef || activeGroup?.rfqNumber || activeGroup?.rfqRef) ? (
+            <div className="rfqWsSidebar__row"><dt>RFQ</dt><dd>{selected?.rfqNumber || selected?.rfqRef || activeGroup?.rfqNumber || activeGroup?.rfqRef}</dd></div>
+          ) : null}
+          {status ? (
+            <div className="rfqWsSidebar__row"><dt>Status</dt><dd>{QUOTE_STATUS_LABELS[status] || status}</dd></div>
+          ) : null}
+          {(selected?.quantity || activeGroup?.quantity) ? (
+            <div className="rfqWsSidebar__row"><dt>Quantity</dt><dd>{selected?.quantity || activeGroup?.quantity}</dd></div>
+          ) : null}
+          {selected?.seller ? (
+            <div className="rfqWsSidebar__row">
+              <dt>Seller</dt>
+              <dd><SellerIdentity seller={selected.seller} sellerMarketplaceId={selected.sellerMarketplaceId} city={selected.sellerCity} compact showLabel /></dd>
+            </div>
+          ) : activeGroup?.sellerCount ? (
+            <div className="rfqWsSidebar__row"><dt>Sellers</dt><dd>{activeGroup.sellerCount}</dd></div>
+          ) : null}
+          {selected?.sellerUnitPrice != null ? (
+            <div className="rfqWsSidebar__row"><dt>Quoted price</dt><dd>{formatQuoteMoney(selected.sellerUnitPrice, currency)}</dd></div>
+          ) : null}
+          <div className="rfqWsSidebar__row">
+            <dt>Deal charge</dt>
+            <dd>{hasOrder ? 'Pay from My Orders' : 'At order creation'}</dd>
+          </div>
+        </dl>
+
+        <div className="rfqWsSidebar__divider" />
+        <p className="rfqWsSidebar__sectionLabel">Progress</p>
+        <RfqProgressSteps status={status} hasOrder={hasOrder} />
+
+        <div className="rfqWsSidebar__divider" />
+        <p className="rfqWsSidebar__sectionLabel">Next action</p>
+        {selected?.status === 'RESPONDED' && isBuyerQuotationActionable(selected) ? (
+          <p className="rfqWsNextAction__text">Review quotations and accept one offer to create your order.</p>
+        ) : selected?.status === 'PENDING' ? (
+          <p className="rfqWsNextAction__text">Waiting for seller response. Cancel if you no longer need this RFQ.</p>
+        ) : selected?.status === 'ACCEPTED' || hasOrder ? (
+          <Link to="/buyer/deals" className="btn btn--primary rfqWsSidebar__cta">Go to My Orders</Link>
+        ) : rfqGroupId ? (
+          <p className="rfqWsNextAction__text">Compare seller quotations and accept the best offer.</p>
+        ) : (
+          <p className="rfqWsNextAction__text">Select an RFQ from the list to continue.</p>
+        )}
+      </div>
+
+      <CollapsibleSection title="Recent activity" defaultOpen={false}>
+        <RecentActivity subject={subject} selected={selected} />
+      </CollapsibleSection>
+    </aside>
+  )
+}
+
+function ProductHero({ request, statusBadge, nav, subtitle }) {
+  if (!request) return null
+  const currency = request.sellerCurrency || 'INR'
+
+  return (
+    <section className="rfqWsHero rfqWs__card">
+      {nav}
+      <div className="rfqWsHero__head">
+        <div>
+          <p className="rfqWsHero__eyebrow">{request.rfqNumber || request.rfqRef}</p>
+          <h2 className="rfqWsHero__title">{request.productTitle}</h2>
+          {subtitle ? <p className="rfqWsHero__sub">{subtitle}</p> : null}
+          <dl className="rfqWsHero__meta">
+            <div className="rfqWsHero__metaItem"><dt>Quantity</dt><dd>{request.quantity}</dd></div>
+            <div className="rfqWsHero__metaItem"><dt>Delivery</dt><dd>{request.deliveryLocation || '—'}</dd></div>
+            <div className="rfqWsHero__metaItem"><dt>Expected</dt><dd>{formatQuotationDate(request.expectedDeliveryDate)}</dd></div>
+            {request.targetPrice != null ? (
+              <div className="rfqWsHero__metaItem"><dt>Budget</dt><dd>{formatQuoteMoney(request.targetPrice, currency)}</dd></div>
+            ) : null}
+            {request.sellerUnitPrice != null ? (
+              <div className="rfqWsHero__metaItem"><dt>Quoted</dt><dd>{formatQuoteMoney(request.sellerUnitPrice, currency)}</dd></div>
+            ) : null}
+          </dl>
+        </div>
+        {statusBadge}
+      </div>
+    </section>
+  )
+}
+
+function ProductSummaryCard({ request, statusBadge, nav }) {
+  return <ProductHero request={request} statusBadge={statusBadge} nav={nav} />
+}
+
+function RequirementCard({ request }) {
+  if (!request) return null
+  const currency = request.sellerCurrency || 'INR'
+
+  return (
+    <CollapsibleSection title="Requirement details" defaultOpen={false}>
+      <div className="rfqWsRequirement">{request.message || 'No requirement provided.'}</div>
+      <dl className="rfqWsMetaGrid" style={{ marginTop: 16 }}>
+        <div><dt>Quantity</dt><dd>{request.quantity}</dd></div>
+        <div><dt>Delivery</dt><dd>{request.deliveryLocation || '—'}</dd></div>
+        <div><dt>Expected</dt><dd>{formatQuotationDate(request.expectedDeliveryDate)}</dd></div>
+        {request.targetPrice != null ? (
+          <div><dt>Budget</dt><dd>{formatQuoteMoney(request.targetPrice, currency)}</dd></div>
+        ) : null}
+      </dl>
+      <RfqAttachmentsList attachments={request.attachments} />
+    </CollapsibleSection>
+  )
+}
+
+function TimelineStrip({ request }) {
+  const steps = [
+    { label: 'RFQ sent', done: true, current: request?.status === 'PENDING', date: request?.createdAt },
+    {
+      label: 'Seller quoted',
+      done: request?.status !== 'PENDING',
+      current: request?.status === 'RESPONDED',
+      date: request?.sellerRespondedAt || request?.updatedAt,
+    },
+    {
+      label: 'Accepted',
+      done: request?.status === 'ACCEPTED',
+      current: request?.status === 'ACCEPTED' && !request?.order?.orderNumber,
+      date: request?.status === 'ACCEPTED' ? request?.updatedAt : null,
+    },
+    {
+      label: 'Order created',
+      done: Boolean(request?.order?.orderNumber),
+      current: Boolean(request?.order?.orderNumber),
+      date: request?.order?.orderNumber ? request?.updatedAt : null,
+    },
+  ]
+
+  return (
+    <section className="rfqWsBlock rfqWs__card rfqWs__card--flat">
+      <h3 className="rfqWsBlock__title">Timeline</h3>
+      <div className="rfqWsStrip">
+        {steps.map((step) => (
+          <div
+            key={step.label}
+            className={[
+              'rfqWsStrip__step',
+              step.done ? 'rfqWsStrip__step--done' : '',
+              step.current ? 'rfqWsStrip__step--current' : '',
+            ].filter(Boolean).join(' ')}
+          >
+            <span className="rfqWsStrip__dot" aria-hidden />
+            <p className="rfqWsStrip__label">{step.label}</p>
+            {step.date ? <p className="rfqWsStrip__date">{formatQuotationDate(step.date)}</p> : null}
+          </div>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+function QuotationTimeline({ request }) {
+  return <TimelineStrip request={request} />
 }
 
 function SellerQuotationForm({ request, onSubmitted }) {
@@ -250,9 +470,9 @@ function SellerQuotationForm({ request, onSubmitted }) {
   }
 
   return (
-    <div className="quoteRespond panel">
-      <h3 className="quoteRespond__title">
-        {request?.status === 'RESPONDED' ? 'Revise quotation' : 'Send final quotation'}
+    <div className="rfqWsBlock rfqWs__card quoteRespond">
+      <h3 className="rfqWsBlock__title">
+        {request?.status === 'RESPONDED' ? 'Revise quotation' : 'Send quotation'}
       </h3>
       {request?.targetPrice != null ? (
         <div className="quoteBudgetHighlight">
@@ -319,31 +539,32 @@ function BuyerPendingActions({ request, onUpdated }) {
   }
 
   return (
-    <div className="quoteBuyerActions panel">
-      <h3 className="quoteRespond__title">Pending seller response</h3>
-      <p className="quoteLockedCopy">
-        You can cancel this seller-specific RFQ while it is still awaiting a quotation.
-      </p>
-      <button type="button" className="btn btn--ghost" disabled={Boolean(busy)} onClick={handleCancel}>
-        {busy === 'cancel' ? 'Cancelling…' : 'Cancel RFQ for this seller'}
-      </button>
+    <div className="rfqWsBlock rfqWs__card quoteBuyerActions">
+      <h3 className="rfqWsBlock__title">Pending seller response</h3>
+      <div className="rfqWsActions">
+        <button type="button" className="btn btn--ghost" disabled={Boolean(busy)} onClick={handleCancel}>
+          {busy === 'cancel' ? 'Cancelling…' : 'Cancel RFQ'}
+        </button>
+      </div>
     </div>
   )
 }
 
-function BuyerActions({ request, onUpdated }) {
+function BuyerActions({ request, onUpdated, onAccepted }) {
   const [busy, setBusy] = useState('')
-  const navigate = useNavigate()
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [successPayload, setSuccessPayload] = useState(null)
   const expired = isQuoteExpired(request)
   const actionable = isBuyerQuotationActionable(request)
 
-  async function handleAccept() {
+  async function executeAccept() {
     setBusy('accept')
     try {
       const data = await acceptQuote(request.id)
-      toast.success('Quotation accepted.')
+      setConfirmOpen(false)
+      setSuccessPayload(data)
       onUpdated?.(data?.request)
-      if (data?.order?.id) navigate('/buyer/transactions')
+      onAccepted?.(data)
     } catch (error) {
       toast.error(error?.message || 'Could not accept quotation.')
     } finally {
@@ -355,41 +576,65 @@ function BuyerActions({ request, onUpdated }) {
     setBusy('reject')
     try {
       await rejectQuote(request.id)
-      toast.success('Quotation declined.')
+      toast.success('Quotation rejected.')
       onUpdated?.()
     } catch (error) {
-      toast.error(error?.message || 'Could not decline quotation.')
+      toast.error(error?.message || 'Could not reject quotation.')
     } finally {
       setBusy('')
     }
   }
 
   return (
-    <div className="quoteBuyerActions panel">
-      <h3 className="quoteRespond__title">Review seller quotation</h3>
-      {expired || !actionable ? (
-        <p className="quoteLockedCopy">
-          {request?.status === 'NOT_SELECTED' || request?.buyerDisplayStatus === 'EXPIRED'
-            ? 'This quotation is no longer available because you finalized another seller.'
-            : 'This quotation has expired. Request a new RFQ from the seller.'}
-        </p>
-      ) : (
-        <div className="quoteBuyerActions__buttons">
-          <button type="button" className="btn btn--primary" disabled={Boolean(busy)} onClick={handleAccept}>
-            {busy === 'accept' ? 'Accepting…' : 'Accept quotation'}
-          </button>
-          <button type="button" className="btn btn--ghost" disabled={Boolean(busy)} onClick={handleReject}>
-            {busy === 'reject' ? 'Declining…' : 'Reject quotation'}
-          </button>
-        </div>
-      )}
-    </div>
+    <>
+      <div className="rfqWsBlock rfqWs__card quoteBuyerActions">
+        <h3 className="rfqWsBlock__title">Review quotation</h3>
+        {expired || !actionable ? (
+          <p className="rfqWsNextAction__text">
+            {request?.status === 'NOT_SELECTED' || request?.buyerDisplayStatus === 'EXPIRED'
+              ? 'This quotation is no longer available because you finalized another seller.'
+              : 'This quotation has expired. Request a new RFQ from the seller.'}
+          </p>
+        ) : (
+          <div className="rfqWsActions">
+            <button type="button" className="btn btn--primary" disabled={Boolean(busy)} onClick={() => setConfirmOpen(true)}>
+              {busy === 'accept' ? 'Accepting…' : 'Accept Quotation'}
+            </button>
+            <button type="button" className="btn btn--ghost" disabled={Boolean(busy)} onClick={handleReject}>
+              {busy === 'reject' ? 'Rejecting…' : 'Reject Quotation'}
+            </button>
+          </div>
+        )}
+      </div>
+
+      <AcceptConfirmModal
+        open={confirmOpen}
+        request={request}
+        busy={busy === 'accept'}
+        onConfirm={executeAccept}
+        onCancel={() => setConfirmOpen(false)}
+      />
+
+      <OrderCreatedModal
+        open={Boolean(successPayload)}
+        order={successPayload?.order}
+        deal={successPayload?.deal}
+        onGoToOrders={() => {
+          setSuccessPayload(null)
+          window.location.href = '/buyer/deals'
+        }}
+      />
+    </>
   )
 }
 
 export function QuotationWorkspace({ mode, basePath }) {
-  const { requestId } = useParams()
+  const { requestId, rfqGroupId } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
+  const searchParams = useMemo(() => new URLSearchParams(location.search), [location.search])
+  const tabParam = searchParams.get('tab')
+
   const [groups, setGroups] = useState([])
   const [requests, setRequests] = useState([])
   const [pagination, setPagination] = useState({ page: 1, totalPages: 0, total: 0 })
@@ -399,15 +644,26 @@ export function QuotationWorkspace({ mode, basePath }) {
   const [loadingList, setLoadingList] = useState(true)
   const [loadingDetail, setLoadingDetail] = useState(false)
   const [listError, setListError] = useState('')
-  const [filter, setFilter] = useState('all')
+  const [filter, setFilter] = useState(() => {
+    if (tabParam === 'quotations') return 'RESPONDED'
+    return 'all'
+  })
   const [search, setSearch] = useState('')
   const [searchInput, setSearchInput] = useState('')
   const [page, setPage] = useState(1)
+  const [dateSort, setDateSort] = useState('newest')
   const [subscribeAlertOpen, setSubscribeAlertOpen] = useState(false)
   const { unreadCount } = useRfqNotifications({ enabled: hasFullAccess })
 
   const viewAs = mode
   const filters = mode === 'buyer' ? BUYER_FILTERS : SELLER_FILTERS
+
+  useEffect(() => {
+    if (tabParam !== 'quotations') return
+    setFilter('RESPONDED')
+    setPage(1)
+    navigate(basePath, { replace: true })
+  }, [tabParam, basePath, navigate])
 
   const loadStats = useCallback(async () => {
     try {
@@ -486,15 +742,46 @@ export function QuotationWorkspace({ mode, basePath }) {
     return () => clearTimeout(timer)
   }, [searchInput])
 
+  function handleFilterChange(nextFilter) {
+    setFilter(nextFilter)
+    setPage(1)
+    if (requestId || rfqGroupId) {
+      navigate(basePath)
+    }
+  }
+
+  function getEmptyMessage() {
+    if (mode !== 'buyer') {
+      return { title: 'No RFQs Yet', desc: 'Buyer RFQs will appear here when they request quotations.' }
+    }
+    return BUYER_EMPTY_MESSAGES[filter] || BUYER_EMPTY_MESSAGES.all
+  }
+
   const inboxCount = pagination.total
+  const activeGroup = rfqGroupId ? groups.find((group) => group.rfqGroupId === rfqGroupId) : null
+
+  const sortedGroups = useMemo(() => {
+    const copy = [...groups]
+    copy.sort((a, b) => {
+      const aTime = new Date(a.createdAt || 0).getTime()
+      const bTime = new Date(b.createdAt || 0).getTime()
+      return dateSort === 'oldest' ? aTime - bTime : bTime - aTime
+    })
+    return copy
+  }, [groups, dateSort])
+
+  const sortedRequests = useMemo(() => {
+    const copy = [...requests]
+    copy.sort((a, b) => {
+      const aTime = new Date(a.createdAt || 0).getTime()
+      const bTime = new Date(b.createdAt || 0).getTime()
+      return dateSort === 'oldest' ? aTime - bTime : bTime - aTime
+    })
+    return copy
+  }, [requests, dateSort])
 
   function selectBuyerGroup(group) {
-    if (group.sellerCount > 1) {
-      navigate(`${basePath}/group/${group.rfqGroupId}`)
-      return
-    }
-    const firstId = group.quotations?.[0]?.id
-    if (firstId) navigate(`${basePath}/${firstId}`)
+    navigate(`${basePath}/group/${group.rfqGroupId}`)
   }
 
   function selectRequest(id) {
@@ -510,113 +797,167 @@ export function QuotationWorkspace({ mode, basePath }) {
     if (requestId) await loadDetail(requestId)
   }
 
-  const pageTitle = mode === 'buyer' ? 'RFQs & quotations' : 'Incoming RFQs'
+  const pageTitle = mode === 'buyer' ? 'RFQs & Quotations' : 'Incoming RFQs'
+
+  function renderListSkeleton() {
+    return (
+      <div className="rfqWsSkeleton">
+        {[...Array(4)].map((_, idx) => (
+          <div key={idx} className="rfqWsSkeleton__bar" style={{ width: `${70 - idx * 10}%` }} />
+        ))}
+      </div>
+    )
+  }
+
+  function renderBuyerListItem(group) {
+    return (
+      <li key={group.rfqGroupId}>
+        <button
+          type="button"
+          className={`rfqWsListItem${rfqGroupId === group.rfqGroupId ? ' rfqWsListItem--active' : ''}`}
+          onClick={() => selectBuyerGroup(group)}
+        >
+          <span className="rfqWsListItem__row">
+            <span className="rfqWsListItem__name">{group.productTitle}</span>
+            <StatusBadge status={group.aggregateStatus} expired={group.hasExpiredQuotation} mode={mode} />
+          </span>
+          <span className="rfqWsListItem__rfq">{group.rfqNumber || group.rfqRef}</span>
+          <span className="rfqWsListItem__date">{formatQuotationDate(group.createdAt)}</span>
+        </button>
+      </li>
+    )
+  }
+
+  function renderSellerListItem(item) {
+    const active = item.id === requestId
+    const expired = item.status === 'RESPONDED' && isQuoteExpired(item)
+    return (
+      <li key={item.id}>
+        <button
+          type="button"
+          className={`rfqWsListItem${active ? ' rfqWsListItem--active' : ''}`}
+          onClick={() => selectRequest(item.id)}
+        >
+          <span className="rfqWsListItem__row">
+            <span className="rfqWsListItem__name">{item.productTitle}</span>
+            <StatusBadge status={item.status} expired={expired} mode={mode} />
+          </span>
+          <span className="rfqWsListItem__rfq">{item.rfqNumber || item.rfqRef}</span>
+          <span className="rfqWsListItem__date">{formatQuotationDate(item.createdAt)}</span>
+        </button>
+      </li>
+    )
+  }
 
   return (
-    <div className="quoteWorkspace">
-      <header className="quoteWorkspace__hero">
-        <div>
-          <p className="quoteWorkspace__eyebrow">Quotation center</p>
-          <h1 className="sellerDashboard__greeting">{pageTitle}</h1>
-          <p className="sellerDashboard__sub">
-            {mode === 'buyer'
-              ? 'Track grouped RFQs, compare seller quotations, and accept one offer per request.'
-              : 'Review buyer RFQs and respond with final quotations.'}
-          </p>
+    <div className="rfqWs">
+      <header className="rfqWsHeader">
+        <div className="rfqWsHeader__top">
+          <div>
+            <h1 className="rfqWsHeader__title">{pageTitle}</h1>
+            <p className="rfqWsHeader__desc">
+              {mode === 'buyer'
+                ? 'Create RFQs, compare seller quotations, accept offers, and track every status in one workspace.'
+                : 'Review buyer RFQs and respond with final quotations from a single dashboard.'}
+            </p>
+          </div>
+          <div className="rfqWsHeader__actions">
+            {mode === 'buyer' ? (
+              <Link to="/products" className="btn btn--primary">Create RFQ</Link>
+            ) : (
+              <Link to="/seller/products" className="btn btn--ghost">View listings</Link>
+            )}
+          </div>
         </div>
-        <div className="quoteWorkspace__heroActions">
-          {mode === 'buyer' ? (
-            <Link to="/products" className="btn btn--ghost">Browse products</Link>
-          ) : (
-            <Link to="/seller/products" className="btn btn--ghost">View listings</Link>
-          )}
+
+        <div className="rfqWsHeader__toolbar">
+          <div className="rfqWsSearch">
+            <svg className="rfqWsSearch__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+              <circle cx="11" cy="11" r="7" />
+              <path d="M20 20l-3-3" />
+            </svg>
+            <input
+              type="search"
+              className="rfqWsSearch__input"
+              placeholder="Search RFQs by product, RFQ number…"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+            />
+          </div>
+          {mode === 'seller' ? (
+            <div className="rfqWsQuickFilters">
+              {filters.slice(0, 4).map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={`rfqWsQuickFilter${filter === item.id ? ' rfqWsQuickFilter--active' : ''}`}
+                  onClick={() => handleFilterChange(item.id)}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          ) : null}
         </div>
+
+        <RfqSummaryCards stats={stats} activeFilter={filter} onFilterChange={handleFilterChange} mode={mode} />
       </header>
 
-      <RfqStatsBar stats={stats} mode={mode} />
-
       {!hasFullAccess ? (
-        <div className="quoteLockedBanner panel">
+        <div className="rfqWsBanner">
           <div>
             <strong>Subscribe to unlock full quotation tools.</strong>
-            <p className="quoteLockedCopy">
-              You can preview requests, but responding, accepting quotations, and viewing counterpart details require an active {mode} plan.
-            </p>
+            <p>You can preview requests, but responding, accepting quotations, and viewing counterpart details require an active {mode} plan.</p>
           </div>
           <button type="button" className="btn btn--primary" onClick={() => setSubscribeAlertOpen(true)}>View plans</button>
         </div>
       ) : null}
 
-      <div className="quoteWorkspace__shell">
-        <aside className="quoteInbox panel panel--flush">
-          <div className="quoteInbox__head">
-            <h2 className="quoteInbox__title">Inbox{unreadCount ? ` (${unreadCount} new)` : ''}</h2>
-            <span className="quoteInbox__count">{inboxCount}</span>
-          </div>
-
-          <div className="quoteInbox__search">
-            <input
-              type="search"
-              className="input"
-              placeholder="Search RFQs…"
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-            />
-          </div>
-
-          <div className="quoteInbox__filters" role="tablist" aria-label="Filter quotations">
-            {filters.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                role="tab"
-                aria-selected={filter === item.id}
-                className={`quoteFilterChip${filter === item.id ? ' quoteFilterChip--active' : ''}`}
-                onClick={() => { setFilter(item.id); setPage(1) }}
-              >
-                {item.label}
-              </button>
-            ))}
-          </div>
-
-          {loadingList ? (
-            <div className="quoteInbox__list" style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {[...Array(4)].map((_, idx) => (
-                <div key={idx} className="bvpSkeleton" style={{ padding: 12, animation: 'dealSkeletonPulse 1.2s ease-in-out infinite' }}>
-                  <div className="bvpSkeleton__line" style={{ width: '40%', height: 14, marginBottom: 8 }} />
-                  <div className="bvpSkeleton__line" style={{ width: '70%', height: 10, marginBottom: 6 }} />
-                  <div className="bvpSkeleton__line" style={{ width: '25%', height: 10 }} />
-                </div>
-              ))}
+      <div className={`rfqWsMain${mode !== 'buyer' ? ' rfqWsMain--twoCol' : ''}`}>
+        <aside className="rfqWsList rfqWs__card">
+          <div className="rfqWsList__head">
+            <div className="rfqWsList__titleRow">
+              <h2 className="rfqWsList__title">RFQ List{unreadCount ? ` · ${unreadCount} new` : ''}</h2>
+              <span className="rfqWsList__badge">{inboxCount}</span>
             </div>
-          ) : listError ? (
-            <p className="quoteInbox__empty" role="alert">{listError}</p>
+          </div>
+
+          <div className="rfqWsList__filters">
+            <select
+              className="rfqWsSelect"
+              value={filter}
+              onChange={(e) => handleFilterChange(e.target.value)}
+              aria-label="Status filter"
+            >
+              {filters.map((item) => (
+                <option key={item.id} value={item.id}>{item.label}</option>
+              ))}
+            </select>
+            <select
+              className="rfqWsSelect"
+              value={dateSort}
+              onChange={(e) => setDateSort(e.target.value)}
+              aria-label="Date sort"
+            >
+              <option value="newest">Newest first</option>
+              <option value="oldest">Oldest first</option>
+            </select>
+          </div>
+
+          {loadingList ? renderListSkeleton() : listError ? (
+            <div className="rfqWsList__empty" role="alert"><p>{listError}</p></div>
           ) : mode === 'buyer' ? (
-            groups.length === 0 ? (
-              <div className="quoteInbox__empty">
-                <p>No RFQs yet.</p>
-                <Link to="/products" className="metricCard__link">Browse products to request a quote →</Link>
+            sortedGroups.length === 0 ? (
+              <div className="rfqWsList__empty">
+                <h3>{getEmptyMessage().title}</h3>
+                <p>{getEmptyMessage().desc}</p>
+                {filter === 'all' ? <Link to="/products" className="btn btn--primary">Browse Products</Link> : null}
               </div>
             ) : (
               <>
-                <ul className="quoteInbox__list">
-                  {groups.map((group) => (
-                    <li key={group.rfqGroupId}>
-                      <button type="button" className="quoteInboxItem" onClick={() => selectBuyerGroup(group)}>
-                        <div className="quoteInboxItem__top">
-                          <strong>{group.productTitle}</strong>
-                          <StatusBadge status={group.aggregateStatus} expired={group.hasExpiredQuotation} mode={mode} />
-                        </div>
-                        <p className="quoteInboxItem__meta">
-                          {group.rfqNumber || group.rfqRef} · Qty {group.quantity} · {group.sellerCount} seller{group.sellerCount === 1 ? '' : 's'}
-                        </p>
-                        <span className="quoteInboxItem__date">{formatQuotationDate(group.createdAt)}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
+                <ul className="rfqWsList__scroll">{sortedGroups.map(renderBuyerListItem)}</ul>
                 {pagination.totalPages > 1 ? (
-                  <div className="quoteInbox__pagination">
+                  <div className="rfqWsList__pagination">
                     <button type="button" className="btn btn--ghost" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>Previous</button>
                     <span>Page {pagination.page} of {pagination.totalPages}</span>
                     <button type="button" className="btn btn--ghost" disabled={page >= pagination.totalPages} onClick={() => setPage((p) => p + 1)}>Next</button>
@@ -624,35 +965,16 @@ export function QuotationWorkspace({ mode, basePath }) {
                 ) : null}
               </>
             )
-          ) : requests.length === 0 ? (
-            <div className="quoteInbox__empty">
-              <p>No RFQs yet.</p>
-              <p className="quoteLockedCopy">Buyer RFQs will appear here when they request quotations.</p>
+          ) : sortedRequests.length === 0 ? (
+            <div className="rfqWsList__empty">
+              <h3>{getEmptyMessage().title}</h3>
+              <p>{getEmptyMessage().desc}</p>
             </div>
           ) : (
             <>
-              <ul className="quoteInbox__list">
-                {requests.map((item) => {
-                  const active = item.id === requestId
-                  const expired = mode === 'buyer'
-                    ? isQuoteExpired(item)
-                    : item.status === 'RESPONDED' && isQuoteExpired(item)
-                  return (
-                    <li key={item.id}>
-                      <button type="button" className={`quoteInboxItem${active ? ' quoteInboxItem--active' : ''}`} onClick={() => selectRequest(item.id)}>
-                        <div className="quoteInboxItem__top">
-                          <strong>{item.productTitle}</strong>
-                          <StatusBadge status={item.status} expired={expired} mode={mode} />
-                        </div>
-                        <p className="quoteInboxItem__meta">{item.rfqNumber || item.rfqRef} · Qty {item.quantity}</p>
-                        <span className="quoteInboxItem__date">{formatQuotationDate(item.createdAt)}</span>
-                      </button>
-                    </li>
-                  )
-                })}
-              </ul>
+              <ul className="rfqWsList__scroll">{sortedRequests.map(renderSellerListItem)}</ul>
               {pagination.totalPages > 1 ? (
-                <div className="quoteInbox__pagination">
+                <div className="rfqWsList__pagination">
                   <button type="button" className="btn btn--ghost" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>Previous</button>
                   <span>Page {pagination.page} of {pagination.totalPages}</span>
                   <button type="button" className="btn btn--ghost" disabled={page >= pagination.totalPages} onClick={() => setPage((p) => p + 1)}>Next</button>
@@ -662,112 +984,103 @@ export function QuotationWorkspace({ mode, basePath }) {
           )}
         </aside>
 
-        <section className="quoteDetail">
-          {!requestId ? (
-            <div className="quoteDetail__empty panel">
+        <section className="rfqWsCenter">
+          {mode === 'buyer' && rfqGroupId ? (
+            <InlineRfqComparison
+              rfqGroupId={rfqGroupId}
+              hasFullAccess={hasFullAccess}
+              onSubscribeRequired={() => setSubscribeAlertOpen(true)}
+              onBack={clearSelection}
+            />
+          ) : !requestId ? (
+            <div className="rfqWsCenter__empty rfqWs__card">
+              <div className="rfqWsEmptyIcon" aria-hidden>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+              </div>
               <h2>Select an RFQ</h2>
-              <p>Choose a request from the inbox to view details and take action.</p>
+              <p>Choose a request from the left panel to view product details, compare sellers, and take action.</p>
+              {mode === 'buyer' ? <Link to="/products" className="btn btn--primary">Create RFQ</Link> : null}
             </div>
           ) : loadingDetail ? (
-            <div className="quoteDetail__skeleton panel" style={{ animation: 'dealSkeletonPulse 1.2s ease-in-out infinite', padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <div style={{ height: 24, backgroundColor: '#f1f5f9', width: '60%', borderRadius: 4 }} />
-              <div style={{ height: 14, backgroundColor: '#f1f5f9', width: '30%', borderRadius: 4 }} />
-              <hr style={{ border: 'none', borderTop: '1px solid #f1f5f9', margin: '8px 0' }} />
-              <div style={{ height: 80, backgroundColor: '#f1f5f9', borderRadius: 8 }} />
-              <div style={{ height: 120, backgroundColor: '#f1f5f9', borderRadius: 8 }} />
-              <div style={{ height: 48, backgroundColor: '#f1f5f9', borderRadius: 8, width: '40%', alignSelf: 'flex-end', marginTop: 12 }} />
-            </div>
+            <div className="rfqWs__card rfqWsSkeleton">{renderListSkeleton()}</div>
           ) : !selected ? (
-            <div className="quoteDetail__empty panel">
+            <div className="rfqWsCenter__empty rfqWs__card">
               <h2>RFQ unavailable</h2>
-              <button type="button" className="btn btn--ghost" onClick={clearSelection}>Back to inbox</button>
+              <button type="button" className="btn btn--ghost" onClick={clearSelection}>Back to list</button>
             </div>
           ) : (
             <>
-              <div className="quoteDetail__head panel">
-                <div>
-                  <button type="button" className="quoteBackBtn" onClick={clearSelection}>← Inbox</button>
-                  <h2 className="quoteDetail__title">{selected.productTitle}</h2>
-                  <p className="quoteDetail__sub">
-                    {selected.rfqNumber || selected.rfqRef}
-                    {selected.productCategory ? ` · ${selected.productCategory}` : ''}
-                  </p>
-                  {mode === 'buyer' && selected.rfqGroupId ? (
-                    <Link to={`${basePath}/group/${selected.rfqGroupId}`} className="metricCard__link">
-                      Open quotation comparison →
-                    </Link>
-                  ) : null}
-                </div>
-                <StatusBadge
-                  status={selected.status}
-                  expired={isQuoteExpired(selected)}
-                  mode={mode}
-                />
-              </div>
-
-              <div className="quoteDetail__grid">
-                <QuotationTimeline request={selected} mode={mode} />
-                <aside className="quoteSide panel">
-                  <h3 className="quoteSide__title">Summary</h3>
-                  <dl className="b2bRfqMeta">
-                    <div><dt>RFQ number</dt><dd>{selected.rfqNumber || selected.rfqRef}</dd></div>
-                    <div><dt>Status</dt><dd>{QUOTE_STATUS_LABELS[selected.status]}</dd></div>
-                    <div><dt>Quantity</dt><dd>{selected.quantity}</dd></div>
-                    <div><dt>Delivery location</dt><dd>{selected.deliveryLocation || '—'}</dd></div>
-                    <div><dt>Expected delivery</dt><dd>{formatQuotationDate(selected.expectedDeliveryDate)}</dd></div>
-                    {selected.targetPrice != null ? (
-                      <div><dt>Indicative budget</dt><dd>{formatQuoteMoney(selected.targetPrice, selected.sellerCurrency || 'INR')}</dd></div>
-                    ) : null}
-                    {selected.sellerUnitPrice != null ? (
-                      <div><dt>Final quotation</dt><dd>{formatQuoteMoney(selected.sellerUnitPrice, selected.sellerCurrency || 'INR')}</dd></div>
-                    ) : null}
-                    {mode === 'seller' ? (
-                      <div>
-                        <dt>Buyer</dt>
-                        <dd><BuyerIdentity buyer={selected.buyer} buyerMarketplaceId={selected.buyerMarketplaceId} city={selected.buyerCity} compact showLabel /></dd>
+              {mode === 'buyer' ? (
+                <>
+                  <ProductSummaryCard
+                    request={selected}
+                    statusBadge={<StatusBadge status={selected.status} expired={isQuoteExpired(selected)} mode={mode} />}
+                    nav={(
+                      <div className="rfqWsCenter__nav">
+                        <BackNavButton fallback="/buyer/dashboard" label="← Back" className="rfqWsCenter__navBtn" />
+                        <button type="button" className="rfqWsCenter__navBtn" onClick={clearSelection}>← RFQ list</button>
+                      </div>
+                    )}
+                  />
+                  <RequirementCard request={selected} />
+                  <QuotationTimeline request={selected} />
+                </>
+              ) : (
+                <>
+                  <ProductHero
+                    request={selected}
+                    statusBadge={<StatusBadge status={selected.status} expired={isQuoteExpired(selected)} mode={mode} />}
+                    nav={(
+                      <div className="rfqWsCenter__nav">
+                        <BackNavButton fallback="/seller/dashboard" label="← Back" className="rfqWsCenter__navBtn" />
+                        <button type="button" className="rfqWsCenter__navBtn" onClick={clearSelection}>← RFQ list</button>
+                      </div>
+                    )}
+                  />
+                  <QuotationTimeline request={selected} />
+                  <CollapsibleSection title="Buyer details" defaultOpen={false}>
+                    <dl className="rfqWsMetaGrid">
+                      <div><dt>Buyer</dt><dd><BuyerIdentity buyer={selected.buyer} buyerMarketplaceId={selected.buyerMarketplaceId} city={selected.buyerCity} compact showLabel /></dd></div>
+                      <div><dt>Requirement</dt><dd>{selected.message || '—'}</dd></div>
+                      {selected.targetPrice != null ? (
+                        <div><dt>Budget</dt><dd>{formatQuoteMoney(selected.targetPrice, selected.sellerCurrency || 'INR')}</dd></div>
+                      ) : null}
+                      {selected.order?.orderNumber ? (
+                        <div><dt>Order</dt><dd><Link to="/seller/deals">{selected.order.orderNumber}</Link></dd></div>
+                      ) : null}
+                    </dl>
+                    <RfqAttachmentsList attachments={selected.attachments} />
+                    {selected.revisions?.length ? (
+                      <div className="quoteRevisionHistory" style={{ marginTop: 16 }}>
+                        <h4>Revision history</h4>
+                        <ol>
+                          {selected.revisions.map((revision) => (
+                            <li key={revision.id}>
+                              v{revision.revisionNumber}: {formatQuoteMoney(revision.sellerUnitPrice, revision.sellerCurrency)}
+                              {' · '}
+                              valid until {formatQuotationDate(revision.quoteValidUntil)}
+                            </li>
+                          ))}
+                        </ol>
                       </div>
                     ) : null}
-                    {mode === 'buyer' ? (
-                      <div>
-                        <dt>Seller</dt>
-                        <dd><SellerIdentity seller={selected.seller} sellerMarketplaceId={selected.sellerMarketplaceId} city={selected.sellerCity} compact showLabel /></dd>
-                      </div>
-                    ) : null}
-                    {selected.order?.orderNumber ? (
-                      <div><dt>Deal</dt><dd><Link to={mode === 'buyer' ? '/buyer/transactions' : '/seller/transactions'}>{selected.order.orderNumber}</Link></dd></div>
-                    ) : null}
-                  </dl>
-                  <RfqAttachmentsList attachments={selected.attachments} />
-                  {selected.revisions?.length ? (
-                    <div className="quoteRevisionHistory">
-                      <h4>Quotation revision history</h4>
-                      <ol>
-                        {selected.revisions.map((revision) => (
-                          <li key={revision.id}>
-                            v{revision.revisionNumber}: {formatQuoteMoney(revision.sellerUnitPrice, revision.sellerCurrency)}
-                            {' · '}
-                            valid until {formatQuotationDate(revision.quoteValidUntil)}
-                          </li>
-                        ))}
-                      </ol>
-                    </div>
-                  ) : null}
-                </aside>
-              </div>
+                  </CollapsibleSection>
+                </>
+              )}
 
               {mode === 'seller' && selected.status === 'NOT_SELECTED' ? (
-                <div className="quoteLockedBanner panel">
-                  <p className="quoteLockedCopy">
-                    Not selected — the buyer accepted another seller&apos;s quotation for this RFQ group.
-                  </p>
+                <div className="rfqWsBanner quoteLockedBanner">
+                  <p>Not selected — the buyer accepted another seller&apos;s quotation for this RFQ group.</p>
                 </div>
               ) : null}
               {mode === 'seller' && (selected.status === 'PENDING' || selected.status === 'RESPONDED') && hasFullAccess ? (
                 <SellerQuotationForm request={selected} onSubmitted={refreshAll} />
               ) : null}
               {mode === 'seller' && selected.status === 'PENDING' && !hasFullAccess ? (
-                <div className="quoteLockedBanner panel">
-                  <p className="quoteLockedCopy">Subscribe to send quotations.</p>
+                <div className="rfqWsBanner">
+                  <p>Subscribe to send quotations.</p>
                   <button type="button" className="btn btn--primary" onClick={() => setSubscribeAlertOpen(true)}>Unlock seller quotations</button>
                 </div>
               ) : null}
@@ -778,23 +1091,23 @@ export function QuotationWorkspace({ mode, basePath }) {
                 <BuyerActions request={selected} onUpdated={refreshAll} />
               ) : null}
               {mode === 'buyer' && (selected.status === 'RESPONDED' || selected.status === 'NOT_SELECTED') && (isQuoteExpired(selected) || selected.actionsLocked) && hasFullAccess ? (
-                <div className="quoteLockedBanner panel">
-                  <p className="quoteLockedCopy">
-                    {selected.status === 'NOT_SELECTED' || selected.buyerDisplayStatus === 'EXPIRED'
-                      ? 'This quotation is no longer available because you finalized another seller.'
-                      : 'This quotation has expired.'}
-                  </p>
+                <div className="rfqWsBanner">
+                  <p>{selected.status === 'NOT_SELECTED' || selected.buyerDisplayStatus === 'EXPIRED'
+                    ? 'This quotation is no longer available because you finalized another seller.'
+                    : 'This quotation has expired.'}</p>
                 </div>
               ) : null}
               {mode === 'buyer' && selected.status === 'RESPONDED' && !hasFullAccess ? (
-                <div className="quoteLockedBanner panel">
-                  <p className="quoteLockedCopy">Subscribe to accept or reject quotations.</p>
+                <div className="rfqWsBanner">
+                  <p>Subscribe to accept or reject quotations.</p>
                   <button type="button" className="btn btn--primary" onClick={() => setSubscribeAlertOpen(true)}>Unlock buyer quotations</button>
                 </div>
               ) : null}
             </>
           )}
         </section>
+
+        <RfqSidebarPanel mode={mode} selected={selected} activeGroup={activeGroup} rfqGroupId={rfqGroupId} />
       </div>
 
       <SubscribeFeatureAlert

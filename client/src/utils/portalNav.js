@@ -146,13 +146,11 @@ export function isPathAllowedForUser(
 /** Nested links under Buyer Dashboard — premium items show as locked when unsubscribed. */
 export function visibleBuyerSubNav(hasSub = hasActiveBuyerSubscription()) {
   const items = [
-    { to: '/buyer/dashboard', label: 'Overview', end: true },
-    { to: '/products', label: 'Product catalog' },
-    { to: '/buyer/quotations', label: 'RFQs & quotations' },
-    { to: '/wishlist', label: 'Wishlist' },
-    { to: '/buyer/deals', label: 'My deals' },
+    { to: '/buyer/dashboard', label: 'Dashboard', end: true },
+    { to: '/products', label: 'Products' },
+    { to: '/buyer/quotations', label: 'RFQs & Quotations', end: true },
+    { to: '/buyer/deals', label: 'My Orders' },
     { to: '/buyer/transactions', label: 'Transactions' },
-    { to: '/buyer/category-request', label: 'Request category' },
   ]
 
   return items.map((item) => ({

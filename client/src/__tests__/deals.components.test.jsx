@@ -54,9 +54,9 @@ describe('PaymentCard', () => {
       />,
     )
 
-    await user.click(screen.getByRole('button', { name: 'Pay Platform Charge' }))
+    await user.click(screen.getByRole('button', { name: 'Proceed To Pay Deal Charge' }))
     expect(screen.getByRole('dialog')).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Confirm payment' }))
+    await user.click(screen.getByRole('button', { name: 'Open Razorpay Checkout' }))
     expect(onPay).toHaveBeenCalledTimes(1)
   })
 })

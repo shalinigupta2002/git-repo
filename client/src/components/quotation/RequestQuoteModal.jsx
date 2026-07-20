@@ -35,11 +35,7 @@ export function RequestQuoteModal({
 
   useEffect(() => {
     if (!open || !primaryProduct) return
-    const highestMoq = sellerListings.reduce(
-      (max, item) => Math.max(max, Number(item.moq) || 1),
-      1,
-    )
-    setQuantity(Math.max(1, highestMoq))
+    setQuantity(1)
     setTargetPrice('')
     setMessage('')
     setDeliveryLocation('')
@@ -119,7 +115,7 @@ export function RequestQuoteModal({
   return (
     <div className="featureAlertOverlay" role="presentation" onClick={onClose}>
       <div
-        className="quoteModal"
+        className="quoteModal quoteModal--scrollable"
         role="dialog"
         aria-modal="true"
         aria-labelledby="rfqModalTitle"
@@ -137,88 +133,89 @@ export function RequestQuoteModal({
           </button>
         </header>
 
-        <div className="quoteModal__productMeta">
-          <span>List price: {formatProductPrice(primaryProduct.price, primaryProduct.currency || 'INR')}</span>
-          {primaryProduct.moq ? <span>MOQ: {primaryProduct.moq}</span> : null}
-          {sellerListings.length > 1 ? (
-            <span>{sellerListings.length} sellers selected</span>
-          ) : sellerListings[0]?.seller ? (
-            <SellerIdentity seller={sellerListings[0].seller} compact showLabel />
-          ) : null}
-        </div>
+        <form className="quoteModal__form" onSubmit={handleSubmit} style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div className="quoteModal__scrollBody">
+            <div className="quoteModal__productMeta">
+              <span>List price: {formatProductPrice(primaryProduct.price, primaryProduct.currency || 'INR')}</span>
+              {sellerListings.length > 1 ? (
+                <span>{sellerListings.length} sellers selected</span>
+              ) : sellerListings[0]?.seller ? (
+                <SellerIdentity seller={sellerListings[0].seller} compact showLabel showId={true} />
+              ) : null}
+            </div>
 
-        {sellerListings.length > 1 ? (
-          <div className="quoteModal__sellerList">
-            {sellerListings.map((item) => (
-              <SellerIdentity key={item.id} seller={item.seller} compact showLabel />
-            ))}
+            {sellerListings.length > 1 ? (
+              <div className="quoteModal__sellerList">
+                {sellerListings.map((item) => (
+                  <SellerIdentity key={item.id} seller={item.seller} compact showLabel showId={true} />
+                ))}
+              </div>
+            ) : null}
+
+            <label className="field">
+              <span className="fieldLabel">Quantity</span>
+              <input
+                type="number"
+                min={1}
+                className="input"
+                value={quantity}
+                onChange={(e) => setQuantity(e.target.value)}
+                required
+              />
+            </label>
+
+            <label className="field">
+              <span className="fieldLabel">Requirement description</span>
+              <textarea
+                className="input"
+                rows={4}
+                maxLength={1000}
+                placeholder="Describe specs, quality requirements, packaging, or other details…"
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                required
+              />
+            </label>
+
+            <label className="field">
+              <span className="fieldLabel">Delivery location</span>
+              <input
+                type="text"
+                className="input"
+                maxLength={500}
+                placeholder="City, state, or full delivery address"
+                value={deliveryLocation}
+                onChange={(e) => setDeliveryLocation(e.target.value)}
+                required
+              />
+            </label>
+
+            <label className="field">
+              <span className="fieldLabel">Expected delivery date</span>
+              <input
+                type="date"
+                className="input"
+                value={expectedDeliveryDate}
+                onChange={(e) => setExpectedDeliveryDate(e.target.value)}
+                required
+              />
+            </label>
+
+            <RfqAttachmentPicker value={attachments} onChange={setAttachments} disabled={submitting} />
+
+            <label className="field">
+              <span className="fieldLabel">Indicative Budget (Optional)</span>
+              <input
+                type="number"
+                min={0}
+                step="0.01"
+                className="input"
+                placeholder="Optional — informational only, non-binding"
+                value={targetPrice}
+                onChange={(e) => setTargetPrice(e.target.value)}
+              />
+            </label>
           </div>
-        ) : null}
-
-        <form className="quoteModal__form" onSubmit={handleSubmit}>
-          <label className="field">
-            <span className="fieldLabel">Quantity</span>
-            <input
-              type="number"
-              min={1}
-              className="input"
-              value={quantity}
-              onChange={(e) => setQuantity(e.target.value)}
-              required
-            />
-          </label>
-
-          <label className="field">
-            <span className="fieldLabel">Requirement description</span>
-            <textarea
-              className="input"
-              rows={4}
-              maxLength={1000}
-              placeholder="Describe specs, quality requirements, packaging, or other details…"
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              required
-            />
-          </label>
-
-          <label className="field">
-            <span className="fieldLabel">Delivery location</span>
-            <input
-              type="text"
-              className="input"
-              maxLength={500}
-              placeholder="City, state, or full delivery address"
-              value={deliveryLocation}
-              onChange={(e) => setDeliveryLocation(e.target.value)}
-              required
-            />
-          </label>
-
-          <label className="field">
-            <span className="fieldLabel">Expected delivery date</span>
-            <input
-              type="date"
-              className="input"
-              value={expectedDeliveryDate}
-              onChange={(e) => setExpectedDeliveryDate(e.target.value)}
-              required
-            />
-          </label>
-
-          <RfqAttachmentPicker value={attachments} onChange={setAttachments} disabled={submitting} />
-
-          <label className="field">
-            <span className="fieldLabel">Indicative Budget (Optional)</span>
-            <input
-              type="number"
-              min={0}
-              step="0.01"
-              className="input"
-              placeholder="Optional — informational only, non-binding"
-              value={targetPrice}
-              onChange={(e) => setTargetPrice(e.target.value)}
-            />
-          </label>
 
           <div className="quoteModal__actions">
             <button type="button" className="btn btn--ghost" onClick={onClose} disabled={submitting}>

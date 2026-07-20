@@ -1,42 +1,53 @@
-import { Link, useParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
+import { BackNavButton } from '../../components/common/BackNavButton.jsx'
+import { BusinessProgressTimeline } from '../../components/deals/BusinessProgressTimeline.jsx'
 import { ContactCard } from '../../components/deals/ContactCard.jsx'
 import { DealDetailSkeleton } from '../../components/deals/LoadingSkeleton.jsx'
-import { DealSummary } from '../../components/deals/DealSummary.jsx'
 import { DealTimeline } from '../../components/deals/DealTimeline.jsx'
 import { PaymentCard } from '../../components/deals/PaymentCard.jsx'
 import { ErrorState } from '../../components/common/ErrorState.jsx'
 import { useDeal } from '../../hooks/useDeal.js'
 import {
   formatDealAmount,
+  formatDealDate,
   getCounterparty,
   getDealPayment,
   getMyDealCharge,
+  isDealContactUnlocked,
+  isWaitingForCounterpartyPayment,
+  UNLOCKED_INFO_NOTICE,
 } from '../../utils/dealHelpers.js'
 
-function InfoSection({ title, children }) {
+function InfoSection({ title, children, className = '' }) {
   return (
-    <section className="panel panel--nested dealSection">
+    <section className={`panel panel--nested dealSection ${className}`.trim()}>
       <h3 className="panelTitle">{title}</h3>
       {children}
     </section>
   )
 }
 
-function ProductSnapshot({ product, quantity, unitPrice, currency }) {
-  if (!product) return null
+function PaymentHistory({ deal }) {
+  const buyerPayment = getDealPayment(deal, 'BUYER')
+  const sellerPayment = getDealPayment(deal, 'SELLER')
 
   return (
-    <dl className="dealInfoGrid">
-      <div><dt>Product</dt><dd>{product.productName || '—'}</dd></div>
-      <div><dt>SKU</dt><dd>{product.productSku || '—'}</dd></div>
-      <div><dt>Brand</dt><dd>{product.productBrand || '—'}</dd></div>
-      <div><dt>Category</dt><dd>{product.productCategory || '—'}</dd></div>
-      <div><dt>UOM</dt><dd>{product.productUom || '—'}</dd></div>
-      <div><dt>MOQ</dt><dd>{product.productMoq ?? '—'}</dd></div>
-      <div><dt>Vendor code</dt><dd>{product.vendorProductCode || '—'}</dd></div>
-      <div><dt>Quantity</dt><dd>{quantity ?? '—'}</dd></div>
-      <div><dt>Unit price</dt><dd>{formatDealAmount(unitPrice, currency)}</dd></div>
-    </dl>
+    <div className="paymentHistory">
+      {[buyerPayment, sellerPayment].filter(Boolean).map((payment) => (
+        <div key={payment.id} className="paymentHistory__row">
+          <div>
+            <strong>{payment.payerRole === 'BUYER' ? 'Buyer Payment' : 'Seller Payment'}</strong>
+            <p className="panelSub"><code>{payment.paymentReference}</code></p>
+          </div>
+          <div className="paymentHistory__meta">
+            <span className={`b2bBadge ${payment.paymentStatus === 'SUCCESS' ? 'b2bBadge--green' : 'b2bBadge--amber'}`}>
+              {payment.paymentStatus === 'SUCCESS' ? 'Payment Completed' : 'Deal Charge Pending'}
+            </span>
+            <span>{formatDealDate(payment.paidAt || payment.createdAt)}</span>
+          </div>
+        </div>
+      ))}
+    </div>
   )
 }
 
@@ -45,7 +56,6 @@ export function DealDetailPage({
   listPath,
   counterpartyTitle,
   showPayment = false,
-  showAdminExtras = false,
 }) {
   const { dealId } = useParams()
   const {
@@ -74,23 +84,28 @@ export function DealDetailPage({
     return (
       <section className="panel dealPage">
         <ErrorState
-          title="Deal not found"
-          message={error || 'This deal could not be loaded.'}
+          title="Order not found"
+          message={error || 'This order could not be loaded.'}
           onRetry={load}
         />
         <p style={{ marginTop: '1rem' }}>
-          <Link to={listPath}>← Back to deals</Link>
+          <BackNavButton fallback={listPath} label="← Back" />
         </p>
       </section>
     )
   }
 
+  const unlocked = isDealContactUnlocked(deal)
+  const waiting = isWaitingForCounterpartyPayment(deal, role)
+  const buyerPaid = getDealPayment(deal, 'BUYER')?.paymentStatus === 'SUCCESS'
+  const sellerPaid = getDealPayment(deal, 'SELLER')?.paymentStatus === 'SUCCESS'
+
   return (
     <section className="panel dealPage">
       <div className="panelHeader">
         <div>
-          <p className="panelSub"><Link to={listPath}>← Back to deals</Link></p>
-          <h2 className="panelTitle">Deal {deal.dealNumber}</h2>
+          <BackNavButton fallback={listPath} label="← Back" className="backNavBtn backNavBtn--inline" />
+          <h2 className="panelTitle">Order {deal.dealNumber}</h2>
           <p className="panelSub">{deal.product?.productName}</p>
         </div>
         <button type="button" className="btnOutline" onClick={load}>
@@ -98,115 +113,89 @@ export function DealDetailPage({
         </button>
       </div>
 
-      <DealSummary deal={deal} viewerRole={role} />
-
-      <div className="dealDetailGrid">
-        <InfoSection title="RFQ information">
-          <dl className="dealInfoGrid">
-            <div><dt>RFQ number</dt><dd>{deal.quoteRequest?.rfqNumber || '—'}</dd></div>
-            <div><dt>RFQ status</dt><dd>{deal.quoteRequest?.status || '—'}</dd></div>
-            <div><dt>RFQ group</dt><dd>{deal.rfqGroupId || '—'}</dd></div>
-          </dl>
-        </InfoSection>
-
-        <InfoSection title="Quotation information">
-          <dl className="dealInfoGrid">
-            <div><dt>Deal amount</dt><dd>{formatDealAmount(deal.totalAmount, deal.currency)}</dd></div>
-            <div><dt>Platform Charge (Buyer)</dt><dd>{formatDealAmount(deal.buyerDealCharge, deal.currency)}</dd></div>
-            <div><dt>Platform Charge (Seller)</dt><dd>{formatDealAmount(deal.sellerDealCharge, deal.currency)}</dd></div>
-          </dl>
-        </InfoSection>
-      </div>
-
-      <InfoSection title="Product snapshot">
-        <ProductSnapshot
-          product={deal.product}
-          quantity={deal.quantity}
-          unitPrice={deal.unitPrice}
-          currency={deal.currency}
-        />
+      <InfoSection title="Business Progress" className="dealSection--progress">
+        <BusinessProgressTimeline deal={deal} />
       </InfoSection>
 
-      {showPayment ? (
-        <PaymentCard
-          deal={deal}
-          viewerRole={role}
-          payment={myPayment}
-          chargeAmount={chargeAmount}
-          onPay={pay}
-          paying={paying}
-          paymentSuccess={paymentSuccess}
-        />
-      ) : null}
+      <InfoSection title="Product Summary">
+        <div className="dealProductSummary">
+          <div className="dealProductSummary__image" aria-hidden>
+            {(deal.product?.productName || 'P').slice(0, 1)}
+          </div>
+          <dl className="dealInfoGrid dealProductSummary__grid">
+            <div><dt>Product Name</dt><dd>{deal.product?.productName || '—'}</dd></div>
+            <div><dt>Order ID</dt><dd><code>{deal.dealNumber}</code></dd></div>
+            <div><dt>RFQ ID</dt><dd>{deal.quoteRequest?.rfqNumber || '—'}</dd></div>
+            <div><dt>Quantity</dt><dd>{deal.quantity ?? '—'}</dd></div>
+            <div><dt>Quoted Unit Price</dt><dd>{formatDealAmount(deal.unitPrice, deal.currency)}</dd></div>
+            <div><dt>Delivery Requirement</dt><dd>{deal.quoteRequest?.message || '—'}</dd></div>
+            <div><dt>Expected Delivery</dt><dd>{deal.expectedDelivery ? formatDealDate(deal.expectedDelivery) : (deal.quoteRequest?.freightNote || 'Direct Supplier Delivery')}</dd></div>
+          </dl>
+        </div>
+      </InfoSection>
 
-      <ContactCard
-        deal={deal}
-        counterparty={counterparty}
-        title={counterpartyTitle}
-      />
+      <InfoSection title="Quotation Summary">
+        <dl className="dealInfoGrid">
+          <div><dt>Seller ID</dt><dd>{counterparty?.portalUserId || '—'}</dd></div>
+          <div><dt>Accepted Quote</dt><dd>{formatDealAmount(deal.unitPrice, deal.currency)}</dd></div>
+          <div><dt>Line Total</dt><dd>{formatDealAmount(deal.totalAmount, deal.currency)}</dd></div>
+          <div><dt>Delivery Timeline</dt><dd>{deal.quoteRequest?.freightNote || '—'}</dd></div>
+          <div><dt>Platform Deal Charge</dt><dd>{formatDealAmount(chargeAmount, deal.currency)}</dd></div>
+        </dl>
+      </InfoSection>
 
-      {showAdminExtras ? (
+      <InfoSection title="Payment Status">
+        <div className="dealPaymentStatusGrid">
+          <div className={`dealPaymentStatusCard${buyerPaid ? ' dealPaymentStatusCard--paid' : ''}`}>
+            <span>Buyer Payment</span>
+            <strong>{buyerPaid ? 'Payment Completed' : 'Deal Charge Pending'}</strong>
+          </div>
+          <div className={`dealPaymentStatusCard${sellerPaid ? ' dealPaymentStatusCard--paid' : ''}`}>
+            <span>Seller Payment</span>
+            <strong>{sellerPaid ? 'Payment Completed' : 'Deal Charge Pending'}</strong>
+          </div>
+        </div>
+        <DealTimeline events={deal.events} />
+        <PaymentHistory deal={deal} />
+      </InfoSection>
+
+      <InfoSection title="Action Panel">
+        {showPayment && myPayment?.paymentStatus === 'PENDING' ? (
+          <PaymentCard
+            deal={deal}
+            viewerRole={role}
+            payment={myPayment}
+            chargeAmount={chargeAmount}
+            onPay={pay}
+            paying={paying}
+            paymentSuccess={paymentSuccess}
+          />
+        ) : null}
+
+        {(paymentSuccess || myPayment?.paymentStatus === 'SUCCESS') && waiting ? (
+          <div className="stateBox stateBox--success" role="status">
+            <div className="stateBox__title">Payment Received Successfully</div>
+            <p className="stateBox__desc">Waiting for seller payment before contact details unlock.</p>
+          </div>
+        ) : null}
+
+        {unlocked ? (
+          <div className="offlineNoticeCard">
+            <svg className="offlineNoticeCard__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <div>
+              <h4 className="offlineNoticeCard__title">{UNLOCKED_INFO_NOTICE.TITLE}</h4>
+              <p className="offlineNoticeCard__desc">Business Continues Offline</p>
+            </div>
+          </div>
+        ) : null}
+
         <ContactCard
           deal={deal}
-          counterparty={deal.seller}
-          title="Seller contact"
+          counterparty={counterparty}
+          title={counterpartyTitle}
         />
-      ) : null}
-
-      {showAdminExtras ? (
-        <>
-          <InfoSection title="Charge configuration used">
-            <div className="dealDetailGrid">
-              <div>
-                <h4 className="dealSection__subtitle">Buyer config</h4>
-                <dl className="dealInfoGrid">
-                  <div><dt>Plan</dt><dd>{deal.buyerChargeConfig?.displayName || deal.buyerChargeConfig?.planKey || '—'}</dd></div>
-                  <div><dt>Type</dt><dd>{deal.buyerChargeConfig?.chargeType || '—'}</dd></div>
-                  <div><dt>Value</dt><dd>{deal.buyerChargeConfig?.value ?? '—'}</dd></div>
-                </dl>
-              </div>
-              <div>
-                <h4 className="dealSection__subtitle">Seller config</h4>
-                <dl className="dealInfoGrid">
-                  <div><dt>Plan</dt><dd>{deal.sellerChargeConfig?.displayName || deal.sellerChargeConfig?.planKey || '—'}</dd></div>
-                  <div><dt>Type</dt><dd>{deal.sellerChargeConfig?.chargeType || '—'}</dd></div>
-                  <div><dt>Value</dt><dd>{deal.sellerChargeConfig?.value ?? '—'}</dd></div>
-                </dl>
-              </div>
-            </div>
-          </InfoSection>
-
-          <InfoSection title="Payments">
-            <div className="tableWrap">
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>Role</th>
-                    <th>Status</th>
-                    <th>Amount</th>
-                    <th>Reference</th>
-                    <th>Paid at</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(deal.payments || []).map((payment) => (
-                    <tr key={payment.id}>
-                      <td>{payment.payerRole}</td>
-                      <td>{payment.paymentStatus}</td>
-                      <td>{formatDealAmount(payment.amount, payment.currency)}</td>
-                      <td><code>{payment.paymentReference}</code></td>
-                      <td>{payment.paidAt ? new Date(payment.paidAt).toLocaleString() : '—'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </InfoSection>
-        </>
-      ) : null}
-
-      <InfoSection title="Timeline">
-        <DealTimeline events={deal.events} />
       </InfoSection>
     </section>
   )

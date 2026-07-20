@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { DealCard } from '../../components/deals/DealCard.jsx'
+import { DealListAction } from '../../components/deals/DealListAction.jsx'
 import { DealListFilters } from '../../components/deals/DealListFilters.jsx'
 import { DealListSkeleton } from '../../components/deals/LoadingSkeleton.jsx'
 import { DealStatusBadge } from '../../components/deals/DealStatusBadge.jsx'
@@ -12,6 +13,7 @@ import {
   getCounterparty,
   getCounterpartyCity,
   getMyDealCharge,
+  UNLOCKED_INFO_NOTICE,
 } from '../../utils/dealHelpers.js'
 
 export function DealListPage({
@@ -34,7 +36,7 @@ export function DealListPage({
   } = useDeals(role, showAdminFilters ? {} : undefined)
 
   const counterpartyLabel = role === 'BUYER' ? 'Seller ID' : role === 'SELLER' ? 'Buyer ID' : 'Parties'
-  const chargeLabel = role === 'ADMIN' ? 'Charges' : 'Platform Charge'
+  const chargeLabel = role === 'ADMIN' ? 'Charges' : 'Platform Deal Charge'
 
   return (
     <section className="panel dealPage">
@@ -53,6 +55,20 @@ export function DealListPage({
         </button>
       </div>
 
+      {role === 'BUYER' ? (
+        <div className="offlineNoticeCard" style={{ marginBottom: 20 }}>
+          <svg className="offlineNoticeCard__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <div>
+            <h4 className="offlineNoticeCard__title">{UNLOCKED_INFO_NOTICE.TITLE}</h4>
+            <p className="offlineNoticeCard__desc">
+              {UNLOCKED_INFO_NOTICE.DESC}
+            </p>
+          </div>
+        </div>
+      ) : null}
+
       <DealListFilters
         filters={filters}
         onChange={updateFilters}
@@ -63,7 +79,7 @@ export function DealListPage({
 
       {error ? (
         <ErrorState
-          title="Could not load deals"
+          title="Could not load orders"
           message={error}
           onRetry={load}
         />
@@ -74,8 +90,8 @@ export function DealListPage({
       {!loading && !error && !deals.length ? (
         <EmptyState
           icon="🤝"
-          title="No deals yet"
-          description="Accepted quotations will appear here as deals."
+          title="No orders yet"
+          description="Accepted quotations will appear here as orders."
           action={emptyAction}
         />
       ) : null}
@@ -97,7 +113,7 @@ export function DealListPage({
             <table className="table">
               <thead>
                 <tr>
-                  <th>Deal #</th>
+                  <th>{role === 'BUYER' ? 'Order #' : 'Deal #'}</th>
                   <th>Product</th>
                   {showAdminFilters ? (
                     <>
@@ -112,7 +128,7 @@ export function DealListPage({
                   )}
                   <th>Amount</th>
                   <th>{chargeLabel}</th>
-                  <th>Status</th>
+                  <th>Contact Status</th>
                   <th>Created</th>
                   <th>Action</th>
                 </tr>
@@ -143,9 +159,11 @@ export function DealListPage({
                       <td><DealStatusBadge status={deal.status} /></td>
                       <td>{formatDealDate(deal.createdAt)}</td>
                       <td>
-                        <Link to={`${detailBasePath}/${deal.id}`} className="btnOutline btnOutline--sm">
-                          View
-                        </Link>
+                        <DealListAction
+                          deal={deal}
+                          viewerRole={role}
+                          detailPath={`${detailBasePath}/${deal.id}`}
+                        />
                       </td>
                     </tr>
                   )

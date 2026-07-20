@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { PaymentStatusBadge } from './PaymentStatusBadge.jsx'
+import { PayDealChargeButton } from './PayDealChargeButton.jsx'
 import {
   formatDealAmount,
   formatDealDate,
@@ -24,7 +25,7 @@ function ConfirmDialog({ open, title, message, confirmLabel, loading, onConfirm,
           <button type="button" className="btnOutline" onClick={onCancel} disabled={loading}>
             Cancel
           </button>
-          <button type="button" className="btnPrimary" onClick={onConfirm} disabled={loading}>
+          <button type="button" className="btnPrimary dealActionBtn dealActionBtn--pay" onClick={onConfirm} disabled={loading}>
             {loading ? 'Processing…' : confirmLabel}
           </button>
         </div>
@@ -65,15 +66,18 @@ export function PaymentCard({
     <section className="paymentCard panel panel--nested">
       <div className="panelHeader">
         <div>
-          <h3 className="panelTitle">Platform charge payment</h3>
-          <p className="panelSub">Dummy payment gateway — no real money is charged.</p>
+          <h3 className="panelTitle">Platform Deal Charge</h3>
+          <p className="panelSub">Razorpay Test Mode · Complete sandbox payment to unlock contact details.</p>
         </div>
-        <PaymentStatusBadge status={payment?.paymentStatus || 'PENDING'} />
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <span className="b2bBadge b2bBadge--blue" style={{ fontSize: 11 }}>Razorpay Test Mode</span>
+          <PaymentStatusBadge status={payment?.paymentStatus || 'PENDING'} />
+        </div>
       </div>
 
       <div className="paymentCard__grid">
         <div>
-          <div className="paymentCard__label">Charge</div>
+          <div className="paymentCard__label">Deal Charge</div>
           <div className="paymentCard__value">{formatDealAmount(chargeAmount, currency)}</div>
         </div>
         <div>
@@ -81,23 +85,23 @@ export function PaymentCard({
           <div className="paymentCard__value">{currency}</div>
         </div>
         <div>
-          <div className="paymentCard__label">Reference</div>
+          <div className="paymentCard__label">Payment Reference</div>
           <div className="paymentCard__value"><code>{payment?.paymentReference || '—'}</code></div>
         </div>
         <div>
-          <div className="paymentCard__label">Paid at</div>
+          <div className="paymentCard__label">Paid At</div>
           <div className="paymentCard__value">{formatDealDate(payment?.paidAt)}</div>
         </div>
       </div>
 
       {paymentSuccess || payment?.paymentStatus === 'SUCCESS' ? (
         <div className="stateBox stateBox--success" role="status">
-          <div className="stateBox__title">Payment successful</div>
+          <div className="stateBox__title">Payment Received Successfully</div>
           <p className="stateBox__desc">
             {waiting
-              ? 'Waiting for the counterparty to pay their deal charge before contacts unlock.'
+              ? 'Waiting for seller payment before contact details unlock.'
               : deal?.contactUnlockStatus === 'UNLOCKED'
-                ? 'Both parties have paid. Contact details are now unlocked.'
+                ? 'Contact Details Unlocked. Business Continues Offline.'
                 : 'Your deal charge has been recorded.'}
           </p>
         </div>
@@ -105,27 +109,22 @@ export function PaymentCard({
 
       {canPay ? (
         <div className="paymentCard__actions">
-          <button
-            type="button"
-            className="btnPrimary"
+          <PayDealChargeButton
             onClick={() => setConfirmOpen(true)}
+            loading={paying}
             disabled={paying}
+            size="lg"
           >
-            Pay Platform Charge
-          </button>
+            Proceed To Pay Deal Charge
+          </PayDealChargeButton>
         </div>
-      ) : null}
-
-      {waiting ? (
-        <p className="paymentCard__hint" role="status">
-          Your payment is complete. Waiting for the counterparty payment.
-        </p>
       ) : null}
 
       <ConfirmDialog
         open={confirmOpen}
-        title="Confirm Platform Charge payment"
-        message={`Pay Platform Charge of ${formatDealAmount(chargeAmount, currency)} using the dummy payment gateway?`}        confirmLabel="Confirm payment"
+        title="Proceed To Pay Deal Charge"
+        message={`Complete Razorpay test payment of ${formatDealAmount(chargeAmount, currency)} for the platform deal charge?`}
+        confirmLabel="Open Razorpay Checkout"
         loading={paying}
         onConfirm={handleConfirmPay}
         onCancel={() => setConfirmOpen(false)}

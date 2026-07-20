@@ -27,14 +27,14 @@ describe('DealTimeline', () => {
       />,
     )
 
-    expect(screen.getByText('Deal created')).toBeInTheDocument()
+    expect(screen.getByText('Order Created')).toBeInTheDocument()
     expect(screen.getByText('Buyer paid')).toBeInTheDocument()
-    expect(screen.getByText('Contact unlocked')).toBeInTheDocument()
+    expect(screen.getByText('Contact Details Unlocked')).toBeInTheDocument()
 
-    const titles = screen.getAllByText(/Deal created|Buyer paid|Contact unlocked/)
-    expect(titles[0]).toHaveTextContent('Deal created')
+    const titles = screen.getAllByText(/Order Created|Buyer paid|Contact Details Unlocked/)
+    expect(titles[0]).toHaveTextContent('Order Created')
     expect(titles[1]).toHaveTextContent('Buyer paid')
-    expect(titles[2]).toHaveTextContent('Contact unlocked')
+    expect(titles[2]).toHaveTextContent('Contact Details Unlocked')
   })
 
   it('shows empty state when no events exist', () => {

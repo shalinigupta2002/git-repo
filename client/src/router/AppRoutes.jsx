@@ -258,6 +258,7 @@ export function AppRoutes() {
             <Route path="/buyer/dashboard" element={<BuyerDashboard />} />
             <Route path="/buyer/pricing/both-seller" element={<BuyerBothSellerPricing />} />
             <Route path="/buyer/pricing" element={<BuyerPricing />} />
+            <Route path="/buyer/rfqs" element={<Navigate to="/buyer/quotations" replace />} />
             <Route path="/buyer/transactions" element={buyerSub(<BuyerTransactions />)} />
             <Route path="/buyer/deals" element={buyerSub(<BuyerDealsList />)} />
             <Route path="/buyer/deals/:dealId" element={buyerSub(<BuyerDealDetail />)} />
@@ -271,7 +272,7 @@ export function AppRoutes() {
               path="/buyer/quote-requests/:requestId"
               element={<LegacyQuotationRedirect base="/buyer/quotations" />}
             />
-            <Route path="/buyer/category-request" element={buyerSub(<BuyerCategoryRequestPage />)} />
+            <Route path="/buyer/category-request" element={<Navigate to="/buyer/dashboard" replace />} />
             <Route path="/buyer/products" element={<Navigate to="/products" replace />} />
             <Route path="/buyer/contact-admin" element={<Navigate to="/portal/contact-admin" replace />} />
           </Route>

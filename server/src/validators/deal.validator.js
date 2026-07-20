@@ -32,6 +32,12 @@ const dealIdParam = z.object({
   dealId: z.string().uuid(),
 })
 
+const verifyDealPaymentBody = z.object({
+  razorpayOrderId: z.string().min(1, 'razorpayOrderId is required'),
+  razorpayPaymentId: z.string().min(1, 'razorpayPaymentId is required'),
+  razorpaySignature: z.string().min(1, 'razorpaySignature is required'),
+})
+
 const chargeConfigIdParam = z.object({
   id: z.string().uuid(),
 })
@@ -51,6 +57,7 @@ module.exports = {
   listDealsQuery,
   adminListDealsQuery,
   dealIdParam,
+  verifyDealPaymentBody,
   chargeConfigIdParam,
   updateDealChargeConfigBody,
 }

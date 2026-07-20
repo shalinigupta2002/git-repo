@@ -29,6 +29,16 @@ export async function payBuyerDeal(dealId) {
   return unwrap(api.post(`${BUYER_BASE}/${dealId}/pay`), 'Payment failed')
 }
 
+export async function createDealPaymentOrder(dealId, role = 'BUYER') {
+  const base = role === 'SELLER' ? SELLER_BASE : BUYER_BASE
+  return unwrap(api.post(`${base}/${dealId}/pay/order`), 'Failed to create payment order')
+}
+
+export async function verifyDealPayment(dealId, body, role = 'BUYER') {
+  const base = role === 'SELLER' ? SELLER_BASE : BUYER_BASE
+  return unwrap(api.post(`${base}/${dealId}/pay/verify`, body), 'Payment verification failed')
+}
+
 export async function listSellerDeals(params = {}) {
   return unwrap(api.get(SELLER_BASE, { params }), 'Failed to load deals')
 }

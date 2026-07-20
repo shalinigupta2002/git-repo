@@ -1,17 +1,24 @@
 import { Link } from 'react-router-dom'
 import { DealStatusBadge } from './DealStatusBadge.jsx'
+import { PayDealChargeButton } from './PayDealChargeButton.jsx'
 import {
   formatDealAmount,
   formatDealDate,
   getCounterparty,
   getCounterpartyCity,
   getMyDealCharge,
+  isDealContactUnlocked,
+  canPayDealCharge,
+  isWaitingForCounterpartyPayment,
 } from '../../utils/dealHelpers.js'
 
 export function DealCard({ deal, viewerRole = 'BUYER', detailPath }) {
   const counterparty = getCounterparty(deal, viewerRole)
   const charge = getMyDealCharge(deal, viewerRole)
   const city = getCounterpartyCity(counterparty)
+  const unlocked = isDealContactUnlocked(deal)
+  const canPay = canPayDealCharge(deal, viewerRole)
+  const waiting = isWaitingForCounterpartyPayment(deal, viewerRole)
 
   return (
     <article className="dealCard">
@@ -20,7 +27,16 @@ export function DealCard({ deal, viewerRole = 'BUYER', detailPath }) {
           <div className="dealCard__number"><code>{deal.dealNumber}</code></div>
           <div className="dealCard__product">{deal.product?.productName || 'Product'}</div>
         </div>
-        <DealStatusBadge status={deal.status} />
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+          <DealStatusBadge deal={deal} role={viewerRole} />
+          {unlocked ? (
+            <span className="b2bBadge b2bBadge--green" style={{ fontSize: 10 }}>Contact Unlocked</span>
+          ) : waiting ? (
+            <span className="b2bBadge b2bBadge--blue" style={{ fontSize: 10 }}>Waiting For Seller</span>
+          ) : (
+            <span className="b2bBadge b2bBadge--amber" style={{ fontSize: 10 }}>Deal Charge Pending</span>
+          )}
+        </div>
       </div>
 
       <dl className="dealCard__meta">
@@ -37,7 +53,7 @@ export function DealCard({ deal, viewerRole = 'BUYER', detailPath }) {
           <dd>{formatDealAmount(deal.totalAmount, deal.currency)}</dd>
         </div>
         <div>
-          <dt>Platform Charge</dt>
+          <dt>Platform Deal Charge</dt>
           <dd>{formatDealAmount(charge, deal.currency)}</dd>
         </div>
         <div>
@@ -48,9 +64,15 @@ export function DealCard({ deal, viewerRole = 'BUYER', detailPath }) {
 
       {detailPath ? (
         <div className="dealCard__actions">
-          <Link to={detailPath} className="btnOutline btnOutline--sm">
-            View
-          </Link>
+          {canPay ? (
+            <PayDealChargeButton to={detailPath} />
+          ) : waiting ? (
+            <span className="dealActionStatus dealActionStatus--waiting">Payment Completed · Waiting For Seller</span>
+          ) : (
+            <Link to={detailPath} className="btnOutline btnOutline--sm">
+              View Order Details
+            </Link>
+          )}
         </div>
       ) : null}
     </article>

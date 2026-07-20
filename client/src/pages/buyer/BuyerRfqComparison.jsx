@@ -1,5 +1,5 @@
-import { RfqComparisonView } from '../../components/quotation/RfqComparisonView.jsx'
+import { QuotationWorkspace } from '../../components/quotation/QuotationWorkspace.jsx'
 
 export function BuyerRfqComparison() {
-  return <RfqComparisonView basePath="/buyer/quotations" />
+  return <QuotationWorkspace mode="buyer" basePath="/buyer/quotations" />
 }

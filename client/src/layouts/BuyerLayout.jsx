@@ -135,21 +135,48 @@ export function BuyerLayout() {
 
         <nav className="proNav" aria-label="Buyer">
           <NavLink
-            to="/buyer/welcome"
-            end
-            className={({ isActive }) =>
-              isActive ? 'proNavLink proNavLink--active' : 'proNavLink'
-            }
-          >
-            Welcome
-          </NavLink>
-          <NavLink
             to="/buyer/dashboard"
             className={({ isActive }) =>
               isActive ? 'proNavLink proNavLink--active' : 'proNavLink'
             }
           >
-            My Dashboard
+            Dashboard
+          </NavLink>
+
+          <Link to="/products" className="proNavLink">
+            Products
+          </Link>
+
+          <NavLink
+            to="/buyer/quotations"
+            end
+            className={({ isActive }) =>
+              isActive ? 'proNavLink proNavLink--active' : 'proNavLink'
+            }
+          >
+            RFQs &amp; Quotations
+          </NavLink>
+
+          <NavLink
+            to="/buyer/deals"
+            className={({ isActive }) =>
+              isActive ? 'proNavLink proNavLink--active' : 'proNavLink'
+            }
+            aria-disabled={!hasSub}
+            onClick={(e) => guardSubscribed(e, '/buyer/deals')}
+          >
+            My Orders
+          </NavLink>
+
+          <NavLink
+            to="/buyer/transactions"
+            className={({ isActive }) =>
+              isActive ? 'proNavLink proNavLink--active' : 'proNavLink'
+            }
+            aria-disabled={!hasSub}
+            onClick={(e) => guardSubscribed(e, '/buyer/transactions')}
+          >
+            Transactions
           </NavLink>
 
           <NavLink
@@ -159,25 +186,6 @@ export function BuyerLayout() {
             }
           >
             Pricing
-          </NavLink>
-
-          <Link to="/products" className="proNavLink">
-            Product catalog
-          </Link>
-          <NavLink
-            to="/buyer/transactions"
-            className={({ isActive }) =>
-              isActive ? 'proNavLink proNavLink--active' : 'proNavLink'
-            }
-            aria-disabled={!hasSub}
-            title={
-              hasSub
-                ? undefined
-                : 'Subscribe on the home page to unlock this section'
-            }
-            onClick={(e) => guardSubscribed(e, '/buyer/transactions')}
-          >
-            Buyer transaction
           </NavLink>
         </nav>
 

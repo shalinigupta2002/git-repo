@@ -172,6 +172,14 @@ function IconChat() {
   )
 }
 
+function IconHeart({ filled = false }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l8.78-8.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+    </svg>
+  )
+}
+
 function formatMoney(n, currency = 'INR') {
   return formatProductPrice(n, currency)
 }
@@ -487,7 +495,7 @@ export function MarketingProductsPage() {
               Home
             </Link>
             <Link to="/products" className="mpNav__link">
-              Product
+              Products
             </Link>
             <Link to="/pricing" className="mpNav__link">
               Pricing
@@ -726,8 +734,8 @@ export function MarketingProductsPage() {
               <div className="mpGrid">
                 {visibleItems.map((p) => (
                   <article key={p.id} className="mpCard">
-                    <Link to={`/products/${p.id}`} className="mpCard__link">
-                      <div className="mpCard__media">
+                    <div className="mpCard__media">
+                      <Link to={`/products/${p.id}`} className="mpCard__link">
                         <ProductImage
                           product={p}
                           className="mpCard__img"
@@ -736,7 +744,23 @@ export function MarketingProductsPage() {
                           decoding="async"
                           placeholderSize={{ width: 600, height: 600 }}
                         />
-                      </div>
+                      </Link>
+                      {showWishlistButton ? (
+                        <button
+                          type="button"
+                          className={`mpCard__heartBtn${wishlistedIds.has(String(p.id)) ? ' mpCard__heartBtn--active' : ''}`}
+                          aria-label={wishlistedIds.has(String(p.id)) ? 'Remove from wishlist' : 'Add to wishlist'}
+                          onClick={(e) => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            handleWishlist(p)
+                          }}
+                        >
+                          <IconHeart filled={wishlistedIds.has(String(p.id))} />
+                        </button>
+                      ) : null}
+                    </div>
+                    <Link to={`/products/${p.id}`} className="mpCard__link">
                       <div className="mpCard__bodyTop">
                         <h3 className="mpCard__title">{p.title}</h3>
                         <p className="mpCard__price">
@@ -750,7 +774,7 @@ export function MarketingProductsPage() {
                         <span className="mpCard__loc">
                           <IconPin />
                           {p.source === 'seller' && p.seller ? (
-                            <SellerIdentity seller={p.seller} compact showLabel showId={false} />
+                            <SellerIdentity seller={p.seller} compact showLabel showId={true} />
                           ) : (
                             supplierDisplayName(p) || '—'
                           )}
@@ -769,7 +793,7 @@ export function MarketingProductsPage() {
                               onChange={() => toggleRfqSelection(p)}
                               aria-label={`Select ${p.title} for multi-seller RFQ`}
                             />
-                            <span>Compare</span>
+                            <span>Select for Multi-Seller RFQ</span>
                           </label>
                           <button
                             type="button"
@@ -777,17 +801,6 @@ export function MarketingProductsPage() {
                             onClick={() => handleRequestQuote(p)}
                           >
                             Request quotation
-                          </button>
-                        </div>
-                      ) : null}
-                      {showWishlistButton ? (
-                        <div className="mpCard__actions mpCard__actions--single">
-                          <button
-                            type="button"
-                            className="btnOutline mpCard__btnHalf mpCard__wishlist"
-                            onClick={() => handleWishlist(p)}
-                          >
-                            {wishlistedIds.has(String(p.id)) ? 'Wishlisted' : 'Wishlist'}
                           </button>
                         </div>
                       ) : null}
@@ -822,11 +835,11 @@ export function MarketingProductsPage() {
         </div>
       </div>
 
-      {selectedRfqProducts.length > 1 ? (
+      {selectedRfqProducts.length > 0 ? (
         <div className="mpMultiRfqBar">
-          <span>{selectedRfqProducts.length} sellers selected</span>
+          <span>{selectedRfqProducts.length} product{selectedRfqProducts.length === 1 ? '' : 's'} selected</span>
           <button type="button" className="btn btn--primary" onClick={openMultiSellerRfq}>
-            Send RFQ to {selectedRfqProducts.length} sellers
+            Send RFQ to {selectedRfqProducts.length} seller{selectedRfqProducts.length === 1 ? '' : 's'}
           </button>
         </div>
       ) : null}

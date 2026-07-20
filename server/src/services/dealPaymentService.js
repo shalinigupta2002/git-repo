@@ -61,7 +61,8 @@ function buildPaymentReference(dealNumber, payerRole) {
  * @param {import('@prisma/client').Prisma.TransactionClient} tx
  */
 async function lockDealRow(tx, dealId) {
-  await tx.$queryRaw`SELECT id FROM deals WHERE id = ${dealId}::uuid FOR UPDATE`
+  // deals.id is TEXT in PostgreSQL (see migration 20260718163000_deal_management)
+  await tx.$queryRaw`SELECT id FROM deals WHERE id = ${dealId} FOR UPDATE`
 }
 
 /**
@@ -173,7 +174,7 @@ async function markPaymentSuccessful(tx, payment, actorUserId, provider = DEFAUL
     data: {
       paymentStatus: 'SUCCESS',
       paidAt,
-      providerPaymentId: `${provider}_${payment.paymentReference}`,
+      providerPaymentId: payment.providerPaymentId || `${provider}_${payment.paymentReference}`,
     },
   })
 

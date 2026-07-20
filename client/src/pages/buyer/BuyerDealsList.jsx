@@ -5,8 +5,8 @@ export function BuyerDealsList() {
   return (
     <DealListPage
       role="BUYER"
-      title="My deals"
-      subtitle="Deals created from accepted quotations."
+      title="My Orders"
+      subtitle="Track your accepted quotations, platform deal charges, and unlocked seller contact details."
       detailBasePath="/buyer/deals"
       emptyAction={<Link to="/buyer/quotations" className="btnPrimary">Browse quotations</Link>}
     />

@@ -119,15 +119,40 @@ function groupRowsByRfq(rows) {
   return map
 }
 
+function groupMatchesStatusFilter(group, status) {
+  if (!status || status === 'all') return true
+
+  const quotations = group.quotations || []
+  const statuses = quotations.map((q) => q.status)
+
+  switch (status) {
+    case 'PENDING':
+      return group.aggregateStatus === 'PENDING'
+        || statuses.some((s) => s === 'PENDING')
+    case 'RESPONDED':
+      return group.aggregateStatus === 'RESPONDED'
+        || statuses.some((s) => s === 'RESPONDED')
+    case 'ACCEPTED':
+      return group.aggregateStatus === 'ACCEPTED'
+        || statuses.some((s) => s === 'ACCEPTED')
+    case 'DECLINED':
+      return group.aggregateStatus === 'DECLINED'
+        || statuses.some((s) => s === 'DECLINED')
+    case 'CANCELLED':
+      return group.aggregateStatus === 'CANCELLED'
+        || statuses.some((s) => s === 'CANCELLED')
+    default:
+      return group.aggregateStatus === status
+  }
+}
+
 function filterGroups(groups, { status, q, expired } = {}) {
   let result = groups
 
-  if (status && status !== 'all') {
-    result = result.filter((g) => g.aggregateStatus === status)
-  }
-
   if (expired === true || expired === 'true') {
     result = result.filter((g) => g.hasExpiredQuotation)
+  } else if (status && status !== 'all') {
+    result = result.filter((g) => groupMatchesStatusFilter(g, status))
   }
 
   if (q && String(q).trim()) {

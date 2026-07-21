@@ -80,13 +80,76 @@ function firstImageUrl(images) {
   return hit?.url ?? null
 }
 
-function categoryMatches(categoryPath, filter) {
-  if (!filter) return true
+let dbCategorySlugMap = null
+let dbCategoryMapTime = 0
+
+async function getCategorySlugToNameMap() {
+  const now = Date.now()
+  if (dbCategorySlugMap && now - dbCategoryMapTime < 60000) {
+    return dbCategorySlugMap
+  }
+
+  const map = new Map()
+  for (const [slug, label] of Object.entries(CATEGORY_SLUG_TO_LABEL)) {
+    map.set(slug.toLowerCase(), label)
+  }
+
+  try {
+    const { query } = require('../db/pool.js')
+    const { rows } = await query('SELECT slug, name FROM catalog.categories', [])
+    for (const row of rows) {
+      if (row.slug && row.name) {
+        map.set(row.slug.toLowerCase(), row.name)
+      }
+    }
+  } catch {
+    // If DB query fails, fall back to file parsing
+  }
+
+  try {
+    const treePath = path.join(__dirname, '../../../client/src/utils/shopCategoryTree.js')
+    const source = fs.readFileSync(treePath, 'utf8')
+    for (const match of source.matchAll(/id:\s*'([^']+)',\s*label:\s*'([^']+)'/g)) {
+      map.set(match[1].toLowerCase(), match[2])
+    }
+  } catch {
+    // ignore
+  }
+
+  dbCategorySlugMap = map
+  dbCategoryMapTime = now
+  return map
+}
+
+function categoryMatches(categoryPath, filter, slugMap) {
+  if (!filter || !filter.trim()) return true
   if (!categoryPath) return false
 
-  const labels = loadCategoryIdToLabel()
-  const needle = (labels[filter] || filter).toLowerCase()
-  return categoryPath.toLowerCase().includes(needle)
+  const rawFilter = filter.trim().toLowerCase()
+  const catPathLower = categoryPath.toLowerCase()
+
+  // 1. If slugMap resolves this filter slug to a category/subcategory name
+  const mappedLabel = slugMap ? slugMap.get(rawFilter) : null
+  if (mappedLabel) {
+    return catPathLower.includes(mappedLabel.toLowerCase())
+  }
+
+  // 2. Direct text match
+  if (catPathLower.includes(rawFilter)) {
+    return true
+  }
+
+  // 3. De-slugify hyphenated subcategory slug (e.g. "movies-gaming-accessories" -> "gaming accessories")
+  const parts = rawFilter.split('-').filter(Boolean)
+  if (parts.length > 1) {
+    const deSlugified = parts.join(' ')
+    if (catPathLower.includes(deSlugified)) return true
+
+    const subOnly = parts.slice(1).join(' ')
+    if (subOnly && catPathLower.includes(subOnly)) return true
+  }
+
+  return false
 }
 
 function brandMatches(brandName, filter) {
@@ -127,12 +190,12 @@ function mapSellerProduct(product) {
   }
 }
 
-function filterSellerProducts(products, { q, category, brand } = {}) {
+function filterSellerProducts(products, { q, category, brand } = {}, slugMap) {
   const query = q?.trim().toLowerCase() || ''
 
   return products.filter((product) => {
     const meta = parseProductMeta(product.description)
-    if (!categoryMatches(meta.category, category)) return false
+    if (!categoryMatches(meta.category, category, slugMap)) return false
     if (!brandMatches(meta.brand, brand)) return false
     if (!query) return true
     const haystack = `${product.title} ${product.description || ''} ${meta.brand || ''}`.toLowerCase()
@@ -147,6 +210,7 @@ function filterSellerProducts(products, { q, category, brand } = {}) {
 async function listSellerProducts({ q, category, brand, limit = 12, cursor } = {}) {
   const pageSize = Math.min(Math.max(Number(limit) || 12, 1), 50)
   const offset = cursor ? Math.max(Number.parseInt(String(cursor), 10) || 0, 0) : 0
+  const slugMap = await getCategorySlugToNameMap()
 
   const rows = await prisma.product.findMany({
     where: { isActive: true },
@@ -156,7 +220,7 @@ async function listSellerProducts({ q, category, brand, limit = 12, cursor } = {
     },
   })
 
-  const filtered = filterSellerProducts(rows.map(mapSellerProduct), { q, category, brand })
+  const filtered = filterSellerProducts(rows.map(mapSellerProduct), { q, category, brand }, slugMap)
   const products = filtered.slice(offset, offset + pageSize)
   const nextCursor = offset + pageSize < filtered.length ? String(offset + pageSize) : null
 
@@ -226,4 +290,5 @@ module.exports = {
   findAlternativeSellerListings,
   parseProductMeta,
   mapSellerProduct,
+  filterSellerProducts,
 }

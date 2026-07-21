@@ -35,3 +35,69 @@ describe('sellerBrowseService image mapping', () => {
     expect(mapped.imageUrl).toBeNull()
   })
 })
+
+describe('sellerBrowseService subcategory filtering', () => {
+  const { filterSellerProducts } = require('../services/sellerBrowseService.js')
+
+  const sampleProducts = [
+    {
+      id: 'p1',
+      title: 'PS5 Console',
+      description: 'Category: Movies, Music & Video Games > Video Games > Gaming Accessories. Brand: Sony.',
+      price: 49999,
+    },
+    {
+      id: 'p2',
+      title: 'Fast Charger 65W',
+      description: 'Category: Mobile & Accessories > Mobile Accessories. Brand: Anker.',
+      price: 1999,
+    },
+    {
+      id: 'p3',
+      title: 'Leather Boots',
+      description: 'Category: Men\'s Fashion > Footwear > Shoes. Brand: Red Tape.',
+      price: 3499,
+    },
+    {
+      id: 'p4',
+      title: 'Sci-Fi Novel',
+      description: 'Category: Books > Fiction. Brand: Penguin.',
+      price: 499,
+    },
+  ]
+
+  const slugMap = new Map([
+    ['movies', 'Movies, Music & Video Games'],
+    ['movies-gaming-accessories', 'Gaming Accessories'],
+    ['mobiles-mobile-accessories', 'Mobile Accessories'],
+    ['mens-fashion-shoes', 'Shoes'],
+    ['books-fiction', 'Fiction'],
+  ])
+
+  test('product appears in parent category listing', () => {
+    const res = filterSellerProducts(sampleProducts, { category: 'movies' }, slugMap)
+    expect(res.map((p) => p.id)).toContain('p1')
+  })
+
+  test('product appears in selected subcategory listing', () => {
+    const res = filterSellerProducts(sampleProducts, { category: 'movies-gaming-accessories' }, slugMap)
+    expect(res.map((p) => p.id)).toEqual(['p1'])
+  })
+
+  test('subcategories for other categories filter accurately', () => {
+    const mobRes = filterSellerProducts(sampleProducts, { category: 'mobiles-mobile-accessories' }, slugMap)
+    expect(mobRes.map((p) => p.id)).toEqual(['p2'])
+
+    const shoeRes = filterSellerProducts(sampleProducts, { category: 'mens-fashion-shoes' }, slugMap)
+    expect(shoeRes.map((p) => p.id)).toEqual(['p3'])
+
+    const ficRes = filterSellerProducts(sampleProducts, { category: 'books-fiction' }, slugMap)
+    expect(ficRes.map((p) => p.id)).toEqual(['p4'])
+  })
+
+  test('product does not appear under unrelated subcategories', () => {
+    const res = filterSellerProducts(sampleProducts, { category: 'books-fiction' }, slugMap)
+    expect(res.map((p) => p.id)).not.toContain('p1')
+    expect(res.map((p) => p.id)).not.toContain('p2')
+  })
+})

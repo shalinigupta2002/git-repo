@@ -487,9 +487,13 @@ const listSubscribers = asyncHandler(async (req, res) => {
   }
 
   if (search) {
+    const q = search.trim()
     where.OR = [
-      { email: { contains: search, mode: 'insensitive' } },
-      { companyName: { contains: search, mode: 'insensitive' } }
+      { email: { contains: q, mode: 'insensitive' } },
+      { companyName: { contains: q, mode: 'insensitive' } },
+      { portalUserId: { contains: q, mode: 'insensitive' } },
+      { id: { contains: q, mode: 'insensitive' } },
+      { addresses: { some: { phone: { contains: q, mode: 'insensitive' } } } }
     ]
   }
 
@@ -503,10 +507,27 @@ const listSubscribers = asyncHandler(async (req, res) => {
   }
 
   if (status && status !== 'ALL') {
-    where.OR = [
-      { buyerSubscriptionStatus: status },
-      { sellerSubscriptionStatus: status }
-    ]
+    if (status === 'ACTIVE') {
+      where.OR = [
+        { buyerSubscriptionStatus: 'ACTIVE' },
+        { sellerSubscriptionStatus: 'ACTIVE' }
+      ]
+    } else if (status === 'EXPIRED') {
+      where.OR = [
+        { buyerSubscriptionStatus: 'EXPIRED' },
+        { sellerSubscriptionStatus: 'EXPIRED' }
+      ]
+    } else if (status === 'CANCELLED') {
+      where.OR = [
+        { buyerSubscriptionStatus: 'CANCELLED' },
+        { sellerSubscriptionStatus: 'CANCELLED' }
+      ]
+    } else {
+      where.OR = [
+        { buyerSubscriptionStatus: status },
+        { sellerSubscriptionStatus: status }
+      ]
+    }
   }
 
   if (planType && planType !== 'ALL') {
@@ -540,7 +561,7 @@ const listSubscribers = asyncHandler(async (req, res) => {
       take: Number(limit),
       orderBy: { createdAt: 'desc' },
       include: {
-        addresses: { where: { isDefault: true } },
+        addresses: { orderBy: { isDefault: 'desc' } },
         subscriptions: { orderBy: { createdAt: 'desc' } }
       }
     }),
@@ -548,17 +569,71 @@ const listSubscribers = asyncHandler(async (req, res) => {
   ])
 
   const { resolveSubscriptionType } = require('../services/dealChargeService.js')
+  
+  function computeSubscriptionType(user) {
+    const buyerActive = user.buyerSubscriptionStatus === 'ACTIVE'
+    const sellerActive = user.sellerSubscriptionStatus === 'ACTIVE'
+
+    if (!buyerActive && !sellerActive) {
+      return 'No Active Subscription'
+    }
+
+    const buyerPlan = user.buyerSubscriptionPlan || ''
+    const sellerPlan = user.sellerSubscriptionPlan || ''
+
+    if (buyerActive && sellerActive) {
+      const mainPlan = buyerPlan || sellerPlan
+      if (mainPlan.startsWith('BOTH_')) {
+        if (mainPlan.includes('LIFETIME') || mainPlan === 'BOTH_LIFETIME') return 'Both Lifetime'
+        if (mainPlan.includes('ANNUAL')) return 'Both Annual'
+        return 'Both Monthly'
+      }
+      if (buyerPlan.includes('LIFETIME') && sellerPlan.includes('LIFETIME')) return 'Both Lifetime'
+      if (buyerPlan.includes('ANNUAL') || sellerPlan.includes('ANNUAL')) return 'Both Annual'
+      return 'Both Monthly'
+    }
+
+    if (buyerActive) {
+      if (buyerPlan.includes('LIFETIME')) return 'Buyer Lifetime'
+      if (buyerPlan.includes('ANNUAL')) return 'Buyer Annual'
+      return 'Buyer Monthly'
+    }
+
+    if (sellerActive) {
+      if (sellerPlan.includes('LIFETIME')) return 'Seller Lifetime'
+      if (sellerPlan.includes('ANNUAL')) return 'Seller Annual'
+      return 'Seller Monthly'
+    }
+
+    return 'No Active Subscription'
+  }
+
   const mappedUsers = users.map(user => {
     const buyerSub = user.subscriptions.find(s => s.plan.startsWith('BUYER_') || s.plan.startsWith('BOTH_'))
     const sellerSub = user.subscriptions.find(s => s.plan.startsWith('SELLER_') || s.plan.startsWith('BOTH_'))
     
+    const activeSub = (user.buyerSubscriptionStatus === 'ACTIVE' ? buyerSub : null) ||
+                     (user.sellerSubscriptionStatus === 'ACTIVE' ? sellerSub : null) ||
+                     buyerSub || sellerSub
+
+    const isBothActive = user.buyerSubscriptionStatus === 'ACTIVE' && user.sellerSubscriptionStatus === 'ACTIVE'
+    const statusStr = isBothActive
+      ? 'ACTIVE'
+      : (user.buyerSubscriptionStatus === 'ACTIVE' ? 'ACTIVE' : (user.sellerSubscriptionStatus === 'ACTIVE' ? 'ACTIVE' : (user.buyerSubscriptionStatus || user.sellerSubscriptionStatus || 'INACTIVE')))
+
     return {
       id: user.id,
+      userId: user.portalUserId || user.id,
       email: user.email,
       role: user.role,
       companyName: user.companyName,
+      userName: user.companyName || user.email.split('@')[0],
       createdAt: user.createdAt,
       phone: user.addresses[0]?.phone || '—',
+      subscriptionType: computeSubscriptionType(user),
+      status: statusStr,
+      startsAt: activeSub ? (activeSub.startsAt || activeSub.createdAt) : user.createdAt,
+      expiresAt: activeSub ? activeSub.expiresAt : null,
       buyerSubscription: user.buyerSubscriptionStatus ? {
         plan: user.buyerSubscriptionPlan,
         status: user.buyerSubscriptionStatus,

@@ -1,4 +1,9 @@
+import { useEffect, useMemo, useRef, useState } from 'react'
+import toast from 'react-hot-toast'
 import { ContactMessageAttachments } from './ContactMessageAttachments.jsx'
+
+const IMAGE_ACCEPT = 'image/jpeg,image/png,image/webp,image/gif'
+const MAX_REPLY_IMAGES = 5
 
 function formatWhen(value) {
   if (!value) return ''
@@ -40,7 +45,7 @@ export function ContactThreadTimeline({ thread = [], user }) {
               <span className="supportBubble__name">{bubbleName(entry, user)}</span>
               <span className="supportBubble__time">{formatWhen(entry.createdAt)}</span>
             </div>
-            <div className="supportBubble__text">{entry.body}</div>
+            {entry.body ? <div className="supportBubble__text">{entry.body}</div> : null}
             <ContactMessageAttachments attachments={entry.attachments} />
           </div>
         </div>
@@ -49,10 +54,59 @@ export function ContactThreadTimeline({ thread = [], user }) {
   )
 }
 
-/** Fixed bottom reply composer for an open ticket. */
-export function ContactThreadReplyBox({ value, onChange, onSubmit, submitting, placeholder }) {
+/** Fixed bottom reply composer for an open ticket — text + optional image attachments. */
+export function ContactThreadReplyBox({
+  value,
+  onChange,
+  onSubmit,
+  submitting,
+  placeholder,
+  allowImages = true,
+}) {
+  const [imageFiles, setImageFiles] = useState([])
+  const imageInputRef = useRef(null)
+
+  const imagePreviews = useMemo(
+    () => imageFiles.map((file) => ({ file, url: URL.createObjectURL(file) })),
+    [imageFiles],
+  )
+
+  useEffect(() => {
+    return () => {
+      imagePreviews.forEach((item) => URL.revokeObjectURL(item.url))
+    }
+  }, [imagePreviews])
+
+  function handleImagePick(event) {
+    const picked = Array.from(event.target.files ?? [])
+    event.target.value = ''
+    if (!picked.length) return
+    setImageFiles((prev) => {
+      const room = MAX_REPLY_IMAGES - prev.length
+      if (room <= 0) {
+        toast.error(`You can attach up to ${MAX_REPLY_IMAGES} images per message.`)
+        return prev
+      }
+      return [...prev, ...picked.slice(0, room)]
+    })
+  }
+
+  function removeImage(index) {
+    setImageFiles((prev) => prev.filter((_, i) => i !== index))
+  }
+
+  async function handleSubmit(event) {
+    event.preventDefault()
+    const trimmed = value.trim()
+    if (!trimmed && imageFiles.length === 0) return
+    await onSubmit({ message: trimmed, images: imageFiles })
+    setImageFiles([])
+  }
+
+  const canSend = Boolean(value.trim() || imageFiles.length)
+
   return (
-    <form className="supportReplyBox" onSubmit={onSubmit}>
+    <form className="supportReplyBox" onSubmit={handleSubmit}>
       <textarea
         className="supportReplyBox__input"
         rows={3}
@@ -60,11 +114,51 @@ export function ContactThreadReplyBox({ value, onChange, onSubmit, submitting, p
         onChange={onChange}
         placeholder={placeholder || 'Write your reply…'}
         maxLength={5000}
-        required
       />
+
+      {allowImages && imagePreviews.length > 0 ? (
+        <div className="supportReplyBox__previews">
+          {imagePreviews.map((item, index) => (
+            <div key={`${item.file.name}-${index}`} className="supportReplyBox__preview">
+              <img src={item.url} alt={item.file.name} />
+              <button
+                type="button"
+                className="supportReplyBox__previewRemove"
+                onClick={() => removeImage(index)}
+                aria-label={`Remove ${item.file.name}`}
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : null}
+
       <div className="supportReplyBox__foot">
-        <span className="supportReplyBox__count">{value.length} / 5000</span>
-        <button type="submit" className="btn btn--primary" disabled={submitting || !value.trim()}>
+        <div className="supportReplyBox__left">
+          <span className="supportReplyBox__count">{value.length} / 5000</span>
+          {allowImages ? (
+            <>
+              <input
+                ref={imageInputRef}
+                type="file"
+                accept={IMAGE_ACCEPT}
+                multiple
+                hidden
+                onChange={handleImagePick}
+              />
+              <button
+                type="button"
+                className="supportReplyBox__attachBtn"
+                onClick={() => imageInputRef.current?.click()}
+                disabled={imageFiles.length >= MAX_REPLY_IMAGES}
+              >
+                Add image
+              </button>
+            </>
+          ) : null}
+        </div>
+        <button type="submit" className="btn btn--primary" disabled={submitting || !canSend}>
           {submitting ? 'Sending…' : 'Send reply'}
         </button>
       </div>

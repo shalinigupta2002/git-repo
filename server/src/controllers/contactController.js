@@ -1,6 +1,7 @@
 const { prisma }       = require('../config/database.js')
 const { asyncHandler } = require('../utils/asyncHandler.js')
 const { buildContactAttachments } = require('../middleware/contactUpload.js')
+const { persistUploadedContactFiles } = require('../services/contactAttachmentStorage.js')
 const {
   messageInclude,
   serializeContactThread,
@@ -23,6 +24,8 @@ const sendMessage = asyncHandler(async (req, res) => {
   }
 
   const attachments = buildContactAttachments(req.files)
+  const uploadedFileList = [...(req.files?.images || []), ...(req.files?.videos || [])]
+  await persistUploadedContactFiles(uploadedFileList)
 
   const record = await prisma.contactMessage.create({
     data: {
@@ -63,16 +66,21 @@ const getMyMessage = asyncHandler(async (req, res) => {
 /** POST /api/contact/:id/replies — sender follow-up in an existing ticket */
 const sendFollowUp = asyncHandler(async (req, res) => {
   const body = typeof req.body?.message === 'string' ? req.body.message.trim() : ''
-  if (!body) {
-    return res.status(400).json({ success: false, error: { message: 'message is required' } })
+  const attachments = buildContactAttachments(req.files)
+  const uploadedFileList = [...(req.files?.images || []), ...(req.files?.videos || [])]
+  await persistUploadedContactFiles(uploadedFileList)
+
+  if (!body && !attachments.length) {
+    return res.status(400).json({
+      success: false,
+      error: { message: 'message or at least one attachment is required' },
+    })
   }
 
   const existing = await findMessageForSender(req.params.id, req.user.id)
   if (!existing) {
     return res.status(404).json({ success: false, error: { message: 'Message not found' } })
   }
-
-  const attachments = buildContactAttachments(req.files)
 
   const updated = await prisma.$transaction(async (tx) => {
     await tx.contactMessageReply.create({

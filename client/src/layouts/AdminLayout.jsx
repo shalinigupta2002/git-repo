@@ -234,16 +234,6 @@ export function AdminLayout() {
         </nav>
 
         <div className="proSidebar__footer">
-          <NavLink to="/" className="proNavLink">
-            Subscription page
-          </NavLink>
-          <a
-            href="mailto:admin@b2bmarket.com"
-            className="proNavLink"
-            style={{ display: 'flex', alignItems: 'center', gap: '.4rem', textDecoration: 'none' }}
-          >
-            Contact Admin
-          </a>
           <SidebarLogoutButton onClick={onLogout} />
         </div>
       </aside>

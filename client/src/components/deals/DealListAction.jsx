@@ -2,17 +2,19 @@ import { Link } from 'react-router-dom'
 import { PayDealChargeButton } from './PayDealChargeButton.jsx'
 import {
   canPayDealCharge,
-  isDealContactUnlocked,
   isWaitingForCounterpartyPayment,
 } from '../../utils/dealHelpers.js'
 
 export function DealListAction({ deal, viewerRole = 'BUYER', detailPath }) {
-  const unlocked = isDealContactUnlocked(deal)
+  if (viewerRole === 'ADMIN') {
+    return <PayDealChargeButton to={detailPath} size="sm">Pay</PayDealChargeButton>
+  }
+
   const canPay = canPayDealCharge(deal, viewerRole)
   const waiting = isWaitingForCounterpartyPayment(deal, viewerRole)
 
   if (canPay) {
-    return <PayDealChargeButton to={detailPath} size="sm" />
+    return <PayDealChargeButton to={detailPath} size="sm">Pay</PayDealChargeButton>
   }
 
   if (waiting) {

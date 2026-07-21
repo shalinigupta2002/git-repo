@@ -19,8 +19,14 @@ const listUsersQuery = paginationQuery.extend({
  */
 const listTransactionsQuery = paginationQuery.extend({
   status: z
-    .enum(['PENDING', 'CONFIRMED', 'SHIPPED', 'DELIVERED', 'CANCELLED'])
-    .optional(),
+    .preprocess((val) => {
+      if (typeof val === 'string') {
+        const s = val.trim().toUpperCase()
+        if (!s || s === 'UNDEFINED' || s === 'NULL' || s === 'ALL') return undefined
+        return s
+      }
+      return val
+    }, z.enum(['PENDING', 'CONFIRMED', 'SHIPPED', 'DELIVERED', 'CANCELLED']).optional()),
   buyerId:  z.string().uuid().optional(),
   sellerId: z.string().uuid().optional(),
 })

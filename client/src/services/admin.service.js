@@ -49,8 +49,18 @@ export function fetchAdminSellers() {
   return getJson('/admin/sellers')
 }
 
-export function fetchAdminTransactions() {
-  return getJson('/admin/transactions')
+export function fetchAdminTransactions(params = {}) {
+  const searchParams = new URLSearchParams()
+  if (params.page != null) searchParams.set('page', String(params.page))
+  if (params.limit != null) searchParams.set('limit', String(params.limit))
+  if (params.status && params.status !== 'ALL' && params.status !== 'undefined' && params.status !== 'null') {
+    searchParams.set('status', String(params.status))
+  }
+  if (params.search && typeof params.search === 'string' && params.search.trim()) {
+    searchParams.set('search', params.search.trim())
+  }
+  const qs = searchParams.toString()
+  return getJson(`/admin/transactions${qs ? `?${qs}` : ''}`)
 }
 
 export function fetchAdminStats() {

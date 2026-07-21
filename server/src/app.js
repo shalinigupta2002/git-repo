@@ -40,6 +40,7 @@ const catalogRoutes  = require('./routes/catalog.routes.js')
 const { errorHandler, notFoundHandler } = require('./middleware/errorHandler.js')
 const { asyncHandler } = require('./utils/asyncHandler.js')
 const { serveProductImage } = require('./services/productImageStorage.js')
+const { serveContactAttachment } = require('./services/contactAttachmentStorage.js')
 
 const app = express()
 
@@ -67,12 +68,14 @@ app.use(metricsMiddleware) // increments counters + records response times
 app.use(express.json({ limit: '1mb' }))
 app.use(cookieParser())
 
-// ── Uploaded contact attachments (images / videos) ───────────────────────────
-app.use(
-  '/api/uploads/contact',
-  express.static(path.join(__dirname, '../uploads/contact'), {
-    fallthrough: false,
-    maxAge: env.isProd ? '7d' : 0,
+// ── Uploaded contact attachments (disk in dev; DB fallback in production) ───
+app.get(
+  '/api/uploads/contact/:filename',
+  asyncHandler(async (req, res) => {
+    const served = await serveContactAttachment(req.params.filename, res)
+    if (!served) {
+      res.status(404).json({ success: false, error: { message: 'File not found' } })
+    }
   }),
 )
 

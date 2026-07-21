@@ -53,6 +53,20 @@ const QUOTE_INCLUDE = {
       createdAt: true,
     },
   },
+  deal: {
+    select: {
+      id: true,
+      dealNumber: true,
+      status: true,
+      contactUnlockStatus: true,
+      payments: {
+        select: {
+          payerRole: true,
+          paymentStatus: true,
+        },
+      },
+    },
+  },
 }
 
 function cleanText(value, maxLength) {
@@ -145,6 +159,7 @@ function pickQuotePublicFields(request) {
     updatedAt: request.updatedAt,
     product: request.product,
     order: request.order,
+    deal: request.deal,
   }
 }
 

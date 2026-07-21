@@ -1,23 +1,45 @@
 import { formatProductPrice } from './formatPrice.js'
 
 export const QUOTE_STATUS_LABELS = {
-  PENDING: 'Awaiting quote',
-  RESPONDED: 'Quote received',
-  ACCEPTED: 'Deal closed',
-  DECLINED: 'Declined',
-  NOT_SELECTED: 'Not selected',
-  CANCELLED: 'Cancelled',
-  EXPIRED: 'Expired',
+  PENDING: 'PENDING',
+  RESPONDED: 'PENDING',
+  ACCEPTED: 'QUOTE ACCEPTED',
+  DECLINED: 'DECLINED',
+  NOT_SELECTED: 'EXPIRED',
+  CANCELLED: 'CANCELLED',
+  EXPIRED: 'EXPIRED',
+  DEAL_CLOSED: 'DEAL CLOSED',
 }
 
 export const QUOTE_STATUS_BADGE = {
   PENDING: 'b2bBadge--amber',
-  RESPONDED: 'b2bBadge--blue',
-  ACCEPTED: 'b2bBadge--green',
+  RESPONDED: 'b2bBadge--amber',
+  ACCEPTED: 'b2bBadge--blue',
   DECLINED: 'b2bBadge--grey',
   NOT_SELECTED: 'b2bBadge--grey',
   CANCELLED: 'b2bBadge--grey',
   EXPIRED: 'b2bBadge--grey',
+  DEAL_CLOSED: 'b2bBadge--green',
+}
+
+export function areBothDealPaymentsPaid(item) {
+  if (!item) return false
+  if (item.bothPaid === true || item.dealChargesPaid === true) return true
+  const deal = item.deal || (item.payments ? item : null)
+  if (!deal) return false
+
+  if (deal.contactUnlockStatus === 'UNLOCKED' || deal.status === 'ACTIVE' || deal.status === 'COMPLETED') {
+    return true
+  }
+
+  const payments = deal.payments || item.payments
+  if (Array.isArray(payments) && payments.length >= 2) {
+    const buyerPaid = payments.some((p) => p.payerRole === 'BUYER' && p.paymentStatus === 'SUCCESS')
+    const sellerPaid = payments.some((p) => p.payerRole === 'SELLER' && p.paymentStatus === 'SUCCESS')
+    return buyerPaid && sellerPaid
+  }
+
+  return false
 }
 
 export function formatQuoteMoney(value, currency = 'INR') {
@@ -45,26 +67,40 @@ export function quoteLineTotal(request) {
 }
 
 export function isQuoteExpired(request) {
-  if (request?.expired === true) return true
-  if (request?.status === 'NOT_SELECTED') return true
-  if (!request?.quoteValidUntil) return false
+  if (!request) return false
+  if (typeof request === 'string') return false
+  if (request.expired === true) return true
+  if (request.status === 'NOT_SELECTED') return true
+  if (!request.quoteValidUntil) return false
   return new Date() > new Date(request.quoteValidUntil)
 }
 
-export function getQuoteStatusDisplay(status, { expired = false, mode = 'buyer' } = {}) {
-  if (mode === 'buyer' && (expired || status === 'NOT_SELECTED' || status === 'EXPIRED')) {
-    return { label: QUOTE_STATUS_LABELS.EXPIRED, badge: QUOTE_STATUS_BADGE.EXPIRED }
+export function getQuoteStatusDisplay(requestOrStatus, options = {}) {
+  const status = typeof requestOrStatus === 'string' ? requestOrStatus : requestOrStatus?.status
+  const item = typeof requestOrStatus === 'object' ? requestOrStatus : (options.item || options.request || null)
+  const expired = options.expired ?? (item ? isQuoteExpired(item) : false)
+
+  if (status === 'ACCEPTED') {
+    const bothPaid = options.bothPaid ?? areBothDealPaymentsPaid(item)
+    if (bothPaid) {
+      return { label: 'DEAL CLOSED', badge: 'b2bBadge--green' }
+    }
+    return { label: 'QUOTE ACCEPTED', badge: 'b2bBadge--blue' }
   }
-  if (mode === 'seller' && status === 'NOT_SELECTED') {
-    return { label: QUOTE_STATUS_LABELS.NOT_SELECTED, badge: QUOTE_STATUS_BADGE.NOT_SELECTED }
+
+  if (expired || status === 'EXPIRED' || status === 'NOT_SELECTED') {
+    return { label: 'EXPIRED', badge: 'b2bBadge--grey' }
   }
-  if (expired && status === 'RESPONDED') {
-    return { label: QUOTE_STATUS_LABELS.EXPIRED, badge: QUOTE_STATUS_BADGE.EXPIRED }
+
+  if (status === 'DECLINED' || status === 'REJECTED') {
+    return { label: 'DECLINED', badge: 'b2bBadge--grey' }
   }
-  return {
-    label: QUOTE_STATUS_LABELS[status] || status,
-    badge: QUOTE_STATUS_BADGE[status] || 'b2bBadge--grey',
+
+  if (status === 'CANCELLED') {
+    return { label: 'CANCELLED', badge: 'b2bBadge--grey' }
   }
+
+  return { label: 'PENDING', badge: 'b2bBadge--amber' }
 }
 
 export function isBuyerQuotationActionable(request) {

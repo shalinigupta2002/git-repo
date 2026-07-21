@@ -21,8 +21,8 @@ import {
 } from '../../utils/quotationHelpers.js'
 import { RfqAttachmentsList } from './RfqAttachmentsList.jsx'
 
-function StatusBadge({ status, expired = false, mode = 'buyer' }) {
-  const { label, badge } = getQuoteStatusDisplay(status, { expired, mode })
+function StatusBadge({ status, expired = false, mode = 'buyer', item = null }) {
+  const { label, badge } = getQuoteStatusDisplay(item || status, { expired, mode, item })
   return <span className={`b2bBadge ${badge}`}>{label}</span>
 }
 
@@ -138,7 +138,7 @@ export function RfqComparisonView({ basePath = '/buyer/quotations' }) {
             {group.rfqNumber || group.rfqRef} · {group.sellerCount} seller{group.sellerCount === 1 ? '' : 's'}
           </p>
         </div>
-        <StatusBadge status={group.aggregateStatus} expired={group.hasExpiredQuotation} />
+        <StatusBadge status={group.aggregateStatus} expired={group.hasExpiredQuotation} item={group} />
       </header>
 
       <div className="quoteComparisonMeta panel">
@@ -219,7 +219,7 @@ export function RfqComparisonView({ basePath = '/buyer/quotations' }) {
                   <td>{formatQuoteMoney(row.finalUnitPrice || row.sellerUnitPrice, row.currency || row.sellerCurrency || 'INR')}</td>
                   <td>{row.deliveryTime || row.freightNote || '—'}</td>
                   <td>{formatQuotationDate(row.validity || row.quoteValidUntil)}</td>
-                  <td><StatusBadge status={status} expired={expired} /></td>
+                  <td><StatusBadge status={status} expired={expired} item={row} /></td>
                   <td>
                     {canAct ? (
                       <div className="quoteComparisonTable__actions">

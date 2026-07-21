@@ -54,8 +54,8 @@ const SELLER_FILTERS = [
 
 const PAGE_SIZE = 10
 
-function StatusBadge({ status, expired = false, mode = 'buyer' }) {
-  const { label, badge } = getQuoteStatusDisplay(status, { expired, mode })
+function StatusBadge({ status, expired = false, mode = 'buyer', item = null }) {
+  const { label, badge } = getQuoteStatusDisplay(item || status, { expired, mode, item })
   return <span className={`b2bBadge ${badge}`}>{label}</span>
 }
 
@@ -260,7 +260,7 @@ function RfqSidebarPanel({ mode, selected, activeGroup, rfqGroupId }) {
             <div className="rfqWsSidebar__row"><dt>RFQ</dt><dd>{selected?.rfqNumber || selected?.rfqRef || activeGroup?.rfqNumber || activeGroup?.rfqRef}</dd></div>
           ) : null}
           {status ? (
-            <div className="rfqWsSidebar__row"><dt>Status</dt><dd>{QUOTE_STATUS_LABELS[status] || status}</dd></div>
+            <div className="rfqWsSidebar__row"><dt>Status</dt><dd>{getQuoteStatusDisplay(selected || status, { mode }).label}</dd></div>
           ) : null}
           {(selected?.quantity || activeGroup?.quantity) ? (
             <div className="rfqWsSidebar__row"><dt>Quantity</dt><dd>{selected?.quantity || activeGroup?.quantity}</dd></div>
@@ -819,7 +819,7 @@ export function QuotationWorkspace({ mode, basePath }) {
         >
           <span className="rfqWsListItem__row">
             <span className="rfqWsListItem__name">{group.productTitle}</span>
-            <StatusBadge status={group.aggregateStatus} expired={group.hasExpiredQuotation} mode={mode} />
+            <StatusBadge status={group.aggregateStatus} expired={group.hasExpiredQuotation} mode={mode} item={group} />
           </span>
           <span className="rfqWsListItem__rfq">{group.rfqNumber || group.rfqRef}</span>
           <span className="rfqWsListItem__date">{formatQuotationDate(group.createdAt)}</span>
@@ -840,7 +840,7 @@ export function QuotationWorkspace({ mode, basePath }) {
         >
           <span className="rfqWsListItem__row">
             <span className="rfqWsListItem__name">{item.productTitle}</span>
-            <StatusBadge status={item.status} expired={expired} mode={mode} />
+            <StatusBadge status={item.status} expired={expired} mode={mode} item={item} />
           </span>
           <span className="rfqWsListItem__rfq">{item.rfqNumber || item.rfqRef}</span>
           <span className="rfqWsListItem__date">{formatQuotationDate(item.createdAt)}</span>
@@ -1016,7 +1016,7 @@ export function QuotationWorkspace({ mode, basePath }) {
                 <>
                   <ProductSummaryCard
                     request={selected}
-                    statusBadge={<StatusBadge status={selected.status} expired={isQuoteExpired(selected)} mode={mode} />}
+                    statusBadge={<StatusBadge status={selected.status} expired={isQuoteExpired(selected)} mode={mode} item={selected} />}
                     nav={(
                       <div className="rfqWsCenter__nav">
                         <BackNavButton fallback="/buyer/dashboard" label="← Back" className="rfqWsCenter__navBtn" />
@@ -1031,7 +1031,7 @@ export function QuotationWorkspace({ mode, basePath }) {
                 <>
                   <ProductHero
                     request={selected}
-                    statusBadge={<StatusBadge status={selected.status} expired={isQuoteExpired(selected)} mode={mode} />}
+                    statusBadge={<StatusBadge status={selected.status} expired={isQuoteExpired(selected)} mode={mode} item={selected} />}
                     nav={(
                       <div className="rfqWsCenter__nav">
                         <BackNavButton fallback="/seller/dashboard" label="← Back" className="rfqWsCenter__navBtn" />

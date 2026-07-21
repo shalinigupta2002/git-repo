@@ -60,6 +60,7 @@ function buildQuotationSummary(request, { maskSeller = true, buyerView = false }
     buyerRejectedAt: request.buyerRejectedAt,
     orderId: request.orderId,
     order: request.order ?? undefined,
+    deal: request.deal ?? undefined,
     expired,
     actionsLocked: buyerView && (expired || request.status === 'NOT_SELECTED'),
     buyerDisplayStatus: buyerView && request.status === 'NOT_SELECTED' ? 'EXPIRED' : request.status,
@@ -81,6 +82,8 @@ function buildRfqGroupFromRows(rows, { maskSeller = true, buyerView = false } = 
   else if (statuses.includes('RESPONDED')) aggregateStatus = 'RESPONDED'
   else if (statuses.includes('CANCELLED')) aggregateStatus = 'CANCELLED'
 
+  const acceptedRow = rows.find((r) => r.status === 'ACCEPTED')
+  const deal = acceptedRow?.deal ?? head.deal ?? undefined
   const hasExpired = quotations.some((q) => q.expired)
 
   return {
@@ -103,6 +106,7 @@ function buildRfqGroupFromRows(rows, { maskSeller = true, buyerView = false } = 
       row.updatedAt > latest ? row.updatedAt : latest
     ), head.updatedAt),
     aggregateStatus,
+    deal,
     hasExpiredQuotation: hasExpired,
     sellerCount: rows.length,
     quotations,

@@ -17,8 +17,8 @@ import {
 import { AcceptConfirmModal, OrderCreatedModal } from './AcceptQuotationModals.jsx'
 import { BackNavButton } from '../common/BackNavButton.jsx'
 
-function StatusBadge({ status, expired = false }) {
-  const { label, badge } = getQuoteStatusDisplay(status, { expired, mode: 'buyer' })
+function StatusBadge({ status, expired = false, item = null }) {
+  const { label, badge } = getQuoteStatusDisplay(item || status, { expired, mode: 'buyer', item })
   return <span className={`b2bBadge ${badge}`}>{label}</span>
 }
 
@@ -125,7 +125,7 @@ export function InlineRfqComparison({
               <div className="rfqWsHero__metaItem"><dt>Created</dt><dd>{formatQuotationDate(group.createdAt)}</dd></div>
             </dl>
           </div>
-          <StatusBadge status={group.aggregateStatus} expired={group.hasExpiredQuotation} />
+          <StatusBadge status={group.aggregateStatus} expired={group.hasExpiredQuotation} item={group} />
         </div>
       </section>
 
@@ -165,7 +165,7 @@ export function InlineRfqComparison({
                     <td>{formatQuoteMoney(row.finalUnitPrice || row.sellerUnitPrice, row.currency || row.sellerCurrency || 'INR')}</td>
                     <td>{row.deliveryTime || row.freightNote || '—'}</td>
                     <td>{formatQuotationDate(row.validity || row.quoteValidUntil)}</td>
-                    <td><StatusBadge status={status} expired={expired} /></td>
+                    <td><StatusBadge status={status} expired={expired} item={row} /></td>
                     <td>
                       {canAct ? (
                         <div className="rfqWsComparisonTable__actions">

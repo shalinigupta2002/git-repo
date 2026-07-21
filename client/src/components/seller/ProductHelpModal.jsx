@@ -24,7 +24,7 @@ export function ProductHelpModal({ open, onClose }) {
             <ul>
               <li>Use a clear product name buyers can search for (brand + model + spec).</li>
               <li>Pick the correct category and subcategory — buyers filter by these.</li>
-              <li>Set MOQ and price in INR; keep MOQ realistic for B2B buyers.</li>
+              <li>Set price in INR for B2B buyers.</li>
             </ul>
           </section>
 

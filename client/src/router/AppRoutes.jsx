@@ -281,7 +281,7 @@ export function AppRoutes() {
             <Route path="/seller" element={<Navigate to="/seller/dashboard" replace />} />
             <Route path="/seller/welcome" element={<Navigate to="/seller/dashboard" replace />} />
             <Route path="/seller/dashboard" element={<SellerDashboard />} />
-            <Route path="/seller/pricing" element={sellerSub(<SellerPricing />)} />
+            <Route path="/seller/pricing" element={<Navigate to="/seller/dashboard" replace />} />
             <Route path="/seller/transactions" element={sellerSub(<SellerTransactions />)} />
             <Route path="/seller/deals" element={sellerSub(<SellerDealsList />)} />
             <Route path="/seller/deals/:dealId" element={sellerSub(<SellerDealDetail />)} />

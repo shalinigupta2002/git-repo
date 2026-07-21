@@ -125,55 +125,28 @@ export function SellerTransactions() {
               <th>Amount</th>
               <th>Status</th>
               <th>Date</th>
-              <th style={{ textAlign: 'right' }}>Actions</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={7} className="tableEmpty">Loading deals…</td></tr>
+              <tr><td colSpan={6} className="tableEmpty">Loading deals…</td></tr>
             ) : orders.length ? (
-              orders.map((o) => {
-                const next = NEXT_STATUS[o.status]
-                return (
-                  <tr key={o.id}>
-                    <td><code>{o.orderNumber}</code></td>
-                    <td>
-                      <BuyerIdentity buyer={o.buyer} buyerMarketplaceId={o.buyerMarketplaceId} compact showLabel />
-                    </td>
-                    <td>{o.items?.length || 0}</td>
-                    <td>{formatAmount(o.totalAmount)}</td>
-                    <td>
-                      <span className={`b2bBadge ${STATUS_COLORS[o.status] || ''}`}>{o.status}</span>
-                    </td>
-                    <td>{o.createdAt ? new Date(o.createdAt).toLocaleDateString() : '—'}</td>
-                    <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                      {next ? (
-                        <button
-                          type="button"
-                          className="btn btn--primary"
-                          style={{ marginRight: 6 }}
-                          disabled={updatingId === o.id}
-                          onClick={() => advance(o)}
-                        >
-                          {updatingId === o.id ? '…' : `Mark ${next.toLowerCase()}`}
-                        </button>
-                      ) : null}
-                      {o.status !== 'DELIVERED' && o.status !== 'CANCELLED' ? (
-                        <button
-                          type="button"
-                          className="btn btn--ghost"
-                          disabled={updatingId === o.id}
-                          onClick={() => cancel(o)}
-                        >
-                          Cancel
-                        </button>
-                      ) : null}
-                    </td>
-                  </tr>
-                )
-              })
+              orders.map((o) => (
+                <tr key={o.id}>
+                  <td><code>{o.orderNumber}</code></td>
+                  <td>
+                    <BuyerIdentity buyer={o.buyer} buyerMarketplaceId={o.buyerMarketplaceId} compact showLabel />
+                  </td>
+                  <td>{o.items?.length || 0}</td>
+                  <td>{formatAmount(o.totalAmount)}</td>
+                  <td>
+                    <span className={`b2bBadge ${STATUS_COLORS[o.status] || ''}`}>{o.status}</span>
+                  </td>
+                  <td>{o.createdAt ? new Date(o.createdAt).toLocaleDateString() : '—'}</td>
+                </tr>
+              ))
             ) : (
-              <tr><td colSpan={7} className="tableEmpty">No deals yet.</td></tr>
+              <tr><td colSpan={6} className="tableEmpty">No deals yet.</td></tr>
             )}
           </tbody>
         </table>

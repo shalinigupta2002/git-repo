@@ -13,7 +13,6 @@ export const PORTAL_PRIMARY_NAV = Object.freeze([
   { to: '/portal/profile', label: 'Profile', end: true },
   { to: BUYER_DASHBOARD_PATH, label: 'Buyer Dashboard', section: 'buyer', roles: ['BUYER'] },
   { to: SELLER_DASHBOARD_PATH, label: 'Seller Dashboard', section: 'seller', roles: ['SELLER'] },
-  { to: '/pricing', label: 'Plans and Pricing', external: true },
   { to: '/portal/contact-admin', label: 'Contact Admin' },
 ])
 

@@ -15,7 +15,6 @@ const INITIAL = {
   brand: '',
   uom: 'MT',
   price: '',
-  moq: '1',
   currency: 'INR',
   delivery: '',
   availableStocks: '',
@@ -153,11 +152,6 @@ export function AddNewProduct() {
       setError('Available stocks must be a whole number of 0 or more')
       return
     }
-    const moqNum = form.moq === '' ? 1 : Number(form.moq)
-    if (!Number.isInteger(moqNum) || moqNum < 1) {
-      setError('MOQ must be a whole number of 1 or more')
-      return
-    }
 
     const categoryLabel = selectedCategoryNode?.label ?? form.category
     const subcatLabel = subcategoryOptions.find((n) => n.id === form.subcategory)?.label ?? form.subcategory
@@ -178,7 +172,6 @@ export function AddNewProduct() {
         name: form.name.trim(),
         description,
         price: priceNum,
-        moq: moqNum,
         currency: form.currency || 'INR',
         isActive: true,
         trackInventory: stockNum > 0,
@@ -213,19 +206,18 @@ export function AddNewProduct() {
       nextLabel="View my listings"
     >
       <div className="anpPage">
-      <div className="b2bGrid2 b2bGrid2--single">
         <div className="b2bCard anpCard">
           <div className="b2bCard__hd">
             <div>
               <h2 className="b2bCard__title">Product details</h2>
-              <p className="panelSub" style={{ margin: '6px 0 0' }}>
+              <p className="panelSub" style={{ margin: '4px 0 0' }}>
                 Required fields mirror a typical B2B catalog.
               </p>
             </div>
             <span className="b2bBadge b2bBadge--green">Live on publish</span>
           </div>
           <div className="b2bCard__bd">
-            <form className="b2bForm" onSubmit={onSubmit}>
+            <form className="b2bForm anpForm" onSubmit={onSubmit}>
               <div className="b2bFormRow2">
                 <div>
                   <label className="b2bLabel" htmlFor="sku">SKU / Item code</label>
@@ -307,23 +299,6 @@ export function AddNewProduct() {
                   />
                 </div>
                 <div>
-                  <label className="b2bLabel" htmlFor="moq">Minimum order quantity (MOQ)</label>
-                  <input
-                    id="moq"
-                    type="number"
-                    className="b2bInput"
-                    placeholder="e.g. 10"
-                    min={1}
-                    step={1}
-                    value={form.moq}
-                    onChange={(e) => updateField('moq', e.target.value)}
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="b2bFormRow2">
-                <div>
                   <label className="b2bLabel" htmlFor="currency">Currency</label>
                   <select
                     id="currency"
@@ -375,7 +350,8 @@ export function AddNewProduct() {
                 />
               </div>
 
-              {/* Product images */}
+              {/* Product images & documents */}
+              <div className="anpUploadRow">
               <div>
                 <label className="b2bLabel">Product images</label>
                 <input
@@ -418,7 +394,6 @@ export function AddNewProduct() {
                 )}
               </div>
 
-              {/* Product documents */}
               <div>
                 <label className="b2bLabel">Product documents</label>
                 <input
@@ -462,10 +437,11 @@ export function AddNewProduct() {
                   </ul>
                 )}
               </div>
+              </div>
 
               {error ? <div className="errorBox">{error}</div> : null}
 
-              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 12 }}>
+              <div className="anpFormActions">
                 <button
                   type="button"
                   className="btnOutline"
@@ -481,7 +457,6 @@ export function AddNewProduct() {
             </form>
           </div>
         </div>
-      </div>
       </div>
     </SellerWorkflowChrome>
   )

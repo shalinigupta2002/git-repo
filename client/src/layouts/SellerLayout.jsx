@@ -150,15 +150,6 @@ export function SellerLayout() {
           </NavLink>
 
           <NavLink
-            to="/seller/pricing"
-            className={({ isActive }) =>
-              isActive ? 'proNavLink proNavLink--active' : 'proNavLink'
-            }
-          >
-            Pricing
-          </NavLink>
-
-          <NavLink
             to="/seller/products"
             className={({ isActive }) =>
               isActive ? 'proNavLink proNavLink--active' : 'proNavLink'

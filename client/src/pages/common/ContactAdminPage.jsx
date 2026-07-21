@@ -82,13 +82,17 @@ function MessageThread({ msg, onMarkRead, onRefresh, user }) {
   const hasUnreadReply  = msg.status === 'REPLIED' && !msg.replyRead
   const thread = msg.thread?.length ? msg.thread : null
 
-  async function handleFollowUp(e) {
-    e.preventDefault()
-    if (!reply.trim()) return
+  async function handleFollowUp(arg) {
+    if (arg && typeof arg.preventDefault === 'function') {
+      arg.preventDefault()
+    }
+    const text = (typeof arg === 'string' ? arg : arg?.message || reply).trim()
+    const images = arg?.images || []
+    if (!text && !images.length) return
     setSubmitting(true)
     try {
-      await sendContactFollowUp(msg.id, { message: reply.trim() })
-      toast.success('Reply sent')
+      await sendContactFollowUp(msg.id, { message: text, images })
+      toast.success('Reply sent successfully')
       setReply('')
       onRefresh?.()
     } catch (err) {

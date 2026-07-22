@@ -15,6 +15,7 @@ import {
   loadSubscriptionStatus,
 } from '../../store/slices/subscriptionSlice.js'
 import { setPendingCheckout } from '../../utils/pendingCheckout.js'
+import { PaymentCancelledNotice } from '../../components/common/PaymentCancelledNotice.jsx'
 
 const PRICING_PAGE_HTML_CLASS = 'isPricingPlansPage'
 
@@ -147,6 +148,8 @@ export function PricingPlansPage() {
   const amounts = useMemo(() => getPlanAmounts(marketingPricing), [marketingPricing])
   const { user, isAuthenticated } = useAuth()
   const { startCheckout, loadingPlan } = useRazorpayCheckout()
+  const [paymentCancelled, setPaymentCancelled] = useState(false)
+  const [lastPlanKey, setLastPlanKey] = useState(null)
 
   const [activePlan, setActivePlan] = useState('buyer')
 
@@ -171,6 +174,8 @@ export function PricingPlansPage() {
         navigate('/login', { state: { from: { pathname: '/pricing' } } })
         return
       }
+      setPaymentCancelled(false)
+      setLastPlanKey(planKey)
       startCheckout({
         plan: planKey,
         user,
@@ -180,6 +185,7 @@ export function PricingPlansPage() {
           else if (planKey.startsWith('BOTH_')) navigate('/buyer/dashboard')
           else navigate('/buyer/dashboard')
         },
+        onCancelled: () => setPaymentCancelled(true),
         onError: (msg) => toast.error(msg),
       })
     },
@@ -198,6 +204,16 @@ export function PricingPlansPage() {
   return (
     <div className="subPage subPage--pricing">
       <HomeMarketingNav tagline="Plans & Pricing" />
+
+      {paymentCancelled ? (
+        <main className="subMain" style={{ maxWidth: 640, margin: '0 auto', padding: '2rem 1rem' }}>
+          <PaymentCancelledNotice
+            onTryAgain={() => lastPlanKey && openRazorpay(lastPlanKey)}
+            backTo="/pricing"
+            backLabel="Back"
+          />
+        </main>
+      ) : (
 
       <main className="subMain pricingPlans">
         <header className="pricingV2__header">
@@ -352,6 +368,7 @@ export function PricingPlansPage() {
           <Link to="/" className="pricingV2__homeLink">← Back to Home</Link>
         </footer>
       </main>
+      )}
     </div>
   )
 }

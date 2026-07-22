@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
+import { SellerWorkflowChrome } from '../../layouts/SellerWorkflowChrome.jsx'
 import { getProduct, updateProduct } from '../../services/product.service.js'
 import { useShopCategoryTree, isCategorySelectionInvalid } from '../../hooks/useShopCategoryTree.js'
 import { CategoryFields } from '../../components/seller/CategoryFields.jsx'
 import { buildProductDescription, parseProductFormMeta } from '../../utils/productFormMeta.js'
+import { PRODUCT_UOM_OPTIONS } from '../../constants/productUom.js'
 import { PageLoader } from '../../components/ui/PageLoader.jsx'
 
 const INITIAL = {
@@ -21,6 +23,16 @@ const INITIAL = {
   availableStocks: '',
   description: '',
   isActive: true,
+}
+
+function preventNumberWheel(event) {
+  event.currentTarget.blur()
+}
+
+function preventNumberArrowKeys(event) {
+  if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+    event.preventDefault()
+  }
 }
 
 export function EditProduct() {
@@ -55,7 +67,7 @@ export function EditProduct() {
           subcategory: meta.subcategory,
           subsubcategory: meta.subsubcategory,
           brand: meta.brand,
-          uom: meta.uom || 'MT',
+          uom: product.uom || meta.uom || 'MT',
           price: product.price != null ? String(product.price) : '',
           currency: product.currency || 'INR',
           delivery: meta.delivery,
@@ -151,6 +163,7 @@ export function EditProduct() {
         sku: form.sku.trim(),
         name: form.name.trim(),
         description,
+        uom: form.uom,
         price: priceNum,
         currency: form.currency || 'INR',
         isActive: form.isActive,
@@ -171,22 +184,51 @@ export function EditProduct() {
     return <PageLoader label="Loading product" />
   }
 
-  return (
-    <section className="panel">
-      <div className="panelHeader">
-        <div>
-          <h2 className="panelTitle">Edit product</h2>
-          <p className="panelSub">Update pricing, stock, and listing details. Changes appear on the product page immediately.</p>
+  if (error && !form.name) {
+    return (
+      <SellerWorkflowChrome
+        fullWidth
+        showStepper={false}
+        title="Edit product"
+        subtitle="Update pricing, stock, and listing details."
+        activeStepId="add"
+        prevTo="/seller/products"
+        prevLabel="Back to listings"
+      >
+        <div className="anpPage">
+          <div className="errorBox">{error}</div>
         </div>
-        <Link to="/seller/products" className="btnOutline">Back to listings</Link>
-      </div>
+      </SellerWorkflowChrome>
+    )
+  }
 
-      {error && !form.name ? (
-        <div className="errorBox" style={{ marginTop: 12 }}>{error}</div>
-      ) : (
-        <div className="b2bCard" style={{ marginTop: 12 }}>
+  return (
+    <SellerWorkflowChrome
+      fullWidth
+      showStepper={false}
+      title="Edit product"
+      subtitle="Update pricing, stock, and listing details. Changes appear on the product page immediately."
+      activeStepId="add"
+      prevTo="/seller/products"
+      prevLabel="Back to listings"
+      nextTo="/seller/products"
+      nextLabel="View my listings"
+    >
+      <div className="anpPage">
+        <div className="b2bCard anpCard">
+          <div className="b2bCard__hd">
+            <div>
+              <h2 className="b2bCard__title">Product details</h2>
+              <p className="panelSub" style={{ margin: '4px 0 0' }}>
+                Update commercial terms and listing metadata.
+              </p>
+            </div>
+            <span className={`b2bBadge ${form.isActive ? 'b2bBadge--green' : 'b2bBadge--amber'}`}>
+              {form.isActive ? 'Active listing' : 'Inactive listing'}
+            </span>
+          </div>
           <div className="b2bCard__bd">
-            <form className="b2bForm" onSubmit={onSubmit}>
+            <form className="b2bForm anpForm" onSubmit={onSubmit}>
               <div className="b2bFormRow2">
                 <div>
                   <label className="b2bLabel" htmlFor="sku">SKU / Item code</label>
@@ -216,13 +258,9 @@ export function EditProduct() {
                 <div>
                   <label className="b2bLabel" htmlFor="uom">Unit of measure</label>
                   <select id="uom" className="b2bSelect" value={form.uom} onChange={(e) => updateField('uom', e.target.value)}>
-                    <option value="MT">Metric ton (MT)</option>
-                    <option value="PCS">Pieces (PCS)</option>
-                    <option value="M">Meters (M)</option>
-                    <option value="KG">Kilograms (KG)</option>
-                    <option value="L">Litres (L)</option>
-                    <option value="BOX">Box (BOX)</option>
-                    <option value="SET">Set (SET)</option>
+                    {PRODUCT_UOM_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
                   </select>
                 </div>
               </div>
@@ -230,7 +268,18 @@ export function EditProduct() {
               <div className="b2bFormRow2">
                 <div>
                   <label className="b2bLabel" htmlFor="price">Price per unit (INR)</label>
-                  <input id="price" type="number" className="b2bInput" min={0} step="0.01" value={form.price} onChange={(e) => updateField('price', e.target.value)} required />
+                  <input
+                    id="price"
+                    type="number"
+                    className="b2bInput b2bInput--number"
+                    min={0}
+                    step="0.01"
+                    value={form.price}
+                    onChange={(e) => updateField('price', e.target.value)}
+                    onWheel={preventNumberWheel}
+                    onKeyDown={preventNumberArrowKeys}
+                    required
+                  />
                 </div>
                 <div>
                   <label className="b2bLabel" htmlFor="currency">Currency</label>
@@ -245,7 +294,17 @@ export function EditProduct() {
               <div className="b2bFormRow2">
                 <div>
                   <label className="b2bLabel" htmlFor="availableStocks">Available stocks</label>
-                  <input id="availableStocks" type="number" className="b2bInput" min={0} step={1} value={form.availableStocks} onChange={(e) => updateField('availableStocks', e.target.value)} />
+                  <input
+                    id="availableStocks"
+                    type="number"
+                    className="b2bInput b2bInput--number"
+                    min={0}
+                    step={1}
+                    value={form.availableStocks}
+                    onChange={(e) => updateField('availableStocks', e.target.value)}
+                    onWheel={preventNumberWheel}
+                    onKeyDown={preventNumberArrowKeys}
+                  />
                 </div>
                 <div>
                   <label className="b2bLabel" htmlFor="delivery">Delivery time</label>
@@ -271,16 +330,16 @@ export function EditProduct() {
 
               {error ? <div className="errorBox">{error}</div> : null}
 
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <div className="anpFormActions">
+                <Link to="/seller/products" className="btnOutline">Cancel</Link>
                 <button type="submit" className="btn btn--primary" disabled={submitting}>
                   {submitting ? 'Saving…' : 'Save changes'}
                 </button>
-                <Link to="/seller/products" className="btnOutline">Cancel</Link>
               </div>
             </form>
           </div>
         </div>
-      )}
-    </section>
+      </div>
+    </SellerWorkflowChrome>
   )
 }

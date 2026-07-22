@@ -73,15 +73,22 @@ export function AdminMessagesPage() {
     }
   }, [selected?.id, selected?.status])
 
-  async function handleReply(e) {
-    e.preventDefault()
-    if (!selected || !reply.trim()) return
+  async function handleReply(arg) {
+    if (arg && typeof arg.preventDefault === 'function') {
+      arg.preventDefault()
+    }
+    const text = (typeof arg === 'string' ? arg : arg?.message || reply).trim()
+    if (!selected || !text) return
     setSubmitting(true)
     try {
-      await adminReplyToMessage(selected.id, reply.trim())
+      const data = await adminReplyToMessage(selected.id, text)
       toast.success('Reply sent')
       setReply('')
-      load()
+      if (data?.message) {
+        setMessages((prev) => prev.map((m) => (m.id === selected.id ? data.message : m)))
+      } else {
+        load()
+      }
     } catch (err) {
       toast.error(err.message || 'Failed to send reply')
     } finally {

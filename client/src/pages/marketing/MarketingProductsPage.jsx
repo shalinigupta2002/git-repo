@@ -2,6 +2,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import toast from 'react-hot-toast'
 import { BrandLogo } from '../../components/common/BrandLogo.jsx'
+import { ProductImage } from '../../components/common/ProductImage.jsx'
 import { MyDashboardMenu } from '../../components/common/MyDashboardMenu.jsx'
 import { SellerIdentity } from '../../components/common/SellerIdentity.jsx'
 import { SubscribeFeatureAlert } from '../../components/common/SubscribeFeatureAlert.jsx'
@@ -15,8 +16,7 @@ import { selectHasBuyerSubscription } from '../../store/slices/subscriptionSlice
 import { canAccessBuyerWorkspace } from '../../utils/portalNav.js'
 import { ErrorState } from '../../components/common/ErrorState.jsx'
 import { addWishlistItem, getWishlistIds } from '../../utils/wishlistStorage.js'
-import { ProductImage } from '../../components/common/ProductImage.jsx'
-import { formatProductPrice } from '../../utils/formatPrice.js'
+import { formatProductPrice, formatUom } from '../../utils/formatPrice.js'
 
 const PAGE_SIZE = 12
 
@@ -762,7 +762,7 @@ export function MarketingProductsPage() {
                         <h3 className="mpCard__title">{p.title}</h3>
                         <p className="mpCard__price">
                           <strong>{formatMoney(p.price, p.currency || 'INR')}</strong>
-                          <span className="mpCard__priceUnit"> / piece</span>
+                          <span className="mpCard__priceUnit"> / {formatUom(p.uom)}</span>
                         </p>
                       </div>
                     </Link>

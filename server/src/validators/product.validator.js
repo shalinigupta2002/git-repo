@@ -1,4 +1,5 @@
 const { z } = require('zod')
+const { UOM_CODES } = require('../utils/productUom.js')
 
 /** Express query strings are strings — normalize booleans */
 function queryBool(defaultValue = false) {
@@ -16,6 +17,7 @@ const createProductBody = z.object({
   sku:           z.string().trim().min(1).max(64),
   name:          z.string().trim().min(1).max(255),
   description:   z.string().max(5000).optional().nullable(),
+  uom:           z.enum(UOM_CODES).optional().nullable(),
   price:         z.coerce.number().positive().max(1e12),
   moq:           z.coerce.number().int().min(1).max(1e9).optional().default(1),
   currency:      z.string().trim().length(3).optional().default('INR'),

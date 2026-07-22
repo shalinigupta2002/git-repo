@@ -6,6 +6,7 @@ import { DealDetailSkeleton } from '../../components/deals/LoadingSkeleton.jsx'
 import { DealTimeline } from '../../components/deals/DealTimeline.jsx'
 import { PaymentCard } from '../../components/deals/PaymentCard.jsx'
 import { ErrorState } from '../../components/common/ErrorState.jsx'
+import { PaymentCancelledNotice } from '../../components/common/PaymentCancelledNotice.jsx'
 import { useDeal } from '../../hooks/useDeal.js'
 import {
   formatDealAmount,
@@ -64,6 +65,7 @@ export function DealDetailPage({
     paying,
     error,
     paymentSuccess,
+    paymentCancelled,
     load,
     pay,
   } = useDeal(dealId, role)
@@ -160,7 +162,15 @@ export function DealDetailPage({
       </InfoSection>
 
       <InfoSection title="Action Panel">
-        {showPayment && myPayment?.paymentStatus === 'PENDING' ? (
+        {paymentCancelled ? (
+          <PaymentCancelledNotice
+            onTryAgain={pay}
+            backTo={listPath}
+            backLabel="Back"
+          />
+        ) : null}
+
+        {showPayment && myPayment?.paymentStatus === 'PENDING' && !paymentCancelled ? (
           <PaymentCard
             deal={deal}
             viewerRole={role}

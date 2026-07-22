@@ -7,6 +7,7 @@ const fs = require('fs')
 const path = require('path')
 const { prisma } = require('../config/database.js')
 const { USER_PUBLIC_SELECT, pickUserCity, mapMaskedParty } = require('./sellerProfileService.js')
+const { resolveProductUom } = require('../utils/productUom.js')
 
 const CATEGORY_SLUG_TO_LABEL = {
   mobiles: 'Moblie & accessories',
@@ -43,12 +44,14 @@ function loadCategoryIdToLabel() {
 }
 
 function parseProductMeta(description) {
-  if (!description) return { category: null, brand: null }
+  if (!description) return { category: null, brand: null, uom: null }
   const categoryMatch = description.match(/Category:\s*([^.]+)\./)
   const brandMatch = description.match(/Brand:\s*([^.]+)\./)
+  const uomMatch = description.match(/UOM:\s*([^.]+)\./)
   return {
     category: categoryMatch?.[1]?.trim() || null,
     brand: brandMatch?.[1]?.trim() || null,
+    uom: uomMatch?.[1]?.trim() || null,
   }
 }
 
@@ -182,6 +185,7 @@ function mapSellerProduct(product) {
       slug: slugify(brandName),
       name: brandName,
     },
+    uom: resolveProductUom(product),
     source: 'seller',
     seller: product.seller ? mapMaskedParty(product.seller, 'SELLER', { dealAccepted: false, dealChargesPaid: false }) : null,
     stockQty: product.stockQty,

@@ -1,6 +1,7 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
+import { PaymentCancelledNotice } from '../../components/common/PaymentCancelledNotice.jsx'
 import { useMarketingPricing } from '../../utils/marketingPricing.js'
 import { useRazorpayCheckout } from '../../hooks/useRazorpayCheckout.js'
 import { useAppSelector } from '../../hooks/redux.js'
@@ -25,6 +26,7 @@ export function BuyerBothSellerPricing() {
   const user = useAppSelector(selectUser)
   const hasBuyerSub = useAppSelector(selectHasBuyerSubscription)
   const { startCheckout, loading } = useRazorpayCheckout()
+  const [paymentCancelled, setPaymentCancelled] = useState(false)
 
   const onSubscribeCheckout = window.location.pathname.startsWith('/subscribe/')
 
@@ -55,12 +57,26 @@ export function BuyerBothSellerPricing() {
   }
 
   function handleSubscribe() {
+    setPaymentCancelled(false)
     startCheckout({
       plan: rzpPlan,
       user,
       onSuccess,
+      onCancelled: () => setPaymentCancelled(true),
       onError: (msg) => toast.error(msg),
     })
+  }
+
+  if (paymentCancelled) {
+    return (
+      <section className="panel">
+        <PaymentCancelledNotice
+          onTryAgain={handleSubscribe}
+          backTo="/pricing"
+          backLabel="Back"
+        />
+      </section>
+    )
   }
 
   return (

@@ -3,6 +3,8 @@
  * marketplace IDs, addresses (cities), subscriptions, and master catalog taxonomy.
  *
  * Usage: npm run db:uat-cleanup
+ *
+ * Production requires ALLOW_PRODUCTION_RESET=true.
  */
 const path = require('path')
 require('dotenv').config({ path: path.join(__dirname, '../../.env') })
@@ -10,6 +12,7 @@ require('dotenv').config({ path: path.join(__dirname, '../../.env') })
 const { PrismaClient } = require('@prisma/client')
 const { LOGIN_EMAILS } = require('./constants.js')
 const { runUatCleanup } = require('./cleanup.js')
+const { assertCleanupAllowed } = require('./env.js')
 
 const prisma = new PrismaClient()
 
@@ -25,6 +28,9 @@ function printCounts(label, counts) {
   console.log(`  contact_messages:      ${counts.contactMessages}`)
   console.log(`  category_requests:     ${counts.categoryRequests}`)
   console.log(`  audit_logs:            ${counts.auditLogs}`)
+  console.log(`  deals:                 ${counts.deals}`)
+  console.log(`  deal_payments:         ${counts.dealPayments}`)
+  console.log(`  deal_events:           ${counts.dealEvents}`)
   console.log(`  catalog.products:      ${counts.catalogProducts}`)
   console.log(`  catalog.categories:    ${counts.catalogCategories} (preserved)`)
   console.log(`  catalog.brands:          ${counts.catalogBrands} (preserved)`)
@@ -35,6 +41,7 @@ function printCounts(label, counts) {
 }
 
 async function main() {
+  assertCleanupAllowed('UAT cleanup')
   console.log('[uat-cleanup] Removing demo business data…')
 
   const { before, purged, after } = await runUatCleanup(prisma)
@@ -79,6 +86,7 @@ async function main() {
     after.products === 0
     && after.inventoryLogs === 0
     && after.orders === 0
+    && after.deals === 0
     && after.rfqGroups === 0
     && after.quoteRequests === 0
     && after.quoteRevisions === 0

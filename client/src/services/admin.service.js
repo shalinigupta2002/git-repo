@@ -76,6 +76,18 @@ export function fetchAdminSubscriberStats() {
   return getJson('/admin/subscribers/stats')
 }
 
+export function updateAdminSubscriber(id, body) {
+  return patchJson(`/admin/subscribers/${encodeURIComponent(id)}`, body)
+}
+
+export function deactivateAdminSubscriber(id) {
+  return patchJson(`/admin/subscribers/${encodeURIComponent(id)}/deactivate`, {})
+}
+
+export function reactivateAdminSubscriber(id) {
+  return patchJson(`/admin/subscribers/${encodeURIComponent(id)}/reactivate`, {})
+}
+
 export function fetchAdminAuditLogs(params) {
   const qs = params ? `?${new URLSearchParams(params).toString()}` : ''
   return getJson(`/admin/audit-logs${qs}`)

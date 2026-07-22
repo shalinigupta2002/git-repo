@@ -1,6 +1,12 @@
 import { useEffect, useState, useCallback } from 'react'
 import toast from 'react-hot-toast'
-import { fetchAdminSubscribers, fetchAdminSubscriberStats } from '../../services/admin.service.js'
+import {
+  fetchAdminSubscribers,
+  fetchAdminSubscriberStats,
+  updateAdminSubscriber,
+  deactivateAdminSubscriber,
+  reactivateAdminSubscriber,
+} from '../../services/admin.service.js'
 import { EmptyState } from '../../components/common/EmptyState.jsx'
 import { ErrorState } from '../../components/common/ErrorState.jsx'
 import { DealListSkeleton } from '../../components/deals/LoadingSkeleton.jsx'
@@ -23,6 +29,18 @@ export function SubscribersDashboard() {
   const [totalItems, setTotalItems] = useState(0)
 
   const limit = 15
+
+  const [editTarget, setEditTarget] = useState(null)
+  const [editForm, setEditForm] = useState({
+    role: 'BUYER',
+    buyerSubscriptionPlan: '',
+    buyerSubscriptionStatus: '',
+    sellerSubscriptionPlan: '',
+    sellerSubscriptionStatus: '',
+    expiresAt: '',
+  })
+  const [savingEdit, setSavingEdit] = useState(false)
+  const [deactivatingId, setDeactivatingId] = useState(null)
 
   const loadStats = useCallback(async () => {
     setStatsLoading(true)
@@ -123,6 +141,70 @@ export function SubscribersDashboard() {
     link.click()
     document.body.removeChild(link)
     toast.success('Filtered subscribers exported successfully!')
+  }
+
+  function openEditModal(subscriber) {
+    setEditTarget(subscriber)
+    setEditForm({
+      role: subscriber.role || 'BUYER',
+      buyerSubscriptionPlan: subscriber.buyerSubscription?.plan || '',
+      buyerSubscriptionStatus: subscriber.buyerSubscription?.status || '',
+      sellerSubscriptionPlan: subscriber.sellerSubscription?.plan || '',
+      sellerSubscriptionStatus: subscriber.sellerSubscription?.status || '',
+      expiresAt: subscriber.expiresAt ? new Date(subscriber.expiresAt).toISOString().slice(0, 16) : '',
+    })
+  }
+
+  async function handleSaveEdit(e) {
+    e.preventDefault()
+    if (!editTarget) return
+    setSavingEdit(true)
+    try {
+      const payload = {
+        role: editForm.role,
+        buyerSubscriptionPlan: editForm.buyerSubscriptionPlan || null,
+        buyerSubscriptionStatus: editForm.buyerSubscriptionStatus || null,
+        sellerSubscriptionPlan: editForm.sellerSubscriptionPlan || null,
+        sellerSubscriptionStatus: editForm.sellerSubscriptionStatus || null,
+        expiresAt: editForm.expiresAt ? new Date(editForm.expiresAt).toISOString() : null,
+      }
+      await updateAdminSubscriber(editTarget.id, payload)
+      toast.success('Subscriber updated')
+      setEditTarget(null)
+      loadSubscribers()
+      loadStats()
+    } catch (err) {
+      toast.error(err.message || 'Failed to update subscriber')
+    } finally {
+      setSavingEdit(false)
+    }
+  }
+
+  async function handleDeactivate(subscriber) {
+    if (!window.confirm(`Deactivate ${subscriber.email}? They will be blocked from logging in.`)) return
+    setDeactivatingId(subscriber.id)
+    try {
+      await deactivateAdminSubscriber(subscriber.id)
+      toast.success('Subscriber deactivated')
+      loadSubscribers()
+    } catch (err) {
+      toast.error(err.message || 'Failed to deactivate subscriber')
+    } finally {
+      setDeactivatingId(null)
+    }
+  }
+
+  async function handleReactivate(subscriber) {
+    setDeactivatingId(subscriber.id)
+    try {
+      await reactivateAdminSubscriber(subscriber.id)
+      toast.success('Subscriber reactivated')
+      loadSubscribers()
+    } catch (err) {
+      toast.error(err.message || 'Failed to reactivate subscriber')
+    } finally {
+      setDeactivatingId(null)
+    }
   }
 
   return (
@@ -330,14 +412,16 @@ export function SubscribersDashboard() {
                   <th style={{ padding: '0.75rem 1rem' }}>Status</th>
                   <th style={{ padding: '0.75rem 1rem' }}>Start Date</th>
                   <th style={{ padding: '0.75rem 1rem' }}>Expiry Date</th>
+                  <th style={{ padding: '0.75rem 1rem' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {subscribers.map(sub => {
                   const isActive = sub.status === 'ACTIVE'
+                  const accountActive = sub.isActive !== false
                   
                   return (
-                    <tr key={sub.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                    <tr key={sub.id} style={{ borderBottom: '1px solid #f3f4f6', opacity: accountActive ? 1 : 0.72 }}>
                       <td style={{ padding: '0.75rem 1rem', fontWeight: 600, color: '#111827' }}>
                         {sub.userName || sub.companyName || sub.email.split('@')[0]}
                       </td>
@@ -386,6 +470,37 @@ export function SubscribersDashboard() {
                       </td>
                       <td style={{ padding: '0.75rem 1rem', color: '#4b5563' }}>
                         {sub.expiresAt ? new Date(sub.expiresAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : (isActive ? 'Lifetime' : '—')}
+                      </td>
+                      <td style={{ padding: '0.75rem 1rem' }}>
+                        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                          <button type="button" className="btnOutline" style={{ fontSize: '0.75rem', padding: '0.3rem 0.6rem' }} onClick={() => openEditModal(sub)}>
+                            Edit
+                          </button>
+                          {accountActive ? (
+                            <button
+                              type="button"
+                              className="btnOutline"
+                              style={{ fontSize: '0.75rem', padding: '0.3rem 0.6rem', color: '#b91c1c', borderColor: '#fecaca' }}
+                              disabled={deactivatingId === sub.id}
+                              onClick={() => handleDeactivate(sub)}
+                            >
+                              Deactivate
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              className="btnOutline"
+                              style={{ fontSize: '0.75rem', padding: '0.3rem 0.6rem', color: '#15803d', borderColor: '#bbf7d0' }}
+                              disabled={deactivatingId === sub.id}
+                              onClick={() => handleReactivate(sub)}
+                            >
+                              Reactivate
+                            </button>
+                          )}
+                        </div>
+                        {!accountActive ? (
+                          <div style={{ fontSize: '0.7rem', color: '#b91c1c', marginTop: '0.25rem' }}>Account deactivated</div>
+                        ) : null}
                       </td>
                     </tr>
                   )
@@ -436,6 +551,84 @@ export function SubscribersDashboard() {
           )}
         </div>
       )}
+      {editTarget ? (
+        <div className="modalOverlay" onClick={() => setEditTarget(null)} role="presentation">
+          <div className="modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="edit-subscriber-title">
+            <h3 id="edit-subscriber-title" className="modal__title">Edit subscriber</h3>
+            <p className="panelSub" style={{ marginTop: 0 }}>
+              {editTarget.email} · {editTarget.userId || editTarget.id}
+            </p>
+            <form onSubmit={handleSaveEdit} className="b2bForm" style={{ display: 'grid', gap: '0.75rem', marginTop: '1rem' }}>
+              <div>
+                <label className="b2bLabel">Membership type (role)</label>
+                <select className="b2bSelect" value={editForm.role} onChange={(e) => setEditForm((prev) => ({ ...prev, role: e.target.value }))}>
+                  <option value="BUYER">Buyer</option>
+                  <option value="SELLER">Seller</option>
+                </select>
+              </div>
+              <div className="b2bFormRow2">
+                <div>
+                  <label className="b2bLabel">Buyer plan</label>
+                  <select className="b2bSelect" value={editForm.buyerSubscriptionPlan} onChange={(e) => setEditForm((prev) => ({ ...prev, buyerSubscriptionPlan: e.target.value }))}>
+                    <option value="">—</option>
+                    <option value="BUYER_STANDARD">Buyer Standard</option>
+                    <option value="BUYER_LIFETIME">Buyer Lifetime</option>
+                    <option value="BOTH_STANDARD_MONTH">Both Standard + Month</option>
+                    <option value="BOTH_LIFETIME_LIFETIME">Both Lifetime</option>
+                    <option value="BOTH_LIFETIME_MONTH">Both Lifetime + Month</option>
+                    <option value="BOTH_STANDARD_LIFETIME">Both Standard + Lifetime</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="b2bLabel">Buyer status</label>
+                  <select className="b2bSelect" value={editForm.buyerSubscriptionStatus} onChange={(e) => setEditForm((prev) => ({ ...prev, buyerSubscriptionStatus: e.target.value }))}>
+                    <option value="">—</option>
+                    <option value="ACTIVE">Active</option>
+                    <option value="EXPIRED">Expired</option>
+                    <option value="CANCELLED">Cancelled</option>
+                  </select>
+                </div>
+              </div>
+              <div className="b2bFormRow2">
+                <div>
+                  <label className="b2bLabel">Seller plan</label>
+                  <select className="b2bSelect" value={editForm.sellerSubscriptionPlan} onChange={(e) => setEditForm((prev) => ({ ...prev, sellerSubscriptionPlan: e.target.value }))}>
+                    <option value="">—</option>
+                    <option value="SELLER_MONTH">Seller Month</option>
+                    <option value="SELLER_LIFETIME">Seller Lifetime</option>
+                    <option value="BOTH_STANDARD_MONTH">Both Standard + Month</option>
+                    <option value="BOTH_LIFETIME_LIFETIME">Both Lifetime</option>
+                    <option value="BOTH_LIFETIME_MONTH">Both Lifetime + Month</option>
+                    <option value="BOTH_STANDARD_LIFETIME">Both Standard + Lifetime</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="b2bLabel">Seller status</label>
+                  <select className="b2bSelect" value={editForm.sellerSubscriptionStatus} onChange={(e) => setEditForm((prev) => ({ ...prev, sellerSubscriptionStatus: e.target.value }))}>
+                    <option value="">—</option>
+                    <option value="ACTIVE">Active</option>
+                    <option value="EXPIRED">Expired</option>
+                    <option value="CANCELLED">Cancelled</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="b2bLabel">Expiry date</label>
+                <input
+                  type="datetime-local"
+                  className="b2bInput"
+                  value={editForm.expiresAt}
+                  onChange={(e) => setEditForm((prev) => ({ ...prev, expiresAt: e.target.value }))}
+                />
+              </div>
+              <div className="modal__footer">
+                <button type="button" className="btnOutline" onClick={() => setEditTarget(null)} disabled={savingEdit}>Cancel</button>
+                <button type="submit" className="btn btn--primary" disabled={savingEdit}>{savingEdit ? 'Saving…' : 'Save changes'}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }

@@ -62,7 +62,7 @@ export function BuyerTransactions() {
       txRef: payment?.paymentReference || '—',
       razorpayPaymentId: payment?.providerPaymentId || null,
       razorpayOrderId: payment?.providerOrderId || null,
-      paymentMethod: payment?.provider === 'razorpay' ? 'Razorpay Sandbox (Test Mode)' : 'Platform Deal Charge',
+      paymentMethod: payment?.provider === 'razorpay' ? 'Secure Payment (Test Mode)' : 'Platform Deal Charge',
       createdAt: payment?.paidAt || o.createdAt,
       timeline: o.events || [],
     }
@@ -175,8 +175,8 @@ export function BuyerTransactions() {
               <div><dt>Status</dt><dd><span className="b2bBadge b2bBadge--green">{statusLabel(selectedTx.status)}</span></dd></div>
               <div><dt>Payment Method</dt><dd>{selectedTx.paymentMethod}</dd></div>
               <div><dt>Payment Date</dt><dd>{selectedTx.createdAt ? new Date(selectedTx.createdAt).toLocaleString() : '—'}</dd></div>
-              <div><dt>Razorpay Payment ID</dt><dd><code>{selectedTx.razorpayPaymentId || '—'}</code></dd></div>
-              <div><dt>Razorpay Order ID</dt><dd><code>{selectedTx.razorpayOrderId || '—'}</code></dd></div>
+              <div><dt>Payment ID</dt><dd><code>{selectedTx.razorpayPaymentId || '—'}</code></dd></div>
+              <div><dt>Order ID</dt><dd><code>{selectedTx.razorpayOrderId || '—'}</code></dd></div>
             </dl>
 
             <div className="panel panel--nested" style={{ marginBottom: 16 }}>

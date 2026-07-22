@@ -6,6 +6,7 @@ import {
   paySellerDeal,
   verifyDealPayment,
 } from '../services/deal.service.js'
+import { createPaymentCancelledError, isPaymentCancelledError } from '../utils/paymentErrors.js'
 
 function loadRazorpayScript() {
   return new Promise((resolve) => {
@@ -21,7 +22,7 @@ function loadRazorpayScript() {
 export function useDealRazorpayCheckout(role = 'BUYER') {
   const [paying, setPaying] = useState(false)
 
-  const payDeal = useCallback(async (dealId, { user, onSuccess } = {}) => {
+  const payDeal = useCallback(async (dealId, { user, onSuccess, onCancelled } = {}) => {
     setPaying(true)
     try {
       const orderData = await createDealPaymentOrder(dealId, role)
@@ -67,7 +68,7 @@ export function useDealRazorpayCheckout(role = 'BUYER') {
             }
           },
           modal: {
-            ondismiss: () => reject(new Error('Payment cancelled')),
+            ondismiss: () => reject(createPaymentCancelledError()),
           },
         })
 
@@ -80,6 +81,10 @@ export function useDealRazorpayCheckout(role = 'BUYER') {
       onSuccess?.(deal)
       return deal
     } catch (error) {
+      if (isPaymentCancelledError(error)) {
+        onCancelled?.()
+        return null
+      }
       const status = error?.response?.status
       const code = error?.response?.data?.error?.code || error?.code
       if (status === 503 || code === 'RAZORPAY_NOT_CONFIGURED') {

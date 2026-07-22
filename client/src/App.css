@@ -10026,3 +10026,34 @@ body,
     margin-bottom: 12px;
   }
 }
+
+/* ── Numeric inputs: hide spinners and block wheel changes ──────────────── */
+.b2bInput--number {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.b2bInput--number::-webkit-outer-spin-button,
+.b2bInput--number::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* ── Payment cancelled informational state ──────────────────────────────── */
+.stateBox--info {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1e3a8a;
+}
+
+.paymentCancelled {
+  max-width: 520px;
+  margin: 1.5rem auto;
+}
+
+.paymentCancelled__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: center;
+}

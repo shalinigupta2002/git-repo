@@ -5,6 +5,17 @@ import { SellerWorkflowChrome } from '../../layouts/SellerWorkflowChrome.jsx'
 import { createProduct } from '../../services/product.service.js'
 import { useShopCategoryTree } from '../../hooks/useShopCategoryTree.js'
 import { CategoryFields } from '../../components/seller/CategoryFields.jsx'
+import { PRODUCT_UOM_OPTIONS } from '../../constants/productUom.js'
+
+function preventNumberWheel(event) {
+  event.currentTarget.blur()
+}
+
+function preventNumberArrowKeys(event) {
+  if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+    event.preventDefault()
+  }
+}
 
 const INITIAL = {
   sku: '',
@@ -171,6 +182,7 @@ export function AddNewProduct() {
         sku: form.sku.trim(),
         name: form.name.trim(),
         description,
+        uom: form.uom,
         price: priceNum,
         currency: form.currency || 'INR',
         isActive: true,
@@ -272,13 +284,9 @@ export function AddNewProduct() {
                     value={form.uom}
                     onChange={(e) => updateField('uom', e.target.value)}
                   >
-                    <option value="MT">Metric ton (MT)</option>
-                    <option value="PCS">Pieces (PCS)</option>
-                    <option value="M">Meters (M)</option>
-                    <option value="KG">Kilograms (KG)</option>
-                    <option value="L">Litres (L)</option>
-                    <option value="BOX">Box (BOX)</option>
-                    <option value="SET">Set (SET)</option>
+                    {PRODUCT_UOM_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
                   </select>
                 </div>
               </div>
@@ -289,12 +297,14 @@ export function AddNewProduct() {
                   <input
                     id="price"
                     type="number"
-                    className="b2bInput"
+                    className="b2bInput b2bInput--number"
                     placeholder="e.g. 58500"
                     min={0}
                     step="0.01"
                     value={form.price}
                     onChange={(e) => updateField('price', e.target.value)}
+                    onWheel={preventNumberWheel}
+                    onKeyDown={preventNumberArrowKeys}
                     required
                   />
                 </div>
@@ -329,12 +339,14 @@ export function AddNewProduct() {
                   <input
                     id="availableStocks"
                     type="number"
-                    className="b2bInput"
+                    className="b2bInput b2bInput--number"
                     placeholder="e.g. 500"
                     min={0}
                     step={1}
                     value={form.availableStocks}
                     onChange={(e) => updateField('availableStocks', e.target.value)}
+                    onWheel={preventNumberWheel}
+                    onKeyDown={preventNumberArrowKeys}
                   />
                 </div>
               </div>

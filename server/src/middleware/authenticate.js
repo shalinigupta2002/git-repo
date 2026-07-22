@@ -35,6 +35,9 @@ async function authenticate(req, res, next) {
     if (!user) {
       throw new AppError('User no longer exists', 401, 'USER_NOT_FOUND')
     }
+    if (user.isActive === false) {
+      throw new AppError('Your account has been deactivated. Contact support for assistance.', 403, 'ACCOUNT_DEACTIVATED')
+    }
     req.user = user
     next()
   } catch (err) {

@@ -7,6 +7,7 @@ const { serializeProduct } = require('../utils/serialize.js')
 const { writeAuditLog } = require('../utils/audit.js')
 const { buildProductImages } = require('../middleware/productUpload.js')
 const { persistUploadedProductFiles } = require('../services/productImageStorage.js')
+const { normalizeUomCode, parseUomFromDescription } = require('../utils/productUom.js')
 
 const list = asyncHandler(async (req, res) => {
   const { page, limit, sellerId, includeInactive, search, mine } = req.query
@@ -91,8 +92,11 @@ const create = asyncHandler(async (req, res) => {
     sellerId = req.body.sellerId
   }
 
-  const { sku, name, description, price, moq, currency, isActive, trackInventory, stockQty } = req.body
+  const { sku, name, description, uom, price, moq, currency, isActive, trackInventory, stockQty } = req.body
   const images = buildProductImages(req.files || [])
+  const resolvedUom = uom != null && uom !== ''
+    ? normalizeUomCode(uom)
+    : parseUomFromDescription(description)
 
   try {
     const product = await prisma.$transaction(async (tx) => {
@@ -104,6 +108,7 @@ const create = asyncHandler(async (req, res) => {
           sku,
           name,
           description:    description ?? null,
+          uom:            resolvedUom,
           price:          new Prisma.Decimal(String(price)),
           moq:            moq ?? 1,
           currency:       currency || 'INR',
@@ -151,12 +156,17 @@ const update = asyncHandler(async (req, res) => {
     throw new AppError('Forbidden', 403, 'FORBIDDEN')
   }
 
-  const { sku, name, description, price, moq, currency, isActive, trackInventory, stockQty } = req.body
+  const { sku, name, description, uom, price, moq, currency, isActive, trackInventory, stockQty } = req.body
 
   const data = {}
   if (sku            !== undefined) data.sku            = sku
   if (name           !== undefined) data.name           = name
   if (description    !== undefined) data.description    = description
+  if (uom            !== undefined) {
+    data.uom = uom == null || uom === '' ? null : normalizeUomCode(uom)
+  } else if (description !== undefined) {
+    data.uom = parseUomFromDescription(description)
+  }
   if (price          !== undefined) data.price          = new Prisma.Decimal(String(price))
   if (moq            !== undefined) data.moq            = moq
   if (currency       !== undefined) data.currency       = currency

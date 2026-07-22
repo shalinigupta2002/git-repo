@@ -15,11 +15,13 @@ const {
   PREMIUM_QA_SELLER_2,
   PREMIUM_QA_SELLER_3,
   PREMIUM_QA_USERS,
+  PREMIUM_SUBSCRIPTION_SPECS,
   PLAN_AMOUNTS_PAISE,
   shouldSeedQaUsers,
   shouldSeedE2eProducts,
 } = require('./constants.js')
 const { runCleanup } = require('./cleanup.js')
+const { shouldResetDatabase } = require('./env.js')
 const { upsertUsers, upsertAddresses } = require('./users.js')
 const { seedMasterCatalog } = require('./catalog.js')
 const { seedPremiumSubscriptions, seedAutomationSellerProducts } = require('./premium.js')
@@ -96,25 +98,28 @@ function portalUserIdFor(user) {
   return user.portalUserId ?? null
 }
 
-async function verifyManualOnboarding(users, checks) {
+async function verifyManualOnboarding(users, checks, { freshReset = false } = {}) {
   for (const spec of MANUAL_ONBOARDING_USERS) {
     const u = users[spec.email]
     checks.push({
       name: `${spec.email} login`,
       ok: Boolean(u && await bcrypt.compare(spec.password, u.passwordHash)),
     })
-    checks.push({
-      name: `${spec.email} no portal user ID`,
-      ok: !u?.portalUserId,
-    })
-    const subs = await prisma.subscription.count({
-      where: { userId: u?.id, status: 'ACTIVE' },
-    })
-    checks.push({ name: `${spec.email} no subscription`, ok: subs === 0 })
+
+    if (freshReset) {
+      checks.push({
+        name: `${spec.email} no portal user ID`,
+        ok: !u?.portalUserId,
+      })
+      const subs = await prisma.subscription.count({
+        where: { userId: u?.id, status: 'ACTIVE' },
+      })
+      checks.push({ name: `${spec.email} no subscription`, ok: subs === 0 })
+    }
   }
 }
 
-async function verifyPremiumGroup(users, groupSpecs, checks, { expectProducts = false, productCountRange } = {}) {
+async function verifyPremiumGroup(users, groupSpecs, checks, { expectProducts = false, productCountRange, freshReset = false } = {}) {
   for (const spec of groupSpecs) {
     const u = users[spec.email]
     checks.push({
@@ -144,7 +149,7 @@ async function verifyPremiumGroup(users, groupSpecs, checks, { expectProducts = 
       ok: addr?.city === spec.address.city,
     })
 
-    if (spec.role === 'SELLER') {
+    if (spec.role === 'SELLER' && freshReset) {
       const productCount = await prisma.product.count({ where: { sellerId: u?.id } })
       if (expectProducts && productCountRange) {
         checks.push({
@@ -161,7 +166,7 @@ async function verifyPremiumGroup(users, groupSpecs, checks, { expectProducts = 
   }
 }
 
-async function verifyBootstrap(users) {
+async function verifyBootstrap(users, { freshReset = false } = {}) {
   const checks = []
   const seedQa = shouldSeedQaUsers()
 
@@ -171,53 +176,75 @@ async function verifyBootstrap(users) {
     ok: Boolean(admin && await bcrypt.compare(PASSWORDS.admin, admin.passwordHash)),
   })
 
-  await verifyManualOnboarding(users, checks)
+  await verifyManualOnboarding(users, checks, { freshReset })
 
   if (seedQa) {
     await verifyPremiumGroup(users, PREMIUM_AUTOMATION_USERS, checks, {
-      expectProducts: true,
+      expectProducts: shouldSeedE2eProducts(),
       productCountRange: { min: 8, max: 10 },
+      freshReset,
     })
-    await verifyPremiumGroup(users, PREMIUM_QA_USERS, checks)
+    await verifyPremiumGroup(users, PREMIUM_QA_USERS, checks, { freshReset })
   }
 
   const empty = await countRows()
-  checks.push({ name: 'No orders/deals', ok: empty.orders === 0 })
-  checks.push({ name: 'No RFQs/quotes', ok: empty.rfqGroups === 0 && empty.quoteRequests === 0 })
-  checks.push({ name: 'No catalog browse products', ok: Number(empty.catalog.products) === 0 })
 
-  if (seedQa) {
-    checks.push({
-      name: 'Premium subscriptions only (6)',
-      ok: empty.subscriptions === 6 && empty.payments === 6,
-    })
-    if (shouldSeedE2eProducts()) {
+  if (freshReset) {
+    checks.push({ name: 'No orders/deals', ok: empty.orders === 0 })
+    checks.push({ name: 'No RFQs/quotes', ok: empty.rfqGroups === 0 && empty.quoteRequests === 0 })
+    checks.push({ name: 'No catalog browse products', ok: Number(empty.catalog.products) === 0 })
+
+    if (seedQa) {
       checks.push({
-        name: 'Automation seller products only (8–10 total)',
-        ok: empty.products >= 8 && empty.products <= 10,
+        name: 'Premium subscriptions only (6)',
+        ok: empty.subscriptions === 6 && empty.payments === 6,
       })
+      if (shouldSeedE2eProducts()) {
+        checks.push({
+          name: 'Automation seller products only (8–10 total)',
+          ok: empty.products >= 8 && empty.products <= 10,
+        })
+      } else {
+        checks.push({
+          name: 'No seller products (UAT-clean bootstrap)',
+          ok: empty.products === 0,
+        })
+      }
     } else {
       checks.push({
-        name: 'No seller products (UAT-clean bootstrap)',
-        ok: empty.products === 0,
+        name: 'Production: no subscriptions or products',
+        ok: empty.subscriptions === 0 && empty.payments === 0 && empty.products === 0,
       })
     }
   } else {
     checks.push({
-      name: 'Production: no subscriptions or products',
-      ok: empty.subscriptions === 0 && empty.payments === 0 && empty.products === 0,
+      name: 'Safe seed: existing business data preserved',
+      ok: true,
     })
+
+    if (seedQa) {
+      for (const spec of PREMIUM_SUBSCRIPTION_SPECS) {
+        const u = users[spec.email]
+        const sub = await prisma.subscription.findFirst({
+          where: { userId: u?.id, status: 'ACTIVE' },
+        })
+        checks.push({
+          name: `${spec.email} has ACTIVE subscription`,
+          ok: Boolean(sub),
+        })
+      }
+    }
   }
 
-  return { checks, counts: empty, seedQa }
+  return { checks, counts: empty, seedQa, freshReset }
 }
 
 function printReport(legacyRemoved, catalogStats, counts, verification) {
-  const { checks, seedQa } = verification
+  const { checks, seedQa, freshReset } = verification
   const userTotal = seedQa ? 15 : 9
 
   console.log('')
-  console.log('=== Production bootstrap report ===')
+  console.log(`=== Bootstrap report (${freshReset ? 'reset + seed' : 'safe seed'}) ===`)
   console.log('')
   console.log(`Users (${userTotal} total):`)
   console.log(`  Admin:                    ${ADMIN.email}`)
@@ -275,6 +302,12 @@ function printReport(legacyRemoved, catalogStats, counts, verification) {
   }
   console.log('')
   console.log('Notes:')
+  if (freshReset) {
+    console.log('  • RESET_DATABASE=true — transactional data was purged before seeding')
+  } else {
+    console.log('  • Safe seed — existing users, products, RFQs, orders, and QA data were preserved')
+    console.log('  • To wipe and re-seed: npm run db:reset')
+  }
   console.log('  • Portal User IDs live in portal_user_id column (Main Portal is source of truth)')
   console.log('  • MANUAL_ONBOARDING users test subscription purchase and onboarding flows')
   if (seedQa) {
@@ -285,12 +318,22 @@ function printReport(legacyRemoved, catalogStats, counts, verification) {
 
 async function main() {
   const seedQa = shouldSeedQaUsers()
-  console.log(`[bootstrap] Production bootstrap${seedQa ? ' + QA testing groups' : ' (QA groups skipped)'}`)
+  const freshReset = shouldResetDatabase()
 
-  const legacyRemoved = await runCleanup(prisma)
-  console.log('[bootstrap] Transactional data purged')
+  console.log(
+    `[bootstrap] ${freshReset ? 'Reset + seed' : 'Safe seed (non-destructive)'}`
+    + `${seedQa ? ' + QA testing groups' : ' (QA groups skipped)'}`,
+  )
 
-  const users = await upsertUsers(prisma)
+  let legacyRemoved = { removed: 0, emails: [], premiumRemoved: 0, premiumEmails: [] }
+  if (freshReset) {
+    legacyRemoved = await runCleanup(prisma)
+    console.log('[bootstrap] Transactional data purged (RESET_DATABASE=true)')
+  } else {
+    console.log('[bootstrap] Skipping cleanup — existing business data preserved')
+  }
+
+  const users = await upsertUsers(prisma, { preserveExistingState: !freshReset })
   console.log(`[bootstrap] Login accounts upserted (${Object.keys(users).length} users)`)
 
   await upsertAddresses(prisma, users)
@@ -313,7 +356,7 @@ async function main() {
   const catalogStats = await seedMasterCatalog(prisma)
   console.log('[bootstrap] Master catalog taxonomy upserted')
 
-  const verification = await verifyBootstrap(users)
+  const verification = await verifyBootstrap(users, { freshReset })
   printReport(legacyRemoved, catalogStats, verification.counts, verification)
 
   const failed = verification.checks.filter((c) => !c.ok)
@@ -321,7 +364,7 @@ async function main() {
     console.error(`[bootstrap] Verification failed: ${failed.length} check(s)`)
     process.exitCode = 1
   } else {
-    console.log('[bootstrap] Done — idempotent')
+    console.log(`[bootstrap] Done — idempotent (${freshReset ? 'reset' : 'safe'} seed)`)
   }
 }
 

@@ -12,7 +12,7 @@ const ADDRESS_CITIES = [
   ['Kolkata', 'West Bengal', '700001'],
 ]
 
-function buildUserData(spec, passwordHash) {
+function buildUserData(spec, passwordHash, { preserveExistingState = false } = {}) {
   const base = {
     role: spec.role,
     companyName: spec.companyName,
@@ -20,6 +20,10 @@ function buildUserData(spec, passwordHash) {
   }
 
   if (spec.group === 'MANUAL_ONBOARDING' || spec.group === undefined) {
+    if (preserveExistingState) {
+      return base
+    }
+
     return {
       ...base,
       portalUserId: null,
@@ -38,13 +42,13 @@ function buildUserData(spec, passwordHash) {
   }
 }
 
-async function upsertUsers(prisma) {
+async function upsertUsers(prisma, { preserveExistingState = false } = {}) {
   const users = {}
   for (const spec of LOGIN_USER_SPECS) {
     const passwordHash = await bcrypt.hash(spec.password, 10)
     users[spec.email] = await prisma.user.upsert({
       where: { email: spec.email },
-      update: buildUserData(spec, passwordHash),
+      update: buildUserData(spec, passwordHash, { preserveExistingState }),
       create: {
         email: spec.email,
         ...buildUserData(spec, passwordHash),

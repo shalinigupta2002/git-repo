@@ -7,6 +7,7 @@ import {
   getSellerDeal,
 } from '../services/deal.service.js'
 import { useDealRazorpayCheckout } from './useDealRazorpayCheckout.js'
+import { isPaymentCancelledError } from '../utils/paymentErrors.js'
 
 const GET_FETCHERS = Object.freeze({
   BUYER: getBuyerDeal,
@@ -23,6 +24,7 @@ export function useDeal(dealId, role = 'BUYER') {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [paymentSuccess, setPaymentSuccess] = useState(false)
+  const [paymentCancelled, setPaymentCancelled] = useState(false)
 
   const load = useCallback(async () => {
     if (!dealId) return
@@ -49,6 +51,7 @@ export function useDeal(dealId, role = 'BUYER') {
     }
 
     setError('')
+    setPaymentCancelled(false)
     try {
       const updated = await payDeal(dealId, {
         user,
@@ -57,11 +60,20 @@ export function useDeal(dealId, role = 'BUYER') {
           setPaymentSuccess(true)
           toast.success('Deal charge paid successfully')
         },
+        onCancelled: () => {
+          setPaymentCancelled(true)
+        },
       })
-      if (updated) setDeal(updated)
-      setPaymentSuccess(true)
+      if (updated) {
+        setDeal(updated)
+        setPaymentSuccess(true)
+      }
       return updated
     } catch (err) {
+      if (isPaymentCancelledError(err)) {
+        setPaymentCancelled(true)
+        return null
+      }
       const message = err.message || 'Payment failed'
       setError(message)
       toast.error(message)
@@ -75,6 +87,7 @@ export function useDeal(dealId, role = 'BUYER') {
     paying,
     error,
     paymentSuccess,
+    paymentCancelled,
     load,
     pay,
     setDeal,

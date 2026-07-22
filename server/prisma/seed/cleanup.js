@@ -6,6 +6,7 @@ const {
   PREMIUM_USER_EMAILS,
   shouldSeedQaUsers,
 } = require('./constants.js')
+const { assertCleanupAllowed } = require('./env.js')
 
 const UPLOAD_DIRS = [
   path.join(__dirname, '../../uploads/rfq'),
@@ -18,8 +19,14 @@ const UPLOAD_DIRS = [
  * Preserves users, addresses, subscriptions, payments, and master catalog taxonomy by default.
  */
 async function purgeBusinessData(prisma, { preserveSubscriptions = true } = {}) {
+  assertCleanupAllowed('database cleanup')
+
   const counts = {}
 
+  counts.dealEvents = (await prisma.dealEvent.deleteMany()).count
+  counts.dealPayments = (await prisma.dealPayment.deleteMany()).count
+  counts.deals = (await prisma.deal.deleteMany()).count
+  counts.dealNumberCounters = (await prisma.dealNumberCounter.deleteMany()).count
   counts.rfqNotificationEvents = (await prisma.rfqNotificationEvent.deleteMany()).count
   counts.quoteRevisions = (await prisma.quoteRevision.deleteMany()).count
   counts.orderHistory = (await prisma.orderHistory.deleteMany()).count
@@ -94,6 +101,9 @@ async function countBusinessRows(prisma) {
     addresses,
     subscriptions,
     payments,
+    deals,
+    dealPayments,
+    dealEvents,
   ] = await Promise.all([
     prisma.product.count(),
     prisma.inventoryLog.count(),
@@ -111,6 +121,9 @@ async function countBusinessRows(prisma) {
     prisma.address.count(),
     prisma.subscription.count(),
     prisma.payment.count(),
+    prisma.deal.count(),
+    prisma.dealPayment.count(),
+    prisma.dealEvent.count(),
   ])
 
   let catalogProducts = 0
@@ -147,6 +160,9 @@ async function countBusinessRows(prisma) {
     addresses,
     subscriptions,
     payments,
+    deals,
+    dealPayments,
+    dealEvents,
     catalogProducts,
     catalogCategories,
     catalogBrands,
@@ -214,6 +230,7 @@ async function clearManualOnboardingSubscriptions(prisma) {
 }
 
 async function runCleanup(prisma) {
+  assertCleanupAllowed('database reset')
   await purgeTransactionalData(prisma)
   await clearManualOnboardingSubscriptions(prisma)
   const legacy = await purgeLegacyUsers(prisma)

@@ -34,6 +34,57 @@ describe('sellerBrowseService image mapping', () => {
 
     expect(mapped.imageUrl).toBeNull()
   })
+
+  test('mapSellerProduct parses uom from product description', () => {
+    const uomCodes = ['MT', 'PCS', 'M', 'KG', 'L', 'BOX', 'SET']
+    for (const code of uomCodes) {
+      const mapped = mapSellerProduct({
+        id: `p-${code}`,
+        name: 'Item',
+        description: `Category: Steel. UOM: ${code}. Brand: Industrial.`,
+        price: 1000,
+        images: [],
+        seller: null,
+        createdAt: new Date(),
+        stockQty: 10,
+        currency: 'INR',
+      })
+      expect(mapped.uom).toBe(code)
+    }
+  })
+
+  test('mapSellerProduct prefers dedicated uom column over description', () => {
+    const mapped = mapSellerProduct({
+      id: 'p-uom-col',
+      name: 'Item',
+      description: 'Category: Steel. UOM: PCS. Brand: Industrial.',
+      uom: 'KG',
+      price: 1000,
+      images: [],
+      seller: null,
+      createdAt: new Date(),
+      stockQty: 10,
+      currency: 'INR',
+    })
+    expect(mapped.uom).toBe('KG')
+  })
+
+  test('mapSellerProduct returns null uom when metadata missing', () => {
+    const mapped = mapSellerProduct({
+      id: 'p-no-uom',
+      name: 'Widget',
+      description: 'Category: Electronics. Brand: Acme.',
+      price: 50,
+      images: [],
+      seller: null,
+      createdAt: new Date(),
+      stockQty: 0,
+      moq: 1,
+      currency: 'INR',
+    })
+
+    expect(mapped.uom).toBeNull()
+  })
 })
 
 describe('sellerBrowseService subcategory filtering', () => {

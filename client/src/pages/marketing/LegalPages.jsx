@@ -23,7 +23,7 @@ const POLICIES = {
       {
         heading: 'Subscriptions and payments',
         body:
-          'Paid plans unlock buyer, seller, or combined access. Payments are processed securely through Razorpay. Access is activated after successful payment verification.',
+          'Paid plans unlock buyer, seller, or combined access. Payments are processed securely through our payment gateway. Access is activated after successful payment verification.',
       },
       {
         heading: 'Marketplace responsibility',
@@ -53,7 +53,7 @@ const POLICIES = {
       {
         heading: 'Payments',
         body:
-          'Payment information is processed by Razorpay. We do not store card numbers, UPI credentials, or banking details on our servers.',
+          'Payment information is processed by our secure payment gateway. We do not store card numbers, UPI credentials, or banking details on our servers.',
       },
       {
         heading: 'Cookies',
@@ -108,7 +108,7 @@ const POLICIES = {
       {
         heading: 'Refund review',
         body:
-          'Approved refunds, if any, will be processed to the original payment method through the payment gateway according to bank and Razorpay timelines.',
+          'Approved refunds, if any, will be processed to the original payment method through the payment gateway according to bank and processor timelines.',
       },
       {
         heading: 'Contact',

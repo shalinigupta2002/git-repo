@@ -14,8 +14,7 @@ import { useAppSelector } from '../../hooks/redux.js'
 import { selectHasBuyerSubscription } from '../../store/slices/subscriptionSlice.js'
 import { fetchCatalogProduct, fetchAlternativeSellerListings } from '../../services/catalog.service.js'
 import { addWishlistItem, getWishlistIds } from '../../utils/wishlistStorage.js'
-import { canAccessBuyerWorkspace } from '../../utils/portalNav.js'
-import { formatProductPrice } from '../../utils/formatPrice.js'
+import { formatProductPrice, formatUom } from '../../utils/formatPrice.js'
 import { ProductImage } from '../../components/common/ProductImage.jsx'
 
 
@@ -242,7 +241,7 @@ export function ProductDetailPage() {
                   <div className="pdInfo__priceBlock">
                     <div className="pdInfo__price">
                       {formatMoney(product.price, product.currency || 'INR')}
-                      <span className="pdInfo__priceUnit"> / piece</span>
+                      <span className="pdInfo__priceUnit"> / {formatUom(product.uom)}</span>
                     </div>
                     <p className="pdInfo__priceNote">Wholesale unit price for B2B buyers</p>
                   </div>
@@ -285,6 +284,7 @@ export function ProductDetailPage() {
                   <dl className="pdFacts">
                     <div><dt>Category</dt><dd>{product.category?.name || '—'}</dd></div>
                     <div><dt>Brand</dt><dd>{product.brand?.name || '—'}</dd></div>
+                    <div><dt>Unit of measure</dt><dd>{formatUom(product.uom)}</dd></div>
                     {product.source === 'seller' && product.seller ? (
                       <div className="pdFacts__seller">
                         <dt>Seller</dt>

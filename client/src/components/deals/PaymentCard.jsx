@@ -67,10 +67,10 @@ export function PaymentCard({
       <div className="panelHeader">
         <div>
           <h3 className="panelTitle">Platform Deal Charge</h3>
-          <p className="panelSub">Razorpay Test Mode · Complete sandbox payment to unlock contact details.</p>
+          <p className="panelSub">Secure test payment · Complete sandbox payment to unlock contact details.</p>
         </div>
         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-          <span className="b2bBadge b2bBadge--blue" style={{ fontSize: 11 }}>Razorpay Test Mode</span>
+          <span className="b2bBadge b2bBadge--blue" style={{ fontSize: 11 }}>Test Mode</span>
           <PaymentStatusBadge status={payment?.paymentStatus || 'PENDING'} />
         </div>
       </div>
@@ -123,8 +123,8 @@ export function PaymentCard({
       <ConfirmDialog
         open={confirmOpen}
         title="Proceed To Pay Deal Charge"
-        message={`Complete Razorpay test payment of ${formatDealAmount(chargeAmount, currency)} for the platform deal charge?`}
-        confirmLabel="Open Razorpay Checkout"
+        message={`Complete test payment of ${formatDealAmount(chargeAmount, currency)} for the platform deal charge?`}
+        confirmLabel="Open Payment Window"
         loading={paying}
         onConfirm={handleConfirmPay}
         onCancel={() => setConfirmOpen(false)}

@@ -52,4 +52,26 @@ const listSubscribersQuery = paginationQuery.extend({
   planType: z.enum(['MONTHLY', 'ANNUAL', 'LIFETIME', 'ALL']).optional().default('ALL'),
 })
 
-module.exports = { listUsersQuery, listTransactionsQuery, paginationQuery, listAuditLogsQuery, listSubscribersQuery }
+const subscriberIdParam = z.object({
+  id: z.string().uuid(),
+})
+
+const updateSubscriberBody = z.object({
+  role: z.enum(['BUYER', 'SELLER']).optional(),
+  buyerSubscriptionPlan: z.enum([
+    'BUYER_STANDARD', 'BUYER_LIFETIME',
+    'BOTH_STANDARD_MONTH', 'BOTH_LIFETIME_LIFETIME', 'BOTH_LIFETIME_MONTH', 'BOTH_STANDARD_LIFETIME',
+  ]).optional().nullable(),
+  buyerSubscriptionStatus: z.enum(['ACTIVE', 'EXPIRED', 'CANCELLED']).optional().nullable(),
+  sellerSubscriptionPlan: z.enum([
+    'SELLER_MONTH', 'SELLER_LIFETIME',
+    'BOTH_STANDARD_MONTH', 'BOTH_LIFETIME_LIFETIME', 'BOTH_LIFETIME_MONTH', 'BOTH_STANDARD_LIFETIME',
+  ]).optional().nullable(),
+  sellerSubscriptionStatus: z.enum(['ACTIVE', 'EXPIRED', 'CANCELLED']).optional().nullable(),
+  expiresAt: z.string().datetime({ offset: true }).optional().nullable(),
+}).refine(
+  (body) => Object.keys(body).length > 0,
+  { message: 'At least one editable field is required' },
+)
+
+module.exports = { listUsersQuery, listTransactionsQuery, paginationQuery, listAuditLogsQuery, listSubscribersQuery, subscriberIdParam, updateSubscriberBody }

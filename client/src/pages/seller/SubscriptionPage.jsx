@@ -33,7 +33,7 @@ const everyoneBenefits = [
 const heroTrustPoints = [
   'Verified B2B network',
   'Transparent portal fees',
-  'Secure Razorpay checkout',
+  'Secure checkout',
 ]
 
 export function SubscriptionPage() {

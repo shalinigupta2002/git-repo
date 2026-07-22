@@ -4,6 +4,7 @@ import { activateSubscription, loadSubscriptionStatus } from '../store/slices/su
 import { refreshUser } from '../store/slices/authSlice.js'
 import { createSubscriptionOrder, verifySubscriptionPayment } from '../services/subscription.service.js'
 import { env } from '../constants/env.js'
+import { createPaymentCancelledError, isPaymentCancelledError } from '../utils/paymentErrors.js'
 
 /** Dynamically loads the Razorpay checkout script once and returns true when ready. */
 function loadRazorpayScript() {
@@ -25,6 +26,7 @@ function loadRazorpayScript() {
  * @param {object} options.user  - { email, companyName } for pre-filling checkout
  * @param {function} options.onSuccess - Called with `plan` after successful payment + verification
  * @param {function} [options.onError]  - Called with error message on failure
+ * @param {function} [options.onCancelled] - Called when the user closes checkout without paying
  */
 export function useRazorpayCheckout() {
   const dispatch = useAppDispatch()
@@ -32,7 +34,7 @@ export function useRazorpayCheckout() {
   const [loadingPlan, setLoadingPlan] = useState(null)
 
   const startCheckout = useCallback(
-    async ({ plan, user, onSuccess, onError }) => {
+    async ({ plan, user, onSuccess, onError, onCancelled }) => {
       setLoadingPlan(plan)
       try {
         const scriptLoaded = await loadRazorpayScript()
@@ -81,7 +83,7 @@ export function useRazorpayCheckout() {
             },
 
             modal: {
-              ondismiss: () => reject(new Error('Payment cancelled')),
+              ondismiss: () => reject(createPaymentCancelledError()),
             },
           })
           rzp.on('payment.failed', (response) => {
@@ -92,6 +94,10 @@ export function useRazorpayCheckout() {
 
         onSuccess?.(plan)
       } catch (err) {
+        if (isPaymentCancelledError(err)) {
+          onCancelled?.()
+          return
+        }
         const msg = err?.message || 'Payment failed'
         onError?.(msg)
       } finally {

@@ -8,6 +8,9 @@ const {
   listTransactionsQuery,
   paginationQuery,
   listAuditLogsQuery,
+  listSubscribersQuery,
+  subscriberIdParam,
+  updateSubscriberBody,
 } = require('../validators/admin.validator.js')
 
 const router = Router()
@@ -17,8 +20,11 @@ router.use(authenticate, authorize('ADMIN'))
 
 router.get('/buyers',       validate(listUsersQuery,        'query'), adminController.listBuyers)
 router.get('/sellers',      validate(listUsersQuery,        'query'), adminController.listSellers)
-router.get('/subscribers',  validate(require('../validators/admin.validator.js').listSubscribersQuery, 'query'), adminController.listSubscribers)
+router.get('/subscribers',  validate(listSubscribersQuery, 'query'), adminController.listSubscribers)
 router.get('/subscribers/stats', adminController.subscriberStats)
+router.patch('/subscribers/:id', validate(subscriberIdParam, 'params'), validate(updateSubscriberBody), adminController.updateSubscriber)
+router.patch('/subscribers/:id/deactivate', validate(subscriberIdParam, 'params'), adminController.deactivateSubscriber)
+router.patch('/subscribers/:id/reactivate', validate(subscriberIdParam, 'params'), adminController.reactivateSubscriber)
 router.get('/transactions', validate(listTransactionsQuery, 'query'), adminController.listTransactions)
 router.get('/stats',        validate(paginationQuery,       'query'), adminController.stats)
 router.get('/audit-logs',   validate(listAuditLogsQuery,   'query'), adminController.listAuditLogs)

@@ -31,6 +31,8 @@ function serializeUser(user) {
     sellerSubscriptionStatus: user.sellerSubscriptionStatus ?? null,
     sellerSubscriptionPlan: user.sellerSubscriptionPlan ?? null,
     sellerSubscriptionActivatedAt: user.sellerSubscriptionActivatedAt ?? null,
+    isActive: user.isActive !== false,
+    deactivatedAt: user.deactivatedAt ?? null,
   }
 }
 
@@ -47,6 +49,8 @@ const USER_SELECT = {
   sellerSubscriptionStatus: true,
   sellerSubscriptionPlan: true,
   sellerSubscriptionActivatedAt: true,
+  isActive: true,
+  deactivatedAt: true,
 }
 
 module.exports = { serializeUser, USER_SELECT, legacyMarketplaceIdAliases }

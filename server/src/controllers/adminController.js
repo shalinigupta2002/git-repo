@@ -634,6 +634,8 @@ const listSubscribers = asyncHandler(async (req, res) => {
       status: statusStr,
       startsAt: activeSub ? (activeSub.startsAt || activeSub.createdAt) : user.createdAt,
       expiresAt: activeSub ? activeSub.expiresAt : null,
+      isActive: user.isActive !== false,
+      deactivatedAt: user.deactivatedAt ?? null,
       buyerSubscription: user.buyerSubscriptionStatus ? {
         plan: user.buyerSubscriptionPlan,
         status: user.buyerSubscriptionStatus,
@@ -773,6 +775,123 @@ const subscriberStats = asyncHandler(async (req, res) => {
   })
 })
 
+const updateSubscriber = asyncHandler(async (req, res) => {
+  const { id } = req.params
+  const {
+    role,
+    buyerSubscriptionPlan,
+    buyerSubscriptionStatus,
+    sellerSubscriptionPlan,
+    sellerSubscriptionStatus,
+    expiresAt,
+  } = req.body
+
+  const existing = await prisma.user.findUnique({
+    where: { id },
+    include: { subscriptions: { orderBy: { createdAt: 'desc' } } },
+  })
+
+  if (!existing || existing.role === 'ADMIN') {
+    throw new AppError('Subscriber not found', 404, 'NOT_FOUND')
+  }
+
+  const data = {}
+  if (role !== undefined) data.role = role
+  if (buyerSubscriptionPlan !== undefined) data.buyerSubscriptionPlan = buyerSubscriptionPlan
+  if (buyerSubscriptionStatus !== undefined) data.buyerSubscriptionStatus = buyerSubscriptionStatus
+  if (sellerSubscriptionPlan !== undefined) data.sellerSubscriptionPlan = sellerSubscriptionPlan
+  if (sellerSubscriptionStatus !== undefined) data.sellerSubscriptionStatus = sellerSubscriptionStatus
+
+  const updatedUser = await prisma.$transaction(async (tx) => {
+    const user = await tx.user.update({
+      where: { id },
+      data,
+      include: {
+        addresses: { orderBy: { isDefault: 'desc' } },
+        subscriptions: { orderBy: { createdAt: 'desc' } },
+      },
+    })
+
+    if (expiresAt !== undefined) {
+      const parsedExpiry = expiresAt ? new Date(expiresAt) : null
+      const activeSubs = user.subscriptions.filter((sub) => sub.status === 'ACTIVE')
+      const targets = activeSubs.length ? activeSubs : user.subscriptions.slice(0, 1)
+      for (const sub of targets) {
+        await tx.subscription.update({
+          where: { id: sub.id },
+          data: { expiresAt: parsedExpiry },
+        })
+      }
+    }
+
+    return tx.user.findUnique({
+      where: { id },
+      include: {
+        addresses: { orderBy: { isDefault: 'desc' } },
+        subscriptions: { orderBy: { createdAt: 'desc' } },
+      },
+    })
+  })
+
+  res.json({ success: true, data: { subscriber: updatedUser } })
+})
+
+const deactivateSubscriber = asyncHandler(async (req, res) => {
+  const { id } = req.params
+
+  const existing = await prisma.user.findUnique({ where: { id } })
+  if (!existing || existing.role === 'ADMIN') {
+    throw new AppError('Subscriber not found', 404, 'NOT_FOUND')
+  }
+
+  const updated = await prisma.user.update({
+    where: { id },
+    data: {
+      isActive: false,
+      deactivatedAt: new Date(),
+    },
+  })
+
+  res.json({
+    success: true,
+    data: {
+      subscriber: {
+        id: updated.id,
+        isActive: updated.isActive,
+        deactivatedAt: updated.deactivatedAt,
+      },
+    },
+  })
+})
+
+const reactivateSubscriber = asyncHandler(async (req, res) => {
+  const { id } = req.params
+
+  const existing = await prisma.user.findUnique({ where: { id } })
+  if (!existing || existing.role === 'ADMIN') {
+    throw new AppError('Subscriber not found', 404, 'NOT_FOUND')
+  }
+
+  const updated = await prisma.user.update({
+    where: { id },
+    data: {
+      isActive: true,
+      deactivatedAt: null,
+    },
+  })
+
+  res.json({
+    success: true,
+    data: {
+      subscriber: {
+        id: updated.id,
+        isActive: updated.isActive,
+        deactivatedAt: updated.deactivatedAt,
+      },
+    },
+  })
+})
+
 module.exports = {
   listBuyers,
   listSellers,
@@ -787,4 +906,7 @@ module.exports = {
   decideCategoryRequest,
   listSubscribers,
   subscriberStats,
+  updateSubscriber,
+  deactivateSubscriber,
+  reactivateSubscriber,
 }

@@ -66,13 +66,13 @@ describe('subscriptionSlice – initial state', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('activateSubscription', () => {
-  it('activating BUYER_STANDARD sets hasBuyer and buyerPlanType', () => {
+  it('activating BUYER_ANNUAL sets hasBuyer and buyerPlanType', () => {
     const store = makeStore()
-    store.dispatch(activateSubscription('BUYER_STANDARD'))
+    store.dispatch(activateSubscription('BUYER_ANNUAL'))
     const state = store.getState().subscription
 
     expect(state.hasBuyer).toBe(true)
-    expect(state.buyerPlanType).toBe('BUYER_STANDARD')
+    expect(state.buyerPlanType).toBe('BUYER_ANNUAL')
     expect(state.hasSeller).toBe(false)
   })
 
@@ -85,13 +85,13 @@ describe('activateSubscription', () => {
     expect(state.buyerPlanType).toBe('BUYER_LIFETIME')
   })
 
-  it('activating SELLER_MONTH sets hasSeller and sellerPlanType', () => {
+  it('activating SELLER_MONTHLY sets hasSeller and sellerPlanType', () => {
     const store = makeStore()
-    store.dispatch(activateSubscription('SELLER_MONTH'))
+    store.dispatch(activateSubscription('SELLER_MONTHLY'))
     const state = store.getState().subscription
 
     expect(state.hasSeller).toBe(true)
-    expect(state.sellerPlanType).toBe('SELLER_MONTH')
+    expect(state.sellerPlanType).toBe('SELLER_MONTHLY')
     expect(state.hasBuyer).toBe(false)
   })
 
@@ -138,7 +138,7 @@ describe('loadSubscriptionStatus thunk', () => {
       hasSellerSubscription: false,
       hasBuyerSubscription:  true,
       subscriptions: [
-        { id: 'sub-001', plan: 'BUYER_STANDARD', status: 'ACTIVE', startsAt: null, expiresAt: null },
+        { id: 'sub-001', plan: 'BUYER_ANNUAL', status: 'ACTIVE', startsAt: null, expiresAt: null },
       ],
     })
 
@@ -149,7 +149,7 @@ describe('loadSubscriptionStatus thunk', () => {
     expect(state.status).toBe('succeeded')
     expect(state.hasBuyer).toBe(true)
     expect(state.hasSeller).toBe(false)
-    expect(state.buyerPlanType).toBe('BUYER_STANDARD')
+    expect(state.buyerPlanType).toBe('BUYER_ANNUAL')
     expect(state.sellerPlanType).toBeNull()
     expect(state.subscriptions).toHaveLength(1)
   })

@@ -16,7 +16,9 @@ const list = asyncHandler(async (req, res) => {
   const where = {}
 
   if (mine === true) {
-    if (req.user?.role !== 'SELLER') {
+    const { hasActiveSubscription } = require('../middleware/requireSubscription.js')
+    const isSellerCapable = req.user?.role === 'SELLER' || (req.user && await hasActiveSubscription(req.user.id, 'SELLER'))
+    if (!isSellerCapable) {
       throw new AppError('mine=true requires seller authentication', 400, 'VALIDATION_ERROR')
     }
     where.sellerId = req.user.id
@@ -73,7 +75,7 @@ const getById = asyncHandler(async (req, res) => {
 
   const canSeeInactive =
     req.user?.role === 'ADMIN' ||
-    (req.user?.role === 'SELLER' && req.user.id === product.sellerId)
+    (req.user && req.user.id === product.sellerId)
 
   if (!product.isActive && !canSeeInactive) {
     throw new AppError('Product not found', 404, 'NOT_FOUND')

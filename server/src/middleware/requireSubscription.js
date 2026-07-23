@@ -8,20 +8,20 @@ const { asyncHandler } = require('../utils/asyncHandler.js')
  */
 const PLANS_BY_TYPE = {
   SELLER: [
-    'SELLER_MONTH',
+    'SELLER_MONTHLY',
+    'SELLER_ANNUAL',
     'SELLER_LIFETIME',
-    'BOTH_STANDARD_MONTH',
-    'BOTH_LIFETIME_LIFETIME',
-    'BOTH_LIFETIME_MONTH',
-    'BOTH_STANDARD_LIFETIME',
+    'BOTH_MONTHLY',
+    'BOTH_ANNUAL',
+    'BOTH_LIFETIME',
   ],
   BUYER: [
-    'BUYER_STANDARD',
+    'BUYER_MONTHLY',
+    'BUYER_ANNUAL',
     'BUYER_LIFETIME',
-    'BOTH_STANDARD_MONTH',
-    'BOTH_LIFETIME_LIFETIME',
-    'BOTH_LIFETIME_MONTH',
-    'BOTH_STANDARD_LIFETIME',
+    'BOTH_MONTHLY',
+    'BOTH_ANNUAL',
+    'BOTH_LIFETIME',
   ],
 }
 
@@ -30,15 +30,12 @@ async function hasActiveSubscription(userId, type) {
     where: { id: userId },
     select: {
       role: true,
-      buyerSubscriptionStatus: true,
-      sellerSubscriptionStatus: true,
+      isActive: true,
     },
   })
   if (!user) return false
   if (user.role === 'ADMIN') return true
-
-  if (type === 'BUYER' && user.buyerSubscriptionStatus === 'ACTIVE') return true
-  if (type === 'SELLER' && user.sellerSubscriptionStatus === 'ACTIVE') return true
+  if (user.isActive === false) return false
 
   const plans = PLANS_BY_TYPE[type]
   if (!plans) return false

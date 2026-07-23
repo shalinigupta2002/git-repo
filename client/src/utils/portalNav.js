@@ -17,11 +17,13 @@ export const PORTAL_PRIMARY_NAV = Object.freeze([
 ])
 
 export function canAccessBuyerWorkspace(role, hasBuyer = hasActiveBuyerSubscription()) {
-  return role === 'BUYER' || Boolean(hasBuyer)
+  if (role === 'ADMIN') return true
+  return Boolean(hasBuyer)
 }
 
 export function canAccessSellerWorkspace(role, hasSeller = hasActiveSellerSubscription()) {
-  return role === 'SELLER' || Boolean(hasSeller)
+  if (role === 'ADMIN') return true
+  return Boolean(hasSeller)
 }
 
 /** Navbar / marketing dashboard destinations from role + active subscriptions. */
@@ -79,26 +81,48 @@ export function marketingDashboardMenuOptions({
   ]
 }
 
-/** Sidebar links visible for role and subscription access. */
+/** Sidebar links visible for role, subscription access, and active workspace. */
 export function visiblePortalPrimaryNav(
   role,
-  { hasBuyer = hasActiveBuyerSubscription(), hasSeller = hasActiveSellerSubscription() } = {},
+  {
+    hasBuyer = hasActiveBuyerSubscription(),
+    hasSeller = hasActiveSellerSubscription(),
+    activeWorkspace = null,
+  } = {},
 ) {
+  const buyerAccess = canAccessBuyerWorkspace(role, hasBuyer)
+  const sellerAccess = canAccessSellerWorkspace(role, hasSeller)
+  const bothWorkspaces = buyerAccess && sellerAccess
+
   return PORTAL_PRIMARY_NAV.filter((item) => {
     if (!item.roles?.length) return true
-    if (item.section === 'buyer') return canAccessBuyerWorkspace(role, hasBuyer)
-    if (item.section === 'seller') return canAccessSellerWorkspace(role, hasSeller)
+    if (item.section === 'buyer') {
+      if (!buyerAccess) return false
+      if (bothWorkspaces) return activeWorkspace === 'buyer'
+      return true
+    }
+    if (item.section === 'seller') {
+      if (!sellerAccess) return false
+      if (bothWorkspaces) return activeWorkspace === 'seller'
+      return true
+    }
     return item.roles.includes(role)
   })
 }
 
 export function portalRoleLabel(
   role,
-  { hasBuyer = hasActiveBuyerSubscription(), hasSeller = hasActiveSellerSubscription() } = {},
+  {
+    hasBuyer = hasActiveBuyerSubscription(),
+    hasSeller = hasActiveSellerSubscription(),
+    activeWorkspace = null,
+  } = {},
 ) {
   const buyerAccess = canAccessBuyerWorkspace(role, hasBuyer)
   const sellerAccess = canAccessSellerWorkspace(role, hasSeller)
-  if (buyerAccess && sellerAccess) return 'Buyer & Seller'
+  if (buyerAccess && sellerAccess) {
+    return activeWorkspace === 'seller' ? 'Seller workspace' : 'Buyer workspace'
+  }
   if (sellerAccess) return 'Seller workspace'
   if (buyerAccess) return 'Buyer workspace'
   return 'Account'

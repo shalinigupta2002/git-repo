@@ -255,16 +255,16 @@ export function AppRoutes() {
           <Route element={<ProtectedRoute workspace="buyer"><Outlet /></ProtectedRoute>}>
             <Route path="/buyer" element={<Navigate to="/buyer/dashboard" replace />} />
             <Route path="/buyer/welcome" element={<Navigate to="/buyer/dashboard" replace />} />
-            <Route path="/buyer/dashboard" element={<BuyerDashboard />} />
+            <Route path="/buyer/dashboard" element={buyerSub(<BuyerDashboard />)} />
             <Route path="/buyer/pricing/both-seller" element={<BuyerBothSellerPricing />} />
             <Route path="/buyer/pricing" element={<BuyerPricing />} />
             <Route path="/buyer/rfqs" element={<Navigate to="/buyer/quotations" replace />} />
             <Route path="/buyer/transactions" element={buyerSub(<BuyerTransactions />)} />
             <Route path="/buyer/deals" element={buyerSub(<BuyerDealsList />)} />
             <Route path="/buyer/deals/:dealId" element={buyerSub(<BuyerDealDetail />)} />
-            <Route path="/buyer/quotations" element={<BuyerQuotations />} />
-            <Route path="/buyer/quotations/group/:rfqGroupId" element={<BuyerRfqComparison />} />
-            <Route path="/buyer/quotations/:requestId" element={<BuyerQuotations />} />
+            <Route path="/buyer/quotations" element={buyerSub(<BuyerQuotations />)} />
+            <Route path="/buyer/quotations/group/:rfqGroupId" element={buyerSub(<BuyerRfqComparison />)} />
+            <Route path="/buyer/quotations/:requestId" element={buyerSub(<BuyerQuotations />)} />
             <Route path="/buyer/negotiate" element={<Navigate to="/buyer/quotations" replace />} />
             <Route path="/buyer/negotiate/:requestId" element={<LegacyQuotationRedirect base="/buyer/quotations" />} />
             <Route path="/buyer/quote-requests" element={<Navigate to="/buyer/quotations" replace />} />
@@ -280,18 +280,18 @@ export function AppRoutes() {
           <Route element={<ProtectedRoute workspace="seller"><Outlet /></ProtectedRoute>}>
             <Route path="/seller" element={<Navigate to="/seller/dashboard" replace />} />
             <Route path="/seller/welcome" element={<Navigate to="/seller/dashboard" replace />} />
-            <Route path="/seller/dashboard" element={<SellerDashboard />} />
+            <Route path="/seller/dashboard" element={sellerSub(<SellerDashboard />)} />
             <Route path="/seller/pricing" element={<Navigate to="/seller/dashboard" replace />} />
             <Route path="/seller/transactions" element={sellerSub(<SellerTransactions />)} />
             <Route path="/seller/deals" element={sellerSub(<SellerDealsList />)} />
             <Route path="/seller/deals/:dealId" element={sellerSub(<SellerDealDetail />)} />
-            <Route path="/seller/products" element={<SellerProductListing />} />
-            <Route path="/seller/products/:productId/edit" element={<EditProduct />} />
+            <Route path="/seller/products" element={sellerSub(<SellerProductListing />)} />
+            <Route path="/seller/products/:productId/edit" element={sellerSub(<EditProduct />)} />
             <Route path="/seller/add-product" element={sellerSub(<AddNewProduct />)} />
-            <Route path="/seller/product-listed" element={<ProductListedSuccessfully />} />
+            <Route path="/seller/product-listed" element={sellerSub(<ProductListedSuccessfully />)} />
             <Route path="/seller/manage-buyer" element={sellerSub(<ManageBuyer />)} />
-            <Route path="/seller/quotations" element={<SellerQuotations />} />
-            <Route path="/seller/quotations/:requestId" element={<SellerQuotations />} />
+            <Route path="/seller/quotations" element={sellerSub(<SellerQuotations />)} />
+            <Route path="/seller/quotations/:requestId" element={sellerSub(<SellerQuotations />)} />
             <Route path="/seller/negotiate" element={<Navigate to="/seller/quotations" replace />} />
             <Route path="/seller/negotiate/:requestId" element={<LegacyQuotationRedirect base="/seller/quotations" />} />
             <Route path="/seller/chat" element={<Navigate to="/seller/quotations" replace />} />

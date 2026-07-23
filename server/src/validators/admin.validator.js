@@ -59,15 +59,18 @@ const subscriberIdParam = z.object({
 const updateSubscriberBody = z.object({
   role: z.enum(['BUYER', 'SELLER']).optional(),
   buyerSubscriptionPlan: z.enum([
-    'BUYER_STANDARD', 'BUYER_LIFETIME',
-    'BOTH_STANDARD_MONTH', 'BOTH_LIFETIME_LIFETIME', 'BOTH_LIFETIME_MONTH', 'BOTH_STANDARD_LIFETIME',
+    'BUYER_MONTHLY', 'BUYER_ANNUAL', 'BUYER_LIFETIME',
+    'BOTH_MONTHLY', 'BOTH_ANNUAL', 'BOTH_LIFETIME',
+    'BUYER_STANDARD', 'SELLER_MONTH', 'BOTH_STANDARD_MONTH',
   ]).optional().nullable(),
   buyerSubscriptionStatus: z.enum(['ACTIVE', 'EXPIRED', 'CANCELLED']).optional().nullable(),
   sellerSubscriptionPlan: z.enum([
-    'SELLER_MONTH', 'SELLER_LIFETIME',
-    'BOTH_STANDARD_MONTH', 'BOTH_LIFETIME_LIFETIME', 'BOTH_LIFETIME_MONTH', 'BOTH_STANDARD_LIFETIME',
+    'SELLER_MONTHLY', 'SELLER_ANNUAL', 'SELLER_LIFETIME',
+    'BOTH_MONTHLY', 'BOTH_ANNUAL', 'BOTH_LIFETIME',
+    'BUYER_STANDARD', 'SELLER_MONTH', 'BOTH_STANDARD_MONTH',
   ]).optional().nullable(),
   sellerSubscriptionStatus: z.enum(['ACTIVE', 'EXPIRED', 'CANCELLED']).optional().nullable(),
+  startsAt: z.string().datetime({ offset: true }).optional().nullable(),
   expiresAt: z.string().datetime({ offset: true }).optional().nullable(),
 }).refine(
   (body) => Object.keys(body).length > 0,

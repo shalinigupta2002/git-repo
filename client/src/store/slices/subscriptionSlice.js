@@ -56,10 +56,9 @@ const subscriptionSlice = createSlice({
       const plan = action.payload
 
       const bundleGrants = {
-        BOTH_STANDARD_MONTH:     { buyer: 'BUYER_STANDARD',  seller: 'SELLER_MONTH' },
-        BOTH_LIFETIME_LIFETIME:  { buyer: 'BUYER_LIFETIME',  seller: 'SELLER_LIFETIME' },
-        BOTH_LIFETIME_MONTH:     { buyer: 'BUYER_LIFETIME',  seller: 'SELLER_MONTH' },
-        BOTH_STANDARD_LIFETIME:  { buyer: 'BUYER_STANDARD',  seller: 'SELLER_LIFETIME' },
+        BOTH_MONTHLY:  { buyer: 'BUYER_MONTHLY',  seller: 'SELLER_MONTHLY' },
+        BOTH_ANNUAL:   { buyer: 'BUYER_ANNUAL',   seller: 'SELLER_ANNUAL' },
+        BOTH_LIFETIME: { buyer: 'BUYER_LIFETIME', seller: 'SELLER_LIFETIME' },
       }
 
       const bundle = bundleGrants[plan]
@@ -73,12 +72,12 @@ const subscriptionSlice = createSlice({
         return
       }
 
-      if (plan === 'SELLER_MONTH' || plan === 'SELLER_LIFETIME') {
+      if (plan === 'SELLER_MONTHLY' || plan === 'SELLER_ANNUAL' || plan === 'SELLER_LIFETIME') {
         state.hasSeller = true
         state.sellerPlanType = plan
         setSellerSubscriptionActive()
       }
-      if (plan === 'BUYER_STANDARD' || plan === 'BUYER_LIFETIME') {
+      if (plan === 'BUYER_MONTHLY' || plan === 'BUYER_ANNUAL' || plan === 'BUYER_LIFETIME') {
         state.hasBuyer = true
         state.buyerPlanType = plan
         setBuyerSubscriptionActive()
@@ -111,12 +110,12 @@ const subscriptionSlice = createSlice({
         // Derive specific plan types from the subscriptions array
         const subs = action.payload.subscriptions || []
         const sellerSub = subs.find(
-          (s) => s.plan === 'SELLER_MONTH' || s.plan === 'SELLER_LIFETIME',
+          (s) => s.plan === 'SELLER_MONTHLY' || s.plan === 'SELLER_ANNUAL' || s.plan === 'SELLER_LIFETIME',
         )
         state.sellerPlanType = sellerSub?.plan ?? null
 
         const buyerSub = subs.find(
-          (s) => s.plan === 'BUYER_STANDARD' || s.plan === 'BUYER_LIFETIME',
+          (s) => s.plan === 'BUYER_MONTHLY' || s.plan === 'BUYER_ANNUAL' || s.plan === 'BUYER_LIFETIME',
         )
         state.buyerPlanType = buyerSub?.plan ?? null
 

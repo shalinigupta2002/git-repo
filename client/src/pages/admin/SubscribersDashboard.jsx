@@ -37,6 +37,7 @@ export function SubscribersDashboard() {
     buyerSubscriptionStatus: '',
     sellerSubscriptionPlan: '',
     sellerSubscriptionStatus: '',
+    startsAt: '',
     expiresAt: '',
   })
   const [savingEdit, setSavingEdit] = useState(false)
@@ -143,30 +144,48 @@ export function SubscribersDashboard() {
     toast.success('Filtered subscribers exported successfully!')
   }
 
+  function toLocalISOString(dateString) {
+    if (!dateString) return ''
+    const date = new Date(dateString)
+    if (isNaN(date.getTime())) return ''
+    const tzOffset = date.getTimezoneOffset() * 60000
+    return new Date(date.getTime() - tzOffset).toISOString().slice(0, 16)
+  }
+
   function openEditModal(subscriber) {
     setEditTarget(subscriber)
     setEditForm({
       role: subscriber.role || 'BUYER',
-      buyerSubscriptionPlan: subscriber.buyerSubscription?.plan || '',
-      buyerSubscriptionStatus: subscriber.buyerSubscription?.status || '',
-      sellerSubscriptionPlan: subscriber.sellerSubscription?.plan || '',
-      sellerSubscriptionStatus: subscriber.sellerSubscription?.status || '',
-      expiresAt: subscriber.expiresAt ? new Date(subscriber.expiresAt).toISOString().slice(0, 16) : '',
+      buyerSubscriptionPlan: subscriber.buyerSubscription?.plan || subscriber.buyerSubscriptionPlan || '',
+      buyerSubscriptionStatus: subscriber.buyerSubscription?.status || subscriber.buyerSubscriptionStatus || '',
+      sellerSubscriptionPlan: subscriber.sellerSubscription?.plan || subscriber.sellerSubscriptionPlan || '',
+      sellerSubscriptionStatus: subscriber.sellerSubscription?.status || subscriber.sellerSubscriptionStatus || '',
+      startsAt: toLocalISOString(subscriber.startsAt),
+      expiresAt: toLocalISOString(subscriber.expiresAt),
     })
   }
 
   async function handleSaveEdit(e) {
     e.preventDefault()
     if (!editTarget) return
+
+    const isLifetime = editTarget.subscriptionType?.toLowerCase().includes('lifetime')
+
+    const finalStartsAt = editTarget.startsAt ? new Date(editTarget.startsAt).toISOString() : null
+    const finalExpiresAt = isLifetime ? null : (editForm.expiresAt ? new Date(editForm.expiresAt).toISOString() : null)
+
+    // Validation check: Starts At vs Expires At
+    if (finalStartsAt && finalExpiresAt) {
+      if (new Date(finalExpiresAt) < new Date(finalStartsAt)) {
+        toast.error('Expires At cannot be earlier than Starts At.')
+        return
+      }
+    }
+
     setSavingEdit(true)
     try {
       const payload = {
-        role: editForm.role,
-        buyerSubscriptionPlan: editForm.buyerSubscriptionPlan || null,
-        buyerSubscriptionStatus: editForm.buyerSubscriptionStatus || null,
-        sellerSubscriptionPlan: editForm.sellerSubscriptionPlan || null,
-        sellerSubscriptionStatus: editForm.sellerSubscriptionStatus || null,
-        expiresAt: editForm.expiresAt ? new Date(editForm.expiresAt).toISOString() : null,
+        expiresAt: finalExpiresAt,
       }
       await updateAdminSubscriber(editTarget.id, payload)
       toast.success('Subscriber updated')
@@ -179,6 +198,15 @@ export function SubscribersDashboard() {
       setSavingEdit(false)
     }
   }
+
+  const editMembership = editTarget
+    ? ((editForm.buyerSubscriptionPlan && editForm.sellerSubscriptionPlan) || 
+       (editTarget.buyerSubscription?.plan && editTarget.sellerSubscription?.plan)
+        ? 'BOTH'
+        : (editForm.sellerSubscriptionPlan || editTarget.sellerSubscription?.plan ? 'SELLER' : 'BUYER'))
+    : 'BUYER'
+
+
 
   async function handleDeactivate(subscriber) {
     if (!window.confirm(`Deactivate ${subscriber.email}? They will be blocked from logging in.`)) return
@@ -407,8 +435,8 @@ export function SubscribersDashboard() {
                   <th style={{ padding: '0.75rem 1rem' }}>User ID</th>
                   <th style={{ padding: '0.75rem 1rem' }}>Phone Number</th>
                   <th style={{ padding: '0.75rem 1rem' }}>Email</th>
-                  <th style={{ padding: '0.75rem 1rem' }}>Role</th>
-                  <th style={{ padding: '0.75rem 1rem' }}>Subscription Type</th>
+                  <th style={{ padding: '0.75rem 1rem' }}>Membership</th>
+                  <th style={{ padding: '0.75rem 1rem' }}>Subscription</th>
                   <th style={{ padding: '0.75rem 1rem' }}>Status</th>
                   <th style={{ padding: '0.75rem 1rem' }}>Start Date</th>
                   <th style={{ padding: '0.75rem 1rem' }}>Expiry Date</th>
@@ -441,11 +469,11 @@ export function SubscribersDashboard() {
                             fontWeight: 700,
                             padding: '0.2rem 0.5rem',
                             borderRadius: '4px',
-                            background: sub.role === 'BUYER' ? '#eff6ff' : '#faf5ff',
-                            color: sub.role === 'BUYER' ? '#1d4ed8' : '#7e22ce'
+                            background: sub.membership === 'BOTH' ? '#dcfce7' : (sub.membership === 'BUYER' ? '#eff6ff' : '#faf5ff'),
+                            color: sub.membership === 'BOTH' ? '#15803d' : (sub.membership === 'BUYER' ? '#1d4ed8' : '#7e22ce')
                           }}
                         >
-                          {sub.role}
+                          {sub.membership || 'BUYER'}
                         </span>
                       </td>
                       <td style={{ padding: '0.75rem 1rem', fontWeight: 500, color: '#1f2937' }}>
@@ -560,66 +588,64 @@ export function SubscribersDashboard() {
             </p>
             <form onSubmit={handleSaveEdit} className="b2bForm" style={{ display: 'grid', gap: '0.75rem', marginTop: '1rem' }}>
               <div>
-                <label className="b2bLabel">Membership type (role)</label>
-                <select className="b2bSelect" value={editForm.role} onChange={(e) => setEditForm((prev) => ({ ...prev, role: e.target.value }))}>
-                  <option value="BUYER">Buyer</option>
-                  <option value="SELLER">Seller</option>
-                </select>
-              </div>
-              <div className="b2bFormRow2">
-                <div>
-                  <label className="b2bLabel">Buyer plan</label>
-                  <select className="b2bSelect" value={editForm.buyerSubscriptionPlan} onChange={(e) => setEditForm((prev) => ({ ...prev, buyerSubscriptionPlan: e.target.value }))}>
-                    <option value="">—</option>
-                    <option value="BUYER_STANDARD">Buyer Standard</option>
-                    <option value="BUYER_LIFETIME">Buyer Lifetime</option>
-                    <option value="BOTH_STANDARD_MONTH">Both Standard + Month</option>
-                    <option value="BOTH_LIFETIME_LIFETIME">Both Lifetime</option>
-                    <option value="BOTH_LIFETIME_MONTH">Both Lifetime + Month</option>
-                    <option value="BOTH_STANDARD_LIFETIME">Both Standard + Lifetime</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="b2bLabel">Buyer status</label>
-                  <select className="b2bSelect" value={editForm.buyerSubscriptionStatus} onChange={(e) => setEditForm((prev) => ({ ...prev, buyerSubscriptionStatus: e.target.value }))}>
-                    <option value="">—</option>
-                    <option value="ACTIVE">Active</option>
-                    <option value="EXPIRED">Expired</option>
-                    <option value="CANCELLED">Cancelled</option>
-                  </select>
-                </div>
-              </div>
-              <div className="b2bFormRow2">
-                <div>
-                  <label className="b2bLabel">Seller plan</label>
-                  <select className="b2bSelect" value={editForm.sellerSubscriptionPlan} onChange={(e) => setEditForm((prev) => ({ ...prev, sellerSubscriptionPlan: e.target.value }))}>
-                    <option value="">—</option>
-                    <option value="SELLER_MONTH">Seller Month</option>
-                    <option value="SELLER_LIFETIME">Seller Lifetime</option>
-                    <option value="BOTH_STANDARD_MONTH">Both Standard + Month</option>
-                    <option value="BOTH_LIFETIME_LIFETIME">Both Lifetime</option>
-                    <option value="BOTH_LIFETIME_MONTH">Both Lifetime + Month</option>
-                    <option value="BOTH_STANDARD_LIFETIME">Both Standard + Lifetime</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="b2bLabel">Seller status</label>
-                  <select className="b2bSelect" value={editForm.sellerSubscriptionStatus} onChange={(e) => setEditForm((prev) => ({ ...prev, sellerSubscriptionStatus: e.target.value }))}>
-                    <option value="">—</option>
-                    <option value="ACTIVE">Active</option>
-                    <option value="EXPIRED">Expired</option>
-                    <option value="CANCELLED">Cancelled</option>
-                  </select>
-                </div>
-              </div>
-              <div>
-                <label className="b2bLabel">Expiry date</label>
+                <label className="b2bLabel">Membership</label>
                 <input
-                  type="datetime-local"
+                  type="text"
                   className="b2bInput"
-                  value={editForm.expiresAt}
-                  onChange={(e) => setEditForm((prev) => ({ ...prev, expiresAt: e.target.value }))}
+                  value={editMembership}
+                  disabled
+                  style={{ background: '#f3f4f6', cursor: 'not-allowed', color: '#4b5563', fontWeight: 600 }}
                 />
+              </div>
+
+              <div>
+                <label className="b2bLabel">Current Plan</label>
+                <input
+                  type="text"
+                  className="b2bInput"
+                  value={editTarget.subscriptionType || '—'}
+                  disabled
+                  style={{ background: '#f3f4f6', cursor: 'not-allowed', color: '#4b5563', fontWeight: 600 }}
+                />
+              </div>
+
+              <div>
+                <label className="b2bLabel">Status</label>
+                <input
+                  type="text"
+                  className="b2bInput"
+                  value={editTarget.status || '—'}
+                  disabled
+                  style={{ background: '#f3f4f6', cursor: 'not-allowed', color: '#4b5563', fontWeight: 600 }}
+                />
+              </div>
+
+              <div>
+                <label className="b2bLabel">Starts At</label>
+                <input
+                  type="text"
+                  className="b2bInput"
+                  value={editTarget.startsAt ? new Date(editTarget.startsAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
+                  disabled
+                  style={{ background: '#f3f4f6', cursor: 'not-allowed', color: '#4b5563' }}
+                />
+              </div>
+
+              <div>
+                <label className="b2bLabel">Expires At</label>
+                {(() => {
+                  const isLifetime = editTarget.subscriptionType?.toLowerCase().includes('lifetime')
+                  return (
+                    <input
+                      type="datetime-local"
+                      className="b2bInput"
+                      value={isLifetime ? '' : editForm.expiresAt}
+                      disabled={isLifetime}
+                      onChange={(e) => setEditForm((prev) => ({ ...prev, expiresAt: e.target.value }))}
+                      placeholder={isLifetime ? 'Lifetime (No Expiry)' : ''}
+                    />
+                  );
+                })()}
               </div>
               <div className="modal__footer">
                 <button type="button" className="btnOutline" onClick={() => setEditTarget(null)} disabled={savingEdit}>Cancel</button>

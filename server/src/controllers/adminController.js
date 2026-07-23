@@ -482,6 +482,14 @@ const listSubscribers = asyncHandler(async (req, res) => {
   const { page = 1, limit = 50, search, role, status, planType } = req.query
   const skip = (Number(page) - 1) * Number(limit)
 
+  function computeMembership(u) {
+    const hasBuyer = u.buyerSubscriptionPlan != null || u.buyerSubscriptionStatus === 'ACTIVE'
+    const hasSeller = u.sellerSubscriptionPlan != null || u.sellerSubscriptionStatus === 'ACTIVE'
+    if (hasBuyer && hasSeller) return 'BOTH'
+    if (hasSeller) return 'SELLER'
+    return 'BUYER'
+  }
+
   const where = {
     role: { in: ['BUYER', 'SELLER'] }
   }
@@ -626,6 +634,7 @@ const listSubscribers = asyncHandler(async (req, res) => {
       userId: user.portalUserId || user.id,
       email: user.email,
       role: user.role,
+      membership: computeMembership(user),
       companyName: user.companyName,
       userName: user.companyName || user.email.split('@')[0],
       createdAt: user.createdAt,
@@ -783,6 +792,7 @@ const updateSubscriber = asyncHandler(async (req, res) => {
     buyerSubscriptionStatus,
     sellerSubscriptionPlan,
     sellerSubscriptionStatus,
+    startsAt,
     expiresAt,
   } = req.body
 
@@ -795,12 +805,48 @@ const updateSubscriber = asyncHandler(async (req, res) => {
     throw new AppError('Subscriber not found', 404, 'NOT_FOUND')
   }
 
+  const now = new Date()
+
+  // Validate startsAt and expiresAt
+  const activeSubsForValidation = existing.subscriptions.filter((sub) => sub.status === 'ACTIVE')
+  const targetsForValidation = activeSubsForValidation.length ? activeSubsForValidation : existing.subscriptions.slice(0, 1)
+
+  if (startsAt !== undefined || expiresAt !== undefined) {
+    for (const sub of targetsForValidation) {
+      const finalStarts = startsAt !== undefined 
+        ? (startsAt ? new Date(startsAt) : null) 
+        : sub.startsAt
+      const finalExpires = expiresAt !== undefined 
+        ? (expiresAt ? new Date(expiresAt) : null) 
+        : sub.expiresAt
+      
+      if (finalStarts && finalExpires && finalExpires < finalStarts) {
+        throw new AppError('Expires At cannot be earlier than Starts At.', 400, 'INVALID_DATE_RANGE')
+      }
+    }
+  }
+
+  const isBoth = Boolean(existing.buyerSubscriptionPlan && existing.sellerSubscriptionPlan)
+
   const data = {}
   if (role !== undefined) data.role = role
+
+  if (isBoth) {
+    let statusVal = buyerSubscriptionStatus !== undefined ? buyerSubscriptionStatus : sellerSubscriptionStatus
+    if (statusVal !== undefined) {
+      data.buyerSubscriptionStatus = statusVal
+      data.sellerSubscriptionStatus = statusVal
+    } else {
+      if (buyerSubscriptionStatus !== undefined) data.buyerSubscriptionStatus = buyerSubscriptionStatus
+      if (sellerSubscriptionStatus !== undefined) data.sellerSubscriptionStatus = sellerSubscriptionStatus
+    }
+  } else {
+    if (buyerSubscriptionStatus !== undefined) data.buyerSubscriptionStatus = buyerSubscriptionStatus
+    if (sellerSubscriptionStatus !== undefined) data.sellerSubscriptionStatus = sellerSubscriptionStatus
+  }
+
   if (buyerSubscriptionPlan !== undefined) data.buyerSubscriptionPlan = buyerSubscriptionPlan
-  if (buyerSubscriptionStatus !== undefined) data.buyerSubscriptionStatus = buyerSubscriptionStatus
   if (sellerSubscriptionPlan !== undefined) data.sellerSubscriptionPlan = sellerSubscriptionPlan
-  if (sellerSubscriptionStatus !== undefined) data.sellerSubscriptionStatus = sellerSubscriptionStatus
 
   const updatedUser = await prisma.$transaction(async (tx) => {
     const user = await tx.user.update({
@@ -812,17 +858,73 @@ const updateSubscriber = asyncHandler(async (req, res) => {
       },
     })
 
-    if (expiresAt !== undefined) {
-      const parsedExpiry = expiresAt ? new Date(expiresAt) : null
+    if (startsAt !== undefined || expiresAt !== undefined) {
+      const parsedStarts = startsAt !== undefined ? (startsAt ? new Date(startsAt) : null) : undefined
+      const parsedExpiry = expiresAt !== undefined ? (expiresAt ? new Date(expiresAt) : null) : undefined
+
       const activeSubs = user.subscriptions.filter((sub) => sub.status === 'ACTIVE')
-      const targets = activeSubs.length ? activeSubs : user.subscriptions.slice(0, 1)
+      const targets = activeSubs.length ? activeSubs : user.subscriptions.slice(0, isBoth ? 2 : 1)
+
       for (const sub of targets) {
+        const finalStarts = parsedStarts !== undefined ? parsedStarts : sub.startsAt
+        const finalExpiry = parsedExpiry !== undefined ? parsedExpiry : sub.expiresAt
+
+        // Determine new status based on expiresAt
+        let newStatus = sub.status
+        if (finalExpiry) {
+          newStatus = finalExpiry > now ? 'ACTIVE' : 'EXPIRED'
+        } else {
+          newStatus = 'ACTIVE'
+        }
+
+        const oldExpiry = sub.expiresAt
+
         await tx.subscription.update({
           where: { id: sub.id },
-          data: { expiresAt: parsedExpiry },
+          data: {
+            startsAt: finalStarts,
+            expiresAt: finalExpiry,
+            status: newStatus,
+          },
+        })
+
+        const { writeAuditLog } = require('../utils/audit.js')
+        writeAuditLog({
+          actorId: req.user.id,
+          action: 'UPDATE',
+          resource: 'subscription',
+          resourceId: sub.id,
+          meta: {
+            updatedBy: req.user.email,
+            updatedAt: new Date().toISOString(),
+            oldExpiry: oldExpiry ? oldExpiry.toISOString() : null,
+            newExpiry: finalExpiry ? finalExpiry.toISOString() : null,
+            oldStartsAt: sub.startsAt ? sub.startsAt.toISOString() : null,
+            newStartsAt: finalStarts ? finalStarts.toISOString() : null,
+            oldStatus: sub.status,
+            newStatus,
+          },
+          req,
         })
       }
     }
+
+    // Reload user with updated subscriptions to calculate new summary
+    const updatedUserWithSubs = await tx.user.findUnique({
+      where: { id },
+      include: { subscriptions: { orderBy: { createdAt: 'desc' } } },
+    })
+
+    const { syncDenormalizedSubscriptionFields } = require('../services/subscriptionSyncService.js')
+    const { buildSubscriptionSummary } = require('./subscriptionController.js')
+    const summary = buildSubscriptionSummary(updatedUserWithSubs, updatedUserWithSubs.subscriptions, now)
+
+    await syncDenormalizedSubscriptionFields(tx, id, {
+      hasBuyerSub: summary.hasBuyerSubscription,
+      hasSellerSub: summary.hasSellerSubscription,
+      buyerPlan: summary.buyerPlan,
+      sellerPlan: summary.sellerPlan,
+    })
 
     return tx.user.findUnique({
       where: { id },

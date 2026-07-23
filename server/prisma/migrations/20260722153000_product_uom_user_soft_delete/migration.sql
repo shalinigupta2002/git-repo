@@ -1,0 +1,1 @@
+-- Empty migration to align with database applied migration history

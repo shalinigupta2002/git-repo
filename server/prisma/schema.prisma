@@ -8,9 +8,594 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Enums
-// ─────────────────────────────────────────────────────────────────────────────
+model User {
+  id                            String                 @id @default(uuid())
+  email                         String                 @unique
+  passwordHash                  String                 @map("password_hash")
+  role                          Role
+  companyName                   String?                @map("company_name")
+  createdAt                     DateTime               @default(now()) @map("created_at")
+  updatedAt                     DateTime               @updatedAt @map("updated_at")
+  buyerSubscriptionStatus       SubscriptionStatus?    @map("buyer_subscription_status")
+  buyerSubscriptionPlan         SubscriptionPlan?      @map("buyer_subscription_plan")
+  buyerSubscriptionActivatedAt  DateTime?              @map("buyer_subscription_activated_at")
+  sellerSubscriptionStatus      SubscriptionStatus?    @map("seller_subscription_status")
+  sellerSubscriptionPlan        SubscriptionPlan?      @map("seller_subscription_plan")
+  sellerSubscriptionActivatedAt DateTime?              @map("seller_subscription_activated_at")
+  /// Public identity from Main Portal (e.g. USR-000245). Single ID for buyer + seller workspaces.
+  portalUserId                  String?                @unique @map("portal_user_id") @db.VarChar(32)
+  /// Soft-deactivation — blocked from login until reactivated by admin.
+  isActive                      Boolean                @default(true) @map("is_active")
+  deactivatedAt                 DateTime?              @map("deactivated_at")
+  addresses                     Address[]
+  auditLogs                     AuditLog[]
+  categoryRequests              CategoryRequest[]
+  contactMessageReplies         ContactMessageReply[]  @relation("ContactReplyAuthor")
+  contactMessages               ContactMessage[]
+  dealChargeConfigsUpdated      DealChargeConfig[]     @relation("DealChargeConfigUpdatedBy")
+  dealEventsActed               DealEvent[]            @relation("DealEventActor")
+  dealPayments                  DealPayment[]
+  buyerDeals                    Deal[]                 @relation("BuyerDeals")
+  sellerDeals                   Deal[]                 @relation("SellerDeals")
+  orderHistoryChanges           OrderHistory[]
+  buyerOrders                   Order[]                @relation("BuyerOrders")
+  sellerOrders                  Order[]                @relation("SellerOrders")
+  payments                      Payment[]
+  products                      Product[]
+  buyerQuoteRequests            QuoteRequest[]         @relation("BuyerQuoteRequests")
+  sellerQuoteRequests           QuoteRequest[]         @relation("SellerQuoteRequests")
+  rfqGroups                     RfqGroup[]
+  rfqNotifications              RfqNotificationEvent[]
+  subscriptions                 Subscription[]
+
+  @@map("users")
+}
+
+model Subscription {
+  id        String             @id @default(uuid())
+  userId    String             @map("user_id")
+  plan      SubscriptionPlan
+  status    SubscriptionStatus @default(ACTIVE)
+  startsAt  DateTime           @default(now()) @map("starts_at")
+  expiresAt DateTime?          @map("expires_at")
+  createdAt DateTime           @default(now()) @map("created_at")
+  updatedAt DateTime           @updatedAt @map("updated_at")
+  payments  Payment[]
+  user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@map("subscriptions")
+}
+
+/// Database-driven master configuration for subscription plans (V2 & future tiers).
+model SubscriptionPlanMaster {
+  id           String   @id @default(uuid())
+  planKey      String   @unique @map("plan_key") @db.VarChar(64)
+  planName     String   @map("plan_name") @db.VarChar(120)
+  role         Role
+  duration     String   @db.VarChar(32)
+  price        Decimal  @db.Decimal(12, 2)
+  amountPaise  Int      @map("amount_paise")
+  status       String   @default("ACTIVE") @db.VarChar(32)
+  displayOrder Int      @default(0) @map("display_order")
+  description  String?  @db.VarChar(500)
+  features     Json?    @default("[]")
+  icon         String?  @db.VarChar(64)
+  badge        String?  @db.VarChar(64)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@index([status])
+  @@index([role])
+  @@map("subscription_plans")
+}
+
+model Payment {
+  id                String           @id @default(uuid())
+  userId            String           @map("user_id")
+  subscriptionId    String?          @map("subscription_id")
+  razorpayOrderId   String           @unique @map("razorpay_order_id")
+  razorpayPaymentId String?          @map("razorpay_payment_id")
+  razorpaySignature String?          @map("razorpay_signature")
+  plan              SubscriptionPlan
+  amountPaise       Int              @map("amount_paise")
+  currency          String           @default("INR")
+  status            PaymentStatus    @default(PENDING)
+  createdAt         DateTime         @default(now()) @map("created_at")
+  updatedAt         DateTime         @updatedAt @map("updated_at")
+  subscription      Subscription?    @relation(fields: [subscriptionId], references: [id])
+  user              User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@map("payments")
+}
+
+model Address {
+  id         String   @id @default(uuid())
+  userId     String   @map("user_id")
+  /// Friendly label: "Head Office", "Warehouse A", etc.
+  label      String?  @db.VarChar(100)
+  line1      String   @map("line_1")
+  line2      String?  @map("line_2")
+  city       String   @db.VarChar(100)
+  state      String   @db.VarChar(100)
+  postalCode String   @map("postal_code") @db.VarChar(20)
+  country    String   @default("IN") @db.VarChar(3)
+  phone      String?  @db.VarChar(20)
+  isDefault  Boolean  @default(false) @map("is_default")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("addresses")
+}
+
+model Product {
+  id             String         @id @default(uuid())
+  sellerId       String         @map("seller_id")
+  sku            String
+  name           String
+  description    String?
+  price          Decimal        @db.Decimal(12, 2)
+  moq            Int            @default(1)
+  currency       String         @default("INR")
+  isActive       Boolean        @default(true) @map("is_active")
+  /// When true, orders deduct from stockQty and availability is enforced.
+  trackInventory Boolean        @default(false) @map("track_inventory")
+  /// On-hand quantity (decrements when an order is CONFIRMED).
+  stockQty       Int            @default(0) @map("stock_qty")
+  /// Quantity soft-reserved by PENDING orders (not yet confirmed).
+  reservedQty    Int            @default(0) @map("reserved_qty")
+  /// [{ type: "image", url, name, mimeType }]
+  images         Json?          @default("[]")
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+  /// Seller-selected unit of measure code (e.g. KG, MT, PCS).
+  uom            String?        @db.VarChar(16)
+  deals          Deal[]
+  inventoryLogs  InventoryLog[]
+  orderItems     OrderItem[]
+  seller         User           @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  quoteRequests  QuoteRequest[]
+
+  @@unique([sellerId, sku])
+  @@index([sellerId])
+  @@index([isActive])
+  @@map("products")
+}
+
+/// Binary blobs for uploaded product images (production persistence on ephemeral hosts).
+model UploadedFile {
+  key       String   @id @map("key")
+  mimeType  String   @map("mime_type")
+  data      Bytes
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("uploaded_files")
+}
+
+/// Full trail of every stock movement for a product.
+model InventoryLog {
+  id          String          @id @default(uuid())
+  productId   String          @map("product_id")
+  /// Change applied to stockQty (positive = added, negative = removed).
+  delta       Int
+  reason      InventoryReason
+  /// Linked order ID when the change is order-driven; null for manual actions.
+  referenceId String?         @map("reference_id")
+  /// User who triggered the change; null for automated system actions.
+  performedBy String?         @map("performed_by")
+  note        String?
+  createdAt   DateTime        @default(now()) @map("created_at")
+  product     Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+  @@index([referenceId])
+  @@map("inventory_logs")
+}
+
+model Order {
+  id               String         @id @default(uuid())
+  orderNumber      String         @unique @map("order_number")
+  buyerId          String         @map("buyer_id")
+  sellerId         String         @map("seller_id")
+  status           OrderStatus    @default(PENDING)
+  totalAmount      Decimal        @map("total_amount") @db.Decimal(12, 2)
+  notes            String?
+  /// Client-supplied idempotency key (UUID v4 recommended). A repeated key
+  /// from the same buyer returns the existing order rather than a duplicate.
+  idempotencyKey   String?        @unique @map("idempotency_key")
+  /// Address snapshot captured at order-creation time (JSON).
+  /// Stored inline so order history is immutable even if the address is edited.
+  shippingSnapshot Json?          @map("shipping_snapshot")
+  billingSnapshot  Json?          @map("billing_snapshot")
+  createdAt        DateTime       @default(now()) @map("created_at")
+  updatedAt        DateTime       @updatedAt @map("updated_at")
+  deal             Deal?
+  history          OrderHistory[]
+  items            OrderItem[]
+  buyer            User           @relation("BuyerOrders", fields: [buyerId], references: [id])
+  seller           User           @relation("SellerOrders", fields: [sellerId], references: [id])
+  quoteRequest     QuoteRequest?
+
+  @@index([buyerId])
+  @@index([sellerId])
+  @@index([status])
+  @@map("orders")
+}
+
+model OrderItem {
+  id        String  @id @default(uuid())
+  orderId   String  @map("order_id")
+  productId String  @map("product_id")
+  quantity  Int
+  unitPrice Decimal @map("unit_price") @db.Decimal(12, 2)
+  lineTotal Decimal @map("line_total") @db.Decimal(12, 2)
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product   Product @relation(fields: [productId], references: [id])
+
+  @@index([orderId])
+  @@map("order_items")
+}
+
+/// Immutable log of every order status transition — who changed it and when.
+model OrderHistory {
+  id          String       @id @default(uuid())
+  orderId     String       @map("order_id")
+  /// Null only for the initial PENDING creation event.
+  fromStatus  OrderStatus? @map("from_status")
+  toStatus    OrderStatus  @map("to_status")
+  note        String?
+  changedById String       @map("changed_by_id")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  changedBy   User         @relation(fields: [changedById], references: [id])
+  order       Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@map("order_history")
+}
+
+model ContactMessage {
+  id          String                @id @default(uuid())
+  senderId    String                @map("sender_id")
+  subject     String                @db.VarChar(300)
+  message     String                @db.VarChar(5000)
+  /// [{ type: "image"|"video", url, name, mimeType }]
+  attachments Json?                 @default("[]")
+  status      MessageStatus         @default(UNREAD)
+  adminReply  String?               @map("admin_reply") @db.VarChar(5000)
+  repliedAt   DateTime?             @map("replied_at")
+  /// True once the sender has read the admin reply
+  replyRead   Boolean               @default(false) @map("reply_read")
+  createdAt   DateTime              @default(now()) @map("created_at")
+  updatedAt   DateTime              @updatedAt @map("updated_at")
+  replies     ContactMessageReply[]
+  sender      User                  @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([senderId])
+  @@index([status])
+  @@map("contact_messages")
+}
+
+model ContactMessageReply {
+  id               String         @id @default(uuid())
+  contactMessageId String         @map("contact_message_id")
+  authorId         String         @map("author_id")
+  body             String         @db.VarChar(5000)
+  attachments      Json?          @default("[]")
+  isAdmin          Boolean        @default(false) @map("is_admin")
+  createdAt        DateTime       @default(now()) @map("created_at")
+  author           User           @relation("ContactReplyAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  contactMessage   ContactMessage @relation(fields: [contactMessageId], references: [id], onDelete: Cascade)
+
+  @@index([contactMessageId, createdAt])
+  @@map("contact_message_replies")
+}
+
+model CategoryRequest {
+  id                 String                @id @default(uuid())
+  sellerId           String                @map("seller_id")
+  requestType        CategoryRequestType   @default(CATEGORY) @map("request_type")
+  categoryName       String                @map("category_name") @db.VarChar(200)
+  /// Filled when requestType = SUBCATEGORY: name of the parent category
+  parentCategoryName String?               @map("parent_category_name") @db.VarChar(200)
+  description        String?               @db.VarChar(1000)
+  status             CategoryRequestStatus @default(PENDING)
+  adminNote          String?               @map("admin_note") @db.VarChar(500)
+  /// Set to true once the seller has seen the decision notification
+  notificationRead   Boolean               @default(false) @map("notification_read")
+  createdAt          DateTime              @default(now()) @map("created_at")
+  updatedAt          DateTime              @updatedAt @map("updated_at")
+  /// Stable catalog.categories.id when seller picks an existing parent
+  parentCategoryId   Int?                  @map("parent_category_id")
+  seller             User                  @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+
+  @@index([sellerId])
+  @@index([status])
+  @@map("category_requests")
+}
+
+/// Atomic yearly counter for readable RFQ numbers (RFQ-2026-000001).
+model RfqNumberCounter {
+  year      Int @id
+  lastValue Int @default(0) @map("last_value")
+
+  @@map("rfq_number_counters")
+}
+
+/// Registry for RFQ groups — enforces globally unique rfqNumber at database level.
+model RfqGroup {
+  id        String         @id @default(uuid()) @db.Uuid
+  rfqNumber String         @unique @map("rfq_number") @db.VarChar(32)
+  buyerId   String         @map("buyer_id")
+  createdAt DateTime       @default(now()) @map("created_at")
+  deals     Deal[]
+  requests  QuoteRequest[]
+  buyer     User           @relation(fields: [buyerId], references: [id], onDelete: Cascade)
+
+  @@index([buyerId])
+  @@index([createdAt])
+  @@map("rfq_groups")
+}
+
+model QuoteRequest {
+  id                   String                 @id @default(uuid())
+  /// Shared across seller rows created in one buyer submission.
+  rfqGroupId           String                 @map("rfq_group_id") @db.Uuid
+  /// Denormalized copy of group rfqNumber for list queries (not unique per row).
+  rfqNumber            String?                @map("rfq_number") @db.VarChar(32)
+  buyerId              String                 @map("buyer_id")
+  /// Null for public catalog RFQs that should be visible to all sellers.
+  sellerId             String?                @map("seller_id")
+  catalogProductId     String?                @map("catalog_product_id") @db.VarChar(64)
+  /// Seller listing linked when buyer RFQ came from a live product.
+  productId            String?                @map("product_id")
+  productTitle         String                 @map("product_title") @db.VarChar(300)
+  productCategory      String?                @map("product_category") @db.VarChar(200)
+  brandName            String?                @map("brand_name") @db.VarChar(200)
+  quantity             Int                    @default(1)
+  targetPrice          Decimal?               @map("target_price") @db.Decimal(12, 2)
+  /// Requirement description from buyer.
+  message              String?                @db.VarChar(1000)
+  deliveryLocation     String?                @map("delivery_location") @db.VarChar(500)
+  expectedDeliveryDate DateTime?              @map("expected_delivery_date")
+  attachments          Json?                  @map("attachments")
+  status               QuoteRequestStatus     @default(PENDING)
+  sellerUnitPrice      Decimal?               @map("seller_unit_price") @db.Decimal(12, 2)
+  sellerCurrency       String?                @map("seller_currency") @db.VarChar(3)
+  taxNote              String?                @map("tax_note") @db.VarChar(500)
+  quoteValidUntil      DateTime?              @map("quote_valid_until")
+  freightNote          String?                @map("freight_note") @db.VarChar(1000)
+  exclusionsNote       String?                @map("exclusions_note") @db.VarChar(1000)
+  sellerRespondedAt    DateTime?              @map("seller_responded_at")
+  sellerAcceptedAt     DateTime?              @map("seller_accepted_at")
+  buyerAcceptedAt      DateTime?              @map("buyer_accepted_at")
+  buyerRejectedAt      DateTime?              @map("buyer_rejected_at")
+  orderId              String?                @unique @map("order_id")
+  createdAt            DateTime               @default(now()) @map("created_at")
+  updatedAt            DateTime               @updatedAt @map("updated_at")
+  buyerCancelledAt     DateTime?              @map("buyer_cancelled_at")
+  revisionCount        Int                    @default(0) @map("revision_count")
+  deal                 Deal?
+  buyer                User                   @relation("BuyerQuoteRequests", fields: [buyerId], references: [id], onDelete: Cascade)
+  order                Order?                 @relation(fields: [orderId], references: [id])
+  product              Product?               @relation(fields: [productId], references: [id])
+  rfqGroup             RfqGroup               @relation(fields: [rfqGroupId], references: [id], onDelete: Cascade)
+  seller               User?                  @relation("SellerQuoteRequests", fields: [sellerId], references: [id])
+  revisions            QuoteRevision[]
+  notifications        RfqNotificationEvent[]
+
+  @@unique([rfqGroupId, sellerId])
+  @@index([buyerId])
+  @@index([sellerId])
+  @@index([rfqGroupId])
+  @@index([rfqNumber])
+  @@index([productId])
+  @@index([orderId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([buyerId, status])
+  @@index([sellerId, status])
+  @@map("quote_requests")
+}
+
+/// Immutable snapshot each time a seller submits or revises a quotation.
+model QuoteRevision {
+  id              String       @id @default(uuid())
+  quoteRequestId  String       @map("quote_request_id")
+  revisionNumber  Int          @map("revision_number")
+  sellerUnitPrice Decimal      @map("seller_unit_price") @db.Decimal(12, 2)
+  sellerCurrency  String       @default("INR") @map("seller_currency") @db.VarChar(3)
+  taxNote         String?      @map("tax_note") @db.VarChar(500)
+  quoteValidUntil DateTime?    @map("quote_valid_until")
+  freightNote     String?      @map("freight_note") @db.VarChar(1000)
+  exclusionsNote  String?      @map("exclusions_note") @db.VarChar(1000)
+  createdById     String       @map("created_by_id")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  quoteRequest    QuoteRequest @relation(fields: [quoteRequestId], references: [id], onDelete: Cascade)
+
+  @@unique([quoteRequestId, revisionNumber])
+  @@index([quoteRequestId])
+  @@map("quote_revisions")
+}
+
+/// Polling-friendly notification feed — same emitter can push to WebSocket/SSE later.
+model RfqNotificationEvent {
+  id              String        @id @default(uuid())
+  recipientUserId String        @map("recipient_user_id")
+  quoteRequestId  String?       @map("quote_request_id")
+  rfqGroupId      String?       @map("rfq_group_id") @db.Uuid
+  eventType       String        @map("event_type") @db.VarChar(64)
+  payload         Json?
+  readAt          DateTime?     @map("read_at")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  quoteRequest    QuoteRequest? @relation(fields: [quoteRequestId], references: [id])
+  recipient       User          @relation(fields: [recipientUserId], references: [id], onDelete: Cascade)
+
+  @@index([recipientUserId, readAt])
+  @@index([recipientUserId, createdAt])
+  @@map("rfq_notification_events")
+}
+
+/// Atomic yearly counter for readable deal numbers (DEAL-2026-000001).
+model DealNumberCounter {
+  year      Int @id
+  lastValue Int @default(0) @map("last_value")
+
+  @@map("deal_number_counters")
+}
+
+model Deal {
+  id                    String              @id @default(uuid())
+  dealNumber            String              @unique @map("deal_number") @db.VarChar(32)
+  quoteRequestId        String              @unique @map("quote_request_id")
+  rfqGroupId            String?             @map("rfq_group_id") @db.Uuid
+  /// Optional legacy link — offline fulfillment is not managed by the Marketplace.
+  orderId               String?             @unique @map("order_id")
+  buyerId               String              @map("buyer_id")
+  sellerId              String              @map("seller_id")
+  /// Immutable product snapshot — never updated after deal creation.
+  productId             String?             @map("product_id")
+  productName           String              @map("product_name") @db.VarChar(300)
+  quantity              Int
+  unitPrice             Decimal             @map("unit_price") @db.Decimal(12, 2)
+  totalAmount           Decimal             @map("total_amount") @db.Decimal(12, 2)
+  currency              String              @default("INR") @db.VarChar(3)
+  status                DealStatus          @default(DEAL_CREATED)
+  buyerDealCharge       Decimal?            @map("buyer_deal_charge") @db.Decimal(12, 2)
+  sellerDealCharge      Decimal?            @map("seller_deal_charge") @db.Decimal(12, 2)
+  contactUnlockStatus   ContactUnlockStatus @default(LOCKED) @map("contact_unlock_status")
+  contactUnlockedAt     DateTime?           @map("contact_unlocked_at")
+  createdAt             DateTime            @default(now()) @map("created_at")
+  updatedAt             DateTime            @updatedAt @map("updated_at")
+  productSku            String?             @map("product_sku") @db.VarChar(64)
+  productBrand          String?             @map("product_brand") @db.VarChar(200)
+  productCategory       String?             @map("product_category") @db.VarChar(200)
+  productUom            String?             @map("product_uom") @db.VarChar(32)
+  productMoq            Int?                @map("product_moq")
+  vendorProductCode     String?             @map("vendor_product_code") @db.VarChar(64)
+  buyerChargeConfigId   String?             @map("buyer_charge_config_id")
+  sellerChargeConfigId  String?             @map("seller_charge_config_id")
+  /// Admin forced unlock without both payments — audit via deal_events.
+  contactUnlockOverride Boolean             @default(false) @map("contact_unlock_override")
+  completedAt           DateTime?           @map("completed_at")
+  cancelledAt           DateTime?           @map("cancelled_at")
+  disputedAt            DateTime?           @map("disputed_at")
+  events                DealEvent[]
+  payments              DealPayment[]
+  buyerChargeConfig     DealChargeConfig?   @relation("DealBuyerChargeConfig", fields: [buyerChargeConfigId], references: [id])
+  buyer                 User                @relation("BuyerDeals", fields: [buyerId], references: [id])
+  order                 Order?              @relation(fields: [orderId], references: [id])
+  product               Product?            @relation(fields: [productId], references: [id])
+  quoteRequest          QuoteRequest        @relation(fields: [quoteRequestId], references: [id])
+  rfqGroup              RfqGroup?           @relation(fields: [rfqGroupId], references: [id])
+  sellerChargeConfig    DealChargeConfig?   @relation("DealSellerChargeConfig", fields: [sellerChargeConfigId], references: [id])
+  seller                User                @relation("SellerDeals", fields: [sellerId], references: [id])
+
+  @@index([buyerId])
+  @@index([sellerId])
+  @@index([status])
+  @@index([rfqGroupId])
+  @@index([createdAt])
+  @@index([buyerId, status])
+  @@index([sellerId, status])
+  @@index([contactUnlockStatus])
+  @@map("deals")
+}
+
+/// Admin-configurable deal charge rules keyed by subscription plan (flexible planKey).
+model DealChargeConfig {
+  id                     String             @id @default(uuid())
+  audience               DealChargeAudience
+  chargeType             DealChargeType     @default(PERCENTAGE) @map("charge_type")
+  /// Percentage (0–100) or flat currency amount depending on chargeType.
+  value                  Decimal            @db.Decimal(12, 4)
+  currency               String             @default("INR") @db.VarChar(3)
+  isActive               Boolean            @default(true) @map("is_active")
+  updatedById            String?            @map("updated_by_id")
+  createdAt              DateTime           @default(now()) @map("created_at")
+  updatedAt              DateTime           @updatedAt @map("updated_at")
+  /// Matches SubscriptionPlan enum value or a custom admin-defined plan key (e.g. BUYER_GOLD).
+  planKey                String             @map("plan_key") @db.VarChar(64)
+  displayName            String?            @map("display_name") @db.VarChar(120)
+  updatedBy              User?              @relation("DealChargeConfigUpdatedBy", fields: [updatedById], references: [id])
+  buyerDealsUsingCharge  Deal[]             @relation("DealBuyerChargeConfig")
+  sellerDealsUsingCharge Deal[]             @relation("DealSellerChargeConfig")
+
+  @@unique([audience, planKey])
+  @@index([isActive])
+  @@map("deal_charge_configs")
+}
+
+/// Single source of truth for deal charge payments (dummy provider now; gateway-ready).
+model DealPayment {
+  id                String             @id @default(uuid())
+  dealId            String             @map("deal_id")
+  payerRole         DealChargeAudience @map("payer_role")
+  payerUserId       String             @map("payer_user_id")
+  amount            Decimal            @db.Decimal(12, 2)
+  currency          String             @default("INR") @db.VarChar(3)
+  paymentStatus     DealPaymentStatus  @default(PENDING) @map("payment_status")
+  provider          String             @default("dummy") @db.VarChar(32)
+  /// Internal idempotency / reconciliation reference.
+  paymentReference  String             @unique @map("payment_reference") @db.VarChar(64)
+  paidAt            DateTime?          @map("paid_at")
+  failureReason     String?            @map("failure_reason") @db.VarChar(500)
+  createdAt         DateTime           @default(now()) @map("created_at")
+  updatedAt         DateTime           @updatedAt @map("updated_at")
+  providerOrderId   String?            @map("provider_order_id") @db.VarChar(128)
+  providerPaymentId String?            @map("provider_payment_id") @db.VarChar(128)
+  providerSignature String?            @map("provider_signature") @db.VarChar(512)
+  deal              Deal               @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  payer             User               @relation(fields: [payerUserId], references: [id])
+
+  @@unique([dealId, payerRole])
+  @@index([dealId])
+  @@index([payerUserId])
+  @@index([paymentStatus])
+  @@index([provider, providerPaymentId])
+  @@map("deal_payments")
+}
+
+/// Append-only deal audit trail — disputes, refunds, admin overrides, lifecycle transitions.
+model DealEvent {
+  id        String   @id @default(uuid())
+  dealId    String   @map("deal_id")
+  eventType String   @map("event_type") @db.VarChar(64)
+  actorId   String?  @map("actor_id")
+  payload   Json?
+  createdAt DateTime @default(now()) @map("created_at")
+  actor     User?    @relation("DealEventActor", fields: [actorId], references: [id])
+  deal      Deal     @relation(fields: [dealId], references: [id], onDelete: Cascade)
+
+  @@index([dealId, createdAt])
+  @@index([eventType])
+  @@map("deal_events")
+}
+
+model AuditLog {
+  id         String      @id @default(uuid())
+  /// Null for unauthenticated or system-triggered events.
+  actorId    String?     @map("actor_id")
+  action     AuditAction
+  /// Logical resource name: "order", "product", "address", "subscription", etc.
+  resource   String      @db.VarChar(64)
+  resourceId String?     @map("resource_id")
+  /// Arbitrary JSON context: field diffs, old values, extra metadata.
+  meta       Json?
+  ipAddress  String?     @map("ip_address") @db.VarChar(45)
+  userAgent  String?     @map("user_agent") @db.VarChar(512)
+  createdAt  DateTime    @default(now()) @map("created_at")
+  actor      User?       @relation(fields: [actorId], references: [id])
+
+  @@index([actorId])
+  @@index([resource, resourceId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
 
 enum Role {
   BUYER
@@ -27,18 +612,15 @@ enum OrderStatus {
 }
 
 enum SubscriptionPlan {
-  BUYER_STANDARD
+  BUYER_MONTHLY
+  BUYER_ANNUAL
   BUYER_LIFETIME
-  SELLER_MONTH
+  SELLER_MONTHLY
+  SELLER_ANNUAL
   SELLER_LIFETIME
-  /// One payment → buyer standard + seller monthly
-  BOTH_STANDARD_MONTH
-  /// One payment → buyer lifetime + seller lifetime
-  BOTH_LIFETIME_LIFETIME
-  /// One payment → buyer lifetime + seller monthly
-  BOTH_LIFETIME_MONTH
-  /// One payment → buyer standard + seller lifetime
-  BOTH_STANDARD_LIFETIME
+  BOTH_MONTHLY
+  BOTH_ANNUAL
+  BOTH_LIFETIME
 }
 
 enum SubscriptionStatus {
@@ -55,11 +637,16 @@ enum PaymentStatus {
 
 /// Why stock changed — drives the InventoryLog trail.
 enum InventoryReason {
-  RESTOCK          /// Seller manually added stock
-  ADJUSTMENT       /// Admin correction (positive or negative delta)
-  ORDER_RESERVED   /// Quantity soft-reserved when a PENDING order is created
-  ORDER_CONFIRMED  /// Hard deduction when seller confirms the order
-  ORDER_CANCELLED  /// Reservation released (from PENDING) or stock returned (from CONFIRMED)
+  /// Seller manually added stock
+  RESTOCK
+  /// Admin correction (positive or negative delta)
+  ADJUSTMENT
+  /// Quantity soft-reserved when a PENDING order is created
+  ORDER_RESERVED
+  /// Hard deduction when seller confirms the order
+  ORDER_CONFIRMED
+  /// Reservation released (from PENDING) or stock returned (from CONFIRMED)
+  ORDER_CANCELLED
 }
 
 enum MessageStatus {
@@ -79,8 +666,8 @@ enum QuoteRequestStatus {
   RESPONDED
   ACCEPTED
   DECLINED
-  NOT_SELECTED
   CANCELLED
+  NOT_SELECTED
 }
 
 /// Deal business lifecycle — payment progress lives in deal_payments only.
@@ -129,642 +716,4 @@ enum AuditAction {
   LOGIN
   LOGOUT
   STOCK_ADJUST
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Core models
-// ─────────────────────────────────────────────────────────────────────────────
-
-model User {
-  id           String   @id @default(uuid())
-  email        String   @unique
-  passwordHash String   @map("password_hash")
-  role         Role
-  companyName  String?  @map("company_name")
-  /// Public identity from Main Portal (e.g. USR-000245). Single ID for buyer + seller workspaces.
-  portalUserId                    String?             @unique @map("portal_user_id") @db.VarChar(32)
-  buyerSubscriptionStatus         SubscriptionStatus? @map("buyer_subscription_status")
-  buyerSubscriptionPlan           SubscriptionPlan?   @map("buyer_subscription_plan")
-  buyerSubscriptionActivatedAt    DateTime?           @map("buyer_subscription_activated_at")
-  sellerSubscriptionStatus        SubscriptionStatus? @map("seller_subscription_status")
-  sellerSubscriptionPlan          SubscriptionPlan?   @map("seller_subscription_plan")
-  sellerSubscriptionActivatedAt   DateTime?           @map("seller_subscription_activated_at")
-  /// Soft-deactivation — blocked from login until reactivated by admin.
-  isActive     Boolean   @default(true) @map("is_active")
-  deactivatedAt DateTime? @map("deactivated_at")
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
-
-  products             Product[]
-  buyerOrders          Order[]           @relation("BuyerOrders")
-  sellerOrders         Order[]           @relation("SellerOrders")
-  subscriptions        Subscription[]
-  payments             Payment[]
-  addresses            Address[]
-  orderHistoryChanges  OrderHistory[]
-  auditLogs            AuditLog[]
-  categoryRequests     CategoryRequest[]
-  contactMessages      ContactMessage[]
-  contactMessageReplies ContactMessageReply[] @relation("ContactReplyAuthor")
-  buyerQuoteRequests   QuoteRequest[]    @relation("BuyerQuoteRequests")
-  sellerQuoteRequests  QuoteRequest[]    @relation("SellerQuoteRequests")
-  rfqGroups            RfqGroup[]
-  rfqNotifications     RfqNotificationEvent[]
-  buyerDeals           Deal[]            @relation("BuyerDeals")
-  sellerDeals          Deal[]            @relation("SellerDeals")
-  dealPayments         DealPayment[]
-  dealChargeConfigsUpdated DealChargeConfig[] @relation("DealChargeConfigUpdatedBy")
-  dealEventsActed      DealEvent[]       @relation("DealEventActor")
-
-  @@map("users")
-}
-
-model Subscription {
-  id        String             @id @default(uuid())
-  userId    String             @map("user_id")
-  user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  plan      SubscriptionPlan
-  status    SubscriptionStatus @default(ACTIVE)
-  startsAt  DateTime           @default(now()) @map("starts_at")
-  expiresAt DateTime?          @map("expires_at")
-  createdAt DateTime           @default(now()) @map("created_at")
-  updatedAt DateTime           @updatedAt @map("updated_at")
-
-  payments Payment[]
-
-  @@index([userId])
-  @@index([status])
-  @@map("subscriptions")
-}
-
-/// Database-driven master configuration for subscription plans (V2 & future tiers).
-model SubscriptionPlanMaster {
-  id           String   @id @default(uuid())
-  planKey      String   @unique @map("plan_key") @db.VarChar(64)
-  planName     String   @map("plan_name") @db.VarChar(120)
-  role         Role
-  duration     String   @db.VarChar(32)
-  price        Decimal  @db.Decimal(12, 2)
-  amountPaise  Int      @map("amount_paise")
-  status       String   @default("ACTIVE") @db.VarChar(32)
-  displayOrder Int      @default(0) @map("display_order")
-  description  String?  @db.VarChar(500)
-  features     Json?    @default("[]")
-  icon         String?  @db.VarChar(64)
-  badge        String?  @db.VarChar(64)
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
-
-  @@index([status])
-  @@index([role])
-  @@map("subscription_plans")
-}
-
-model Payment {
-  id                String           @id @default(uuid())
-  userId            String           @map("user_id")
-  user              User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  subscriptionId    String?          @map("subscription_id")
-  subscription      Subscription?    @relation(fields: [subscriptionId], references: [id])
-  razorpayOrderId   String           @unique @map("razorpay_order_id")
-  razorpayPaymentId String?          @map("razorpay_payment_id")
-  razorpaySignature String?          @map("razorpay_signature")
-  plan              SubscriptionPlan
-  amountPaise       Int              @map("amount_paise")
-  currency          String           @default("INR")
-  status            PaymentStatus    @default(PENDING)
-  createdAt         DateTime         @default(now()) @map("created_at")
-  updatedAt         DateTime         @updatedAt @map("updated_at")
-
-  @@index([userId])
-  @@index([status])
-  @@map("payments")
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Address — saved addresses for buyers/sellers; also used as order snapshots
-// ─────────────────────────────────────────────────────────────────────────────
-
-model Address {
-  id         String   @id @default(uuid())
-  userId     String   @map("user_id")
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  /// Friendly label: "Head Office", "Warehouse A", etc.
-  label      String?  @db.VarChar(100)
-  line1      String   @map("line_1")
-  line2      String?  @map("line_2")
-  city       String   @db.VarChar(100)
-  state      String   @db.VarChar(100)
-  postalCode String   @map("postal_code") @db.VarChar(20)
-  country    String   @default("IN") @db.VarChar(3)
-  phone      String?  @db.VarChar(20)
-  isDefault  Boolean  @default(false) @map("is_default")
-  createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt  DateTime @updatedAt @map("updated_at")
-
-  @@index([userId])
-  @@map("addresses")
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Product — now includes inventory tracking fields
-// ─────────────────────────────────────────────────────────────────────────────
-
-model Product {
-  id             String   @id @default(uuid())
-  sellerId       String   @map("seller_id")
-  seller         User     @relation(fields: [sellerId], references: [id], onDelete: Cascade)
-  sku            String
-  name           String
-  description    String?
-  /// Seller-selected unit of measure code (e.g. KG, MT, PCS).
-  uom            String?  @db.VarChar(16)
-  price          Decimal  @db.Decimal(12, 2)
-  moq            Int      @default(1)
-  currency       String   @default("INR")
-  isActive       Boolean  @default(true) @map("is_active")
-  /// When true, orders deduct from stockQty and availability is enforced.
-  trackInventory Boolean  @default(false) @map("track_inventory")
-  /// On-hand quantity (decrements when an order is CONFIRMED).
-  stockQty       Int      @default(0) @map("stock_qty")
-  /// Quantity soft-reserved by PENDING orders (not yet confirmed).
-  reservedQty    Int      @default(0) @map("reserved_qty")
-  /// [{ type: "image", url, name, mimeType }]
-  images         Json?    @default("[]")
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
-
-  orderItems    OrderItem[]
-  inventoryLogs InventoryLog[]
-  quoteRequests QuoteRequest[]
-  deals         Deal[]
-
-  @@unique([sellerId, sku])
-  @@index([sellerId])
-  @@index([isActive])
-  @@map("products")
-}
-
-/// Binary blobs for uploaded product images (production persistence on ephemeral hosts).
-model UploadedFile {
-  key       String   @id @map("key")
-  mimeType  String   @map("mime_type")
-  data      Bytes
-  createdAt DateTime @default(now()) @map("created_at")
-
-  @@map("uploaded_files")
-}
-
-/// Full trail of every stock movement for a product.
-model InventoryLog {
-  id          String          @id @default(uuid())
-  productId   String          @map("product_id")
-  product     Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
-  /// Change applied to stockQty (positive = added, negative = removed).
-  delta       Int
-  reason      InventoryReason
-  /// Linked order ID when the change is order-driven; null for manual actions.
-  referenceId String?         @map("reference_id")
-  /// User who triggered the change; null for automated system actions.
-  performedBy String?         @map("performed_by")
-  note        String?
-  createdAt   DateTime        @default(now()) @map("created_at")
-
-  @@index([productId])
-  @@index([referenceId])
-  @@map("inventory_logs")
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Order — now stores address snapshots and has a history relation
-// ─────────────────────────────────────────────────────────────────────────────
-
-model Order {
-  id             String      @id @default(uuid())
-  orderNumber    String      @unique @map("order_number")
-  buyerId        String      @map("buyer_id")
-  buyer          User        @relation("BuyerOrders", fields: [buyerId], references: [id])
-  sellerId       String      @map("seller_id")
-  seller         User        @relation("SellerOrders", fields: [sellerId], references: [id])
-  status         OrderStatus @default(PENDING)
-  totalAmount    Decimal     @map("total_amount") @db.Decimal(12, 2)
-  notes          String?
-  /// Client-supplied idempotency key (UUID v4 recommended). A repeated key
-  /// from the same buyer returns the existing order rather than a duplicate.
-  idempotencyKey String?     @unique @map("idempotency_key")
-  /// Address snapshot captured at order-creation time (JSON).
-  /// Stored inline so order history is immutable even if the address is edited.
-  shippingSnapshot Json?     @map("shipping_snapshot")
-  billingSnapshot  Json?     @map("billing_snapshot")
-  createdAt      DateTime    @default(now()) @map("created_at")
-  updatedAt      DateTime    @updatedAt @map("updated_at")
-
-  items   OrderItem[]
-  history OrderHistory[]
-  quoteRequest QuoteRequest?
-  deal         Deal?
-
-  @@index([buyerId])
-  @@index([sellerId])
-  @@index([status])
-  @@map("orders")
-}
-
-model OrderItem {
-  id        String  @id @default(uuid())
-  orderId   String  @map("order_id")
-  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  productId String  @map("product_id")
-  product   Product @relation(fields: [productId], references: [id])
-  quantity  Int
-  unitPrice Decimal @map("unit_price") @db.Decimal(12, 2)
-  lineTotal Decimal @map("line_total") @db.Decimal(12, 2)
-
-  @@index([orderId])
-  @@map("order_items")
-}
-
-/// Immutable log of every order status transition — who changed it and when.
-model OrderHistory {
-  id          String       @id @default(uuid())
-  orderId     String       @map("order_id")
-  order       Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  /// Null only for the initial PENDING creation event.
-  fromStatus  OrderStatus? @map("from_status")
-  toStatus    OrderStatus  @map("to_status")
-  note        String?
-  changedById String       @map("changed_by_id")
-  changedBy   User         @relation(fields: [changedById], references: [id])
-  createdAt   DateTime     @default(now()) @map("created_at")
-
-  @@index([orderId])
-  @@map("order_history")
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Contact Message — buyer/seller sends a message to admin; admin can reply
-// ─────────────────────────────────────────────────────────────────────────────
-
-model ContactMessage {
-  id             String        @id @default(uuid())
-  senderId       String        @map("sender_id")
-  sender         User          @relation(fields: [senderId], references: [id], onDelete: Cascade)
-  subject        String        @db.VarChar(300)
-  message        String        @db.VarChar(5000)
-  /// [{ type: "image"|"video", url, name, mimeType }]
-  attachments    Json?         @default("[]")
-  status         MessageStatus @default(UNREAD)
-  adminReply     String?       @map("admin_reply") @db.VarChar(5000)
-  repliedAt      DateTime?     @map("replied_at")
-  /// True once the sender has read the admin reply
-  replyRead      Boolean       @default(false) @map("reply_read")
-  createdAt      DateTime      @default(now()) @map("created_at")
-  updatedAt      DateTime      @updatedAt @map("updated_at")
-  replies        ContactMessageReply[]
-
-  @@index([senderId])
-  @@index([status])
-  @@map("contact_messages")
-}
-
-model ContactMessageReply {
-  id               String         @id @default(uuid())
-  contactMessageId String         @map("contact_message_id")
-  contactMessage   ContactMessage @relation(fields: [contactMessageId], references: [id], onDelete: Cascade)
-  authorId         String         @map("author_id")
-  author           User           @relation("ContactReplyAuthor", fields: [authorId], references: [id], onDelete: Cascade)
-  body             String         @db.VarChar(5000)
-  attachments      Json?          @default("[]")
-  isAdmin          Boolean        @default(false) @map("is_admin")
-  createdAt        DateTime       @default(now()) @map("created_at")
-
-  @@index([contactMessageId, createdAt])
-  @@map("contact_message_replies")
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Category Request — seller requests a new catalog category from admin
-// ─────────────────────────────────────────────────────────────────────────────
-
-model CategoryRequest {
-  id                 String               @id @default(uuid())
-  sellerId           String               @map("seller_id")
-  seller             User                 @relation(fields: [sellerId], references: [id], onDelete: Cascade)
-  requestType        CategoryRequestType  @default(CATEGORY) @map("request_type")
-  categoryName       String               @map("category_name")     @db.VarChar(200)
-  /// Filled when requestType = SUBCATEGORY: name of the parent category
-  parentCategoryName String?              @map("parent_category_name") @db.VarChar(200)
-  /// Stable catalog.categories.id when seller picks an existing parent
-  parentCategoryId   Int?                 @map("parent_category_id")
-  description        String?              @db.VarChar(1000)
-  status             CategoryRequestStatus @default(PENDING)
-  adminNote          String?              @map("admin_note")         @db.VarChar(500)
-  /// Set to true once the seller has seen the decision notification
-  notificationRead   Boolean              @default(false)            @map("notification_read")
-  createdAt          DateTime             @default(now())            @map("created_at")
-  updatedAt          DateTime             @updatedAt                 @map("updated_at")
-
-  @@index([sellerId])
-  @@index([status])
-  @@map("category_requests")
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Quote Request — buyer RFQs from product/catalog browsing to seller workspace
-// ─────────────────────────────────────────────────────────────────────────────
-
-/// Atomic yearly counter for readable RFQ numbers (RFQ-2026-000001).
-model RfqNumberCounter {
-  year      Int @id
-  lastValue Int @default(0) @map("last_value")
-
-  @@map("rfq_number_counters")
-}
-
-/// Registry for RFQ groups — enforces globally unique rfqNumber at database level.
-model RfqGroup {
-  id        String   @id @default(uuid()) @db.Uuid
-  rfqNumber String   @unique @map("rfq_number") @db.VarChar(32)
-  buyerId   String   @map("buyer_id")
-  buyer     User     @relation(fields: [buyerId], references: [id], onDelete: Cascade)
-  createdAt DateTime @default(now()) @map("created_at")
-  requests  QuoteRequest[]
-  deals     Deal[]
-
-  @@index([buyerId])
-  @@index([createdAt])
-  @@map("rfq_groups")
-}
-
-model QuoteRequest {
-  id                  String             @id @default(uuid())
-  /// Shared across seller rows created in one buyer submission.
-  rfqGroupId          String             @map("rfq_group_id") @db.Uuid
-  rfqGroup            RfqGroup           @relation(fields: [rfqGroupId], references: [id], onDelete: Cascade)
-  /// Denormalized copy of group rfqNumber for list queries (not unique per row).
-  rfqNumber           String?            @map("rfq_number") @db.VarChar(32)
-  buyerId             String             @map("buyer_id")
-  buyer               User               @relation("BuyerQuoteRequests", fields: [buyerId], references: [id], onDelete: Cascade)
-  /// Null for public catalog RFQs that should be visible to all sellers.
-  sellerId            String?            @map("seller_id")
-  seller              User?              @relation("SellerQuoteRequests", fields: [sellerId], references: [id], onDelete: SetNull)
-  catalogProductId    String?            @map("catalog_product_id") @db.VarChar(64)
-  /// Seller listing linked when buyer RFQ came from a live product.
-  productId           String?            @map("product_id")
-  product             Product?           @relation(fields: [productId], references: [id], onDelete: SetNull)
-  productTitle        String             @map("product_title") @db.VarChar(300)
-  productCategory     String?            @map("product_category") @db.VarChar(200)
-  brandName           String?            @map("brand_name") @db.VarChar(200)
-  quantity            Int                @default(1)
-  targetPrice         Decimal?           @map("target_price") @db.Decimal(12, 2)
-  /// Requirement description from buyer.
-  message             String?            @db.VarChar(1000)
-  deliveryLocation    String?            @map("delivery_location") @db.VarChar(500)
-  expectedDeliveryDate DateTime?         @map("expected_delivery_date")
-  attachments         Json?              @map("attachments")
-  status              QuoteRequestStatus @default(PENDING)
-  sellerUnitPrice     Decimal?           @map("seller_unit_price") @db.Decimal(12, 2)
-  sellerCurrency      String?            @map("seller_currency") @db.VarChar(3)
-  taxNote             String?            @map("tax_note") @db.VarChar(500)
-  quoteValidUntil     DateTime?          @map("quote_valid_until")
-  freightNote         String?            @map("freight_note") @db.VarChar(1000)
-  exclusionsNote      String?            @map("exclusions_note") @db.VarChar(1000)
-  sellerRespondedAt   DateTime?          @map("seller_responded_at")
-  sellerAcceptedAt    DateTime?          @map("seller_accepted_at")
-  buyerAcceptedAt     DateTime?          @map("buyer_accepted_at")
-  buyerRejectedAt     DateTime?          @map("buyer_rejected_at")
-  buyerCancelledAt    DateTime?          @map("buyer_cancelled_at")
-  revisionCount       Int                @default(0) @map("revision_count")
-  orderId             String?            @unique @map("order_id")
-  order               Order?             @relation(fields: [orderId], references: [id], onDelete: SetNull)
-  revisions           QuoteRevision[]
-  notifications       RfqNotificationEvent[]
-  deal                Deal?
-  createdAt           DateTime           @default(now()) @map("created_at")
-  updatedAt           DateTime           @updatedAt @map("updated_at")
-
-  @@unique([rfqGroupId, sellerId])
-  @@index([buyerId])
-  @@index([sellerId])
-  @@index([rfqGroupId])
-  @@index([rfqNumber])
-  @@index([productId])
-  @@index([orderId])
-  @@index([status])
-  @@index([createdAt])
-  @@index([buyerId, status])
-  @@index([sellerId, status])
-  @@map("quote_requests")
-}
-
-/// Immutable snapshot each time a seller submits or revises a quotation.
-model QuoteRevision {
-  id              String       @id @default(uuid())
-  quoteRequestId  String       @map("quote_request_id")
-  quoteRequest    QuoteRequest @relation(fields: [quoteRequestId], references: [id], onDelete: Cascade)
-  revisionNumber  Int          @map("revision_number")
-  sellerUnitPrice Decimal      @map("seller_unit_price") @db.Decimal(12, 2)
-  sellerCurrency  String       @default("INR") @map("seller_currency") @db.VarChar(3)
-  taxNote         String?      @map("tax_note") @db.VarChar(500)
-  quoteValidUntil DateTime?    @map("quote_valid_until")
-  freightNote     String?      @map("freight_note") @db.VarChar(1000)
-  exclusionsNote  String?      @map("exclusions_note") @db.VarChar(1000)
-  createdById     String       @map("created_by_id")
-  createdAt       DateTime     @default(now()) @map("created_at")
-
-  @@unique([quoteRequestId, revisionNumber])
-  @@index([quoteRequestId])
-  @@map("quote_revisions")
-}
-
-/// Polling-friendly notification feed — same emitter can push to WebSocket/SSE later.
-model RfqNotificationEvent {
-  id              String    @id @default(uuid())
-  recipientUserId String    @map("recipient_user_id")
-  recipient       User      @relation(fields: [recipientUserId], references: [id], onDelete: Cascade)
-  quoteRequestId  String?   @map("quote_request_id")
-  quoteRequest    QuoteRequest? @relation(fields: [quoteRequestId], references: [id], onDelete: SetNull)
-  rfqGroupId      String?   @map("rfq_group_id") @db.Uuid
-  eventType       String    @map("event_type") @db.VarChar(64)
-  payload         Json?
-  readAt          DateTime? @map("read_at")
-  createdAt       DateTime  @default(now()) @map("created_at")
-
-  @@index([recipientUserId, readAt])
-  @@index([recipientUserId, createdAt])
-  @@map("rfq_notification_events")
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Deal Management — created when buyer accepts a quotation
-// Marketplace scope: RFQ → Quotation → Deal → Deal charges → Contact unlock.
-// Product delivery and commercial payment happen offline outside the platform.
-// ─────────────────────────────────────────────────────────────────────────────
-
-/// Atomic yearly counter for readable deal numbers (DEAL-2026-000001).
-model DealNumberCounter {
-  year      Int @id
-  lastValue Int @default(0) @map("last_value")
-
-  @@map("deal_number_counters")
-}
-
-model Deal {
-  id                String              @id @default(uuid())
-  dealNumber        String              @unique @map("deal_number") @db.VarChar(32)
-  quoteRequestId    String              @unique @map("quote_request_id")
-  quoteRequest      QuoteRequest        @relation(fields: [quoteRequestId], references: [id], onDelete: Restrict)
-  rfqGroupId        String?             @map("rfq_group_id") @db.Uuid
-  rfqGroup          RfqGroup?           @relation(fields: [rfqGroupId], references: [id], onDelete: SetNull)
-  /// Optional legacy link — offline fulfillment is not managed by the Marketplace.
-  orderId           String?             @unique @map("order_id")
-  order             Order?              @relation(fields: [orderId], references: [id], onDelete: SetNull)
-  buyerId           String              @map("buyer_id")
-  buyer             User                @relation("BuyerDeals", fields: [buyerId], references: [id], onDelete: Restrict)
-  sellerId          String              @map("seller_id")
-  seller            User                @relation("SellerDeals", fields: [sellerId], references: [id], onDelete: Restrict)
-
-  /// Immutable product snapshot — never updated after deal creation.
-  productId         String?             @map("product_id")
-  product           Product?            @relation(fields: [productId], references: [id], onDelete: SetNull)
-  productName       String              @map("product_name") @db.VarChar(300)
-  productSku        String?             @map("product_sku") @db.VarChar(64)
-  productBrand      String?             @map("product_brand") @db.VarChar(200)
-  productCategory   String?             @map("product_category") @db.VarChar(200)
-  productUom        String?             @map("product_uom") @db.VarChar(32)
-  productMoq        Int?                @map("product_moq")
-  vendorProductCode String?             @map("vendor_product_code") @db.VarChar(64)
-
-  quantity          Int
-  unitPrice         Decimal             @map("unit_price") @db.Decimal(12, 2)
-  totalAmount       Decimal             @map("total_amount") @db.Decimal(12, 2)
-  currency          String              @default("INR") @db.VarChar(3)
-
-  status            DealStatus          @default(DEAL_CREATED)
-  buyerDealCharge   Decimal?            @map("buyer_deal_charge") @db.Decimal(12, 2)
-  sellerDealCharge  Decimal?            @map("seller_deal_charge") @db.Decimal(12, 2)
-  buyerChargeConfigId  String?          @map("buyer_charge_config_id")
-  buyerChargeConfig    DealChargeConfig? @relation("DealBuyerChargeConfig", fields: [buyerChargeConfigId], references: [id], onDelete: SetNull)
-  sellerChargeConfigId String?          @map("seller_charge_config_id")
-  sellerChargeConfig   DealChargeConfig? @relation("DealSellerChargeConfig", fields: [sellerChargeConfigId], references: [id], onDelete: SetNull)
-
-  contactUnlockStatus   ContactUnlockStatus @default(LOCKED) @map("contact_unlock_status")
-  contactUnlockedAt     DateTime?           @map("contact_unlocked_at")
-  /// Admin forced unlock without both payments — audit via deal_events.
-  contactUnlockOverride Boolean             @default(false) @map("contact_unlock_override")
-
-  completedAt       DateTime?           @map("completed_at")
-  cancelledAt       DateTime?           @map("cancelled_at")
-  disputedAt        DateTime?           @map("disputed_at")
-  createdAt         DateTime            @default(now()) @map("created_at")
-  updatedAt         DateTime            @updatedAt @map("updated_at")
-
-  payments          DealPayment[]
-  events            DealEvent[]
-
-  @@index([buyerId])
-  @@index([sellerId])
-  @@index([status])
-  @@index([rfqGroupId])
-  @@index([createdAt])
-  @@index([buyerId, status])
-  @@index([sellerId, status])
-  @@index([contactUnlockStatus])
-  @@map("deals")
-}
-
-/// Admin-configurable deal charge rules keyed by subscription plan (flexible planKey).
-model DealChargeConfig {
-  id          String             @id @default(uuid())
-  audience    DealChargeAudience
-  /// Matches SubscriptionPlan enum value or a custom admin-defined plan key (e.g. BUYER_GOLD).
-  planKey     String             @map("plan_key") @db.VarChar(64)
-  displayName String?            @map("display_name") @db.VarChar(120)
-  chargeType  DealChargeType     @default(PERCENTAGE) @map("charge_type")
-  /// Percentage (0–100) or flat currency amount depending on chargeType.
-  value       Decimal            @db.Decimal(12, 4)
-  currency    String             @default("INR") @db.VarChar(3)
-  isActive    Boolean            @default(true) @map("is_active")
-  updatedById String?            @map("updated_by_id")
-  updatedBy   User?              @relation("DealChargeConfigUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
-  createdAt   DateTime           @default(now()) @map("created_at")
-  updatedAt   DateTime           @updatedAt @map("updated_at")
-
-  buyerDealsUsingCharge  Deal[] @relation("DealBuyerChargeConfig")
-  sellerDealsUsingCharge Deal[] @relation("DealSellerChargeConfig")
-
-  @@unique([audience, planKey])
-  @@index([isActive])
-  @@map("deal_charge_configs")
-}
-
-/// Single source of truth for deal charge payments (dummy provider now; gateway-ready).
-model DealPayment {
-  id                  String             @id @default(uuid())
-  dealId              String             @map("deal_id")
-  deal                Deal               @relation(fields: [dealId], references: [id], onDelete: Cascade)
-  payerRole           DealChargeAudience @map("payer_role")
-  payerUserId         String             @map("payer_user_id")
-  payer               User               @relation(fields: [payerUserId], references: [id], onDelete: Restrict)
-  /// Internal idempotency / reconciliation reference.
-  paymentReference    String             @unique @map("payment_reference") @db.VarChar(64)
-  provider            String             @default("dummy") @db.VarChar(32)
-  providerOrderId     String?            @map("provider_order_id") @db.VarChar(128)
-  providerPaymentId   String?            @map("provider_payment_id") @db.VarChar(128)
-  providerSignature   String?            @map("provider_signature") @db.VarChar(512)
-  paymentStatus       DealPaymentStatus  @default(PENDING) @map("payment_status")
-  amount              Decimal            @db.Decimal(12, 2)
-  currency            String             @default("INR") @db.VarChar(3)
-  paidAt              DateTime?          @map("paid_at")
-  failureReason       String?            @map("failure_reason") @db.VarChar(500)
-  createdAt           DateTime           @default(now()) @map("created_at")
-  updatedAt           DateTime           @updatedAt @map("updated_at")
-
-  @@unique([dealId, payerRole])
-  @@index([dealId])
-  @@index([payerUserId])
-  @@index([paymentStatus])
-  @@index([provider, providerPaymentId])
-  @@map("deal_payments")
-}
-
-/// Append-only deal audit trail — disputes, refunds, admin overrides, lifecycle transitions.
-model DealEvent {
-  id        String   @id @default(uuid())
-  dealId    String   @map("deal_id")
-  deal      Deal     @relation(fields: [dealId], references: [id], onDelete: Cascade)
-  eventType String   @map("event_type") @db.VarChar(64)
-  actorId   String?  @map("actor_id")
-  actor     User?    @relation("DealEventActor", fields: [actorId], references: [id], onDelete: SetNull)
-  payload   Json?
-  createdAt DateTime @default(now()) @map("created_at")
-
-  @@index([dealId, createdAt])
-  @@index([eventType])
-  @@map("deal_events")
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Audit Log — who did what and when across the entire system
-// ─────────────────────────────────────────────────────────────────────────────
-
-model AuditLog {
-  id         String      @id @default(uuid())
-  /// Null for unauthenticated or system-triggered events.
-  actorId    String?     @map("actor_id")
-  actor      User?       @relation(fields: [actorId], references: [id], onDelete: SetNull)
-  action     AuditAction
-  /// Logical resource name: "order", "product", "address", "subscription", etc.
-  resource   String      @db.VarChar(64)
-  resourceId String?     @map("resource_id")
-  /// Arbitrary JSON context: field diffs, old values, extra metadata.
-  meta       Json?
-  ipAddress  String?     @map("ip_address") @db.VarChar(45)
-  userAgent  String?     @map("user_agent") @db.VarChar(512)
-  createdAt  DateTime    @default(now()) @map("created_at")
-
-  @@index([actorId])
-  @@index([resource, resourceId])
-  @@index([createdAt])
-  @@map("audit_logs")
 }

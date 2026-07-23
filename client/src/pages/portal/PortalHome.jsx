@@ -28,7 +28,7 @@ export function PortalHome() {
         </h1>
         <p className="sellerDashboard__sub">
           {buyerAccess && sellerAccess
-            ? 'Switch between buyer and seller workspaces from My Dashboard or the sidebar.'
+            ? 'Use the workspace switcher in the header to work in buyer or seller mode — one workspace at a time.'
             : buyerAccess
               ? 'Open your buyer workspace, browse the catalog, manage plans, or contact platform admin.'
               : sellerAccess

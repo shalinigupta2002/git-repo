@@ -10,7 +10,7 @@ describe('subscriptionSyncService', () => {
   describe('workspaceForPlan', () => {
     test('maps subscription plans to workspace', () => {
       expect(workspaceForPlan('BUYER_LIFETIME')).toBe('BUYER')
-      expect(workspaceForPlan('SELLER_MONTH')).toBe('SELLER')
+      expect(workspaceForPlan('SELLER_MONTHLY')).toBe('SELLER')
       expect(workspaceForPlan('BOTH_STANDARD_MONTH')).toBe(null)
     })
   })
@@ -57,14 +57,14 @@ describe('subscriptionSyncService', () => {
       tx.user.update.mockResolvedValue({})
 
       await syncSubscriptionFieldsForGrants(tx, 'u1', [
-        { plan: 'BUYER_STANDARD', status: 'ACTIVE' },
+        { plan: 'BUYER_ANNUAL', status: 'ACTIVE' },
       ])
 
       expect(tx.user.update).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
             buyerSubscriptionStatus: 'ACTIVE',
-            buyerSubscriptionPlan: 'BUYER_STANDARD',
+            buyerSubscriptionPlan: 'BUYER_ANNUAL',
           }),
         }),
       )

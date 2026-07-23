@@ -1,10 +1,20 @@
 const { z } = require('zod')
 
 const VALID_PLANS = [
-  'BUYER_STANDARD',
+  // Finalized 9 plans
+  'BUYER_MONTHLY',
+  'BUYER_ANNUAL',
   'BUYER_LIFETIME',
-  'SELLER_MONTH',
+  'SELLER_MONTHLY',
+  'SELLER_ANNUAL',
   'SELLER_LIFETIME',
+  'BOTH_MONTHLY',
+  'BOTH_ANNUAL',
+  'BOTH_LIFETIME',
+
+  // Legacy plans for backward compatibility
+  'BUYER_STANDARD',
+  'SELLER_MONTH',
   'BOTH_STANDARD_MONTH',
   'BOTH_LIFETIME_LIFETIME',
   'BOTH_LIFETIME_MONTH',

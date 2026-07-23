@@ -111,7 +111,7 @@ function makeSubscription(overrides = {}) {
   return {
     id:        IDS.SUB,
     userId:    IDS.BUYER,
-    plan:      'BUYER_STANDARD',
+    plan:      'BUYER_ANNUAL',
     status:    'ACTIVE',
     startsAt:  new Date(),
     expiresAt: null,
@@ -126,7 +126,7 @@ function makePayment(overrides = {}) {
     razorpayOrderId:    'rzp_order_TEST123',
     razorpayPaymentId:  null,
     razorpaySignature:  null,
-    plan:               'BUYER_STANDARD',
+    plan:               'BUYER_ANNUAL',
     amountPaise:        499900,
     currency:           'INR',
     status:             'PENDING',

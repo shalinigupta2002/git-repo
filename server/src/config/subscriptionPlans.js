@@ -4,42 +4,37 @@
  */
 
 const BASE_PLANS = {
-  BUYER_STANDARD:  { amountPaise: 999900,  expiresInDays: null, role: 'BUYER'  },
+  BUYER_MONTHLY:   { amountPaise: 99900,   expiresInDays: 28,   role: 'BUYER'  },
+  BUYER_ANNUAL:    { amountPaise: 999900,  expiresInDays: 365,  role: 'BUYER'  },
   BUYER_LIFETIME:  { amountPaise: 4999900, expiresInDays: null, role: 'BUYER'  },
-  SELLER_MONTH:    { amountPaise: 999900,  expiresInDays: 30,   role: 'SELLER' },
+  SELLER_MONTHLY:  { amountPaise: 99900,   expiresInDays: 28,   role: 'SELLER' },
+  SELLER_ANNUAL:   { amountPaise: 999900,  expiresInDays: 365,  role: 'SELLER' },
   SELLER_LIFETIME: { amountPaise: 4999900, expiresInDays: null, role: 'SELLER' },
 }
 
 /** @type {Record<string, { amountPaise: number, grants: Array<{ plan: string, expiresInDays: number|null }> }>} */
 const BUNDLE_PLANS = {
-  BOTH_STANDARD_MONTH: {
+  BOTH_MONTHLY: {
+    amountPaise: 169900,
     grants: [
-      { plan: 'BUYER_STANDARD', expiresInDays: null },
-      { plan: 'SELLER_MONTH', expiresInDays: 30 },
+      { plan: 'BUYER_MONTHLY', expiresInDays: 28 },
+      { plan: 'SELLER_MONTHLY', expiresInDays: 28 },
     ],
   },
-  BOTH_LIFETIME_LIFETIME: {
+  BOTH_ANNUAL: {
+    amountPaise: 1699900,
+    grants: [
+      { plan: 'BUYER_ANNUAL', expiresInDays: 365 },
+      { plan: 'SELLER_ANNUAL', expiresInDays: 365 },
+    ],
+  },
+  BOTH_LIFETIME: {
+    amountPaise: 7999900,
     grants: [
       { plan: 'BUYER_LIFETIME', expiresInDays: null },
       { plan: 'SELLER_LIFETIME', expiresInDays: null },
     ],
   },
-  BOTH_LIFETIME_MONTH: {
-    grants: [
-      { plan: 'BUYER_LIFETIME', expiresInDays: null },
-      { plan: 'SELLER_MONTH', expiresInDays: 30 },
-    ],
-  },
-  BOTH_STANDARD_LIFETIME: {
-    grants: [
-      { plan: 'BUYER_STANDARD', expiresInDays: null },
-      { plan: 'SELLER_LIFETIME', expiresInDays: null },
-    ],
-  },
-}
-
-function bundleAmountPaise(grants) {
-  return grants.reduce((sum, g) => sum + BASE_PLANS[g.plan].amountPaise, 0)
 }
 
 /** Merged config passed to create-order / verify */
@@ -47,7 +42,7 @@ const PLAN_CONFIG = { ...BASE_PLANS }
 
 for (const [bundleId, bundle] of Object.entries(BUNDLE_PLANS)) {
   PLAN_CONFIG[bundleId] = {
-    amountPaise: bundleAmountPaise(bundle.grants),
+    amountPaise: bundle.amountPaise,
     grants: bundle.grants,
     isBundle: true,
   }

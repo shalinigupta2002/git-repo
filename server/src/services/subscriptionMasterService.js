@@ -150,6 +150,18 @@ const LEGACY_KEY_MAP = Object.freeze({
 
 /** Seeds default 9 master plans into the DB if not already seeded. */
 async function ensureDefaultMasterPlans(client = prisma) {
+  try {
+    await client.subscriptionPlanMaster.deleteMany({
+      where: {
+        planKey: {
+          notIn: DEFAULT_V2_PLANS.map(p => p.planKey),
+        },
+      },
+    })
+  } catch (err) {
+    // Table might not exist yet or connection error
+  }
+
   for (const item of DEFAULT_V2_PLANS) {
     try {
       await client.subscriptionPlanMaster.upsert({
@@ -158,6 +170,12 @@ async function ensureDefaultMasterPlans(client = prisma) {
         update: {
           planName: item.planName,
           displayOrder: item.displayOrder,
+          price: item.price,
+          amountPaise: item.amountPaise,
+          description: item.description,
+          features: item.features,
+          icon: item.icon,
+          badge: item.badge,
         },
       })
     } catch {

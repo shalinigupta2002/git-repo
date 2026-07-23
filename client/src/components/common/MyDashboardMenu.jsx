@@ -6,6 +6,7 @@ import {
   selectHasBuyerSubscription,
   selectHasSellerSubscription,
 } from '../../store/slices/subscriptionSlice.js'
+import { persistWorkspace } from '../../utils/activeWorkspace.js'
 import { marketingDashboardMenuOptions } from '../../utils/portalNav.js'
 
 function ChevronIcon() {
@@ -98,7 +99,12 @@ export function MyDashboardMenu({
             to={option.to}
             role="menuitem"
             className={`dashboardMenu__item${option.locked ? ' dashboardMenu__item--locked' : ''}`}
-            onClick={() => setOpen(false)}
+            onClick={() => {
+              if (!option.locked && option.workspace) {
+                persistWorkspace(option.workspace)
+              }
+              setOpen(false)
+            }}
           >
             {option.label}
             {option.locked ? <span className="dashboardMenu__lockHint">Subscribe</span> : null}

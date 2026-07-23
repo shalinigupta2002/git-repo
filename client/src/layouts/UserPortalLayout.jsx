@@ -3,6 +3,8 @@ import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-do
 import { BrandLogo } from '../components/common/BrandLogo.jsx'
 import { SidebarLogoutButton } from '../components/common/SidebarLogoutButton.jsx'
 import { SubscribeFeatureAlert } from '../components/common/SubscribeFeatureAlert.jsx'
+import { WorkspaceSwitcher } from '../components/common/WorkspaceSwitcher.jsx'
+import { useActiveWorkspace } from '../hooks/useActiveWorkspace.js'
 import { useLogoutRedirect } from '../hooks/useAuth.js'
 import { useAppSelector } from '../hooks/redux.js'
 import { selectUser } from '../store/slices/authSlice.js'
@@ -18,7 +20,6 @@ import {
   visibleBuyerSubNav,
   visibleSellerSubNav,
   canAccessSellerWorkspace,
-  canAccessBuyerWorkspace,
 } from '../utils/portalNav.js'
 
 function MenuIcon() {
@@ -119,16 +120,30 @@ export function UserPortalLayout() {
   const [sellerSubscribeAlertOpen, setSellerSubscribeAlertOpen] = useState(false)
   const [buyerSubscribeAlertOpen, setBuyerSubscribeAlertOpen] = useState(false)
 
-  const buyerWorkspaceAccess = canAccessBuyerWorkspace(user?.role, hasBuyerSub)
-  const sellerWorkspaceAccess = canAccessSellerWorkspace(user?.role, hasSellerSub)
+  const {
+    activeWorkspace,
+    setActiveWorkspace,
+    hasBothWorkspaces,
+    buyerAccess: buyerWorkspaceAccess,
+    sellerAccess: sellerWorkspaceAccess,
+  } = useActiveWorkspace({
+    role: user?.role,
+    hasBuyer: hasBuyerSub,
+    hasSeller: hasSellerSub,
+  })
 
   const inBuyer = isBuyerSection(pathname)
   const inSeller = isSellerSection(pathname)
   const buyerLinks = useMemo(() => visibleBuyerSubNav(hasBuyerSub), [hasBuyerSub])
   const sellerLinks = useMemo(() => visibleSellerSubNav(hasSellerSub), [hasSellerSub])
   const primaryNav = useMemo(
-    () => visiblePortalPrimaryNav(user?.role, { hasBuyer: hasBuyerSub, hasSeller: hasSellerSub }),
-    [user?.role, hasBuyerSub, hasSellerSub],
+    () =>
+      visiblePortalPrimaryNav(user?.role, {
+        hasBuyer: hasBuyerSub,
+        hasSeller: hasSellerSub,
+        activeWorkspace,
+      }),
+    [user?.role, hasBuyerSub, hasSellerSub, activeWorkspace],
   )
 
   const wideCatalog =
@@ -218,7 +233,11 @@ export function UserPortalLayout() {
             <div className="proBrand__text">
               <span className="proBrand__title">B2B Portal</span>
               <span className="proBrand__sub">
-                {portalRoleLabel(user?.role, { hasBuyer: hasBuyerSub, hasSeller: hasSellerSub })}
+                {portalRoleLabel(user?.role, {
+                  hasBuyer: hasBuyerSub,
+                  hasSeller: hasSellerSub,
+                  activeWorkspace,
+                })}
               </span>
             </div>
           </Link>
@@ -235,8 +254,14 @@ export function UserPortalLayout() {
         <nav className="proNav" aria-label="User portal">
           {primaryNav.map((item) => {
             const active = primaryActive(item)
-            const showBuyerSub = item.section === 'buyer' && buyerWorkspaceAccess
-            const showSellerSub = item.section === 'seller' && sellerWorkspaceAccess
+            const showBuyerSub =
+              item.section === 'buyer' &&
+              buyerWorkspaceAccess &&
+              (!hasBothWorkspaces || activeWorkspace === 'buyer')
+            const showSellerSub =
+              item.section === 'seller' &&
+              sellerWorkspaceAccess &&
+              (!hasBothWorkspaces || activeWorkspace === 'seller')
 
             if (item.external) {
               return (
@@ -306,6 +331,12 @@ export function UserPortalLayout() {
             <MenuIcon />
           </button>
           <div className="appTopHeader__actions" style={{ marginLeft: 'auto' }}>
+            {hasBothWorkspaces ? (
+              <WorkspaceSwitcher
+                activeWorkspace={activeWorkspace}
+                onSwitch={setActiveWorkspace}
+              />
+            ) : null}
             <NavLink
               to="/portal/contact-admin"
               className="iconBtn iconBtn--notify"

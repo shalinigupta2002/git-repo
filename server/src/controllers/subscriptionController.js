@@ -83,19 +83,42 @@ async function applySubscriptionSync(tx, userId, subscriptions) {
 }
 
 function buildSubscriptionSummary(user, subscriptions, now) {
-  const activeSubs = subscriptions.filter(
-    (s) => s.status === 'ACTIVE' && (!s.expiresAt || s.expiresAt > now),
+  const allBuyerSubs = subscriptions.filter(
+    (s) => s.plan === 'BUYER_MONTHLY' || s.plan === 'BUYER_ANNUAL' || s.plan === 'BUYER_LIFETIME',
+  )
+  const allSellerSubs = subscriptions.filter(
+    (s) => s.plan === 'SELLER_MONTHLY' || s.plan === 'SELLER_ANNUAL' || s.plan === 'SELLER_LIFETIME',
   )
 
-  const buyerSub = activeSubs.find(
-    (s) => s.plan === 'BUYER_STANDARD' || s.plan === 'BUYER_LIFETIME',
-  )
-  const sellerSub = activeSubs.find(
-    (s) => s.plan === 'SELLER_MONTH' || s.plan === 'SELLER_LIFETIME',
-  )
+  const latestBuyerSub = allBuyerSubs[0] ?? null
+  const latestSellerSub = allSellerSubs[0] ?? null
 
-  const hasBuyerSub = Boolean(buyerSub)
-  const hasSellerSub = Boolean(sellerSub)
+  let buyerStatus = null
+  let buyerPlan = null
+  if (latestBuyerSub) {
+    buyerPlan = latestBuyerSub.plan
+    buyerStatus = (latestBuyerSub.expiresAt && latestBuyerSub.expiresAt <= now)
+      ? 'EXPIRED'
+      : latestBuyerSub.status
+  } else if (user?.buyerSubscriptionPlan) {
+    buyerPlan = user.buyerSubscriptionPlan
+    buyerStatus = user.buyerSubscriptionStatus
+  }
+
+  let sellerStatus = null
+  let sellerPlan = null
+  if (latestSellerSub) {
+    sellerPlan = latestSellerSub.plan
+    sellerStatus = (latestSellerSub.expiresAt && latestSellerSub.expiresAt <= now)
+      ? 'EXPIRED'
+      : latestSellerSub.status
+  } else if (user?.sellerSubscriptionPlan) {
+    sellerPlan = user.sellerSubscriptionPlan
+    sellerStatus = user.sellerSubscriptionStatus
+  }
+
+  const hasBuyerSub = buyerStatus === 'ACTIVE'
+  const hasSellerSub = sellerStatus === 'ACTIVE'
   const portalUserId = user?.portalUserId ?? null
 
   return {
@@ -105,23 +128,19 @@ function buildSubscriptionSummary(user, subscriptions, now) {
     buyerMarketplaceId: portalUserId,
     sellerMarketplaceId: portalUserId,
     buyerSubscription: {
-      status: hasBuyerSub
-        ? 'ACTIVE'
-        : (hasEverActivatedBuyerSub(user) ? (user.buyerSubscriptionStatus ?? 'EXPIRED') : null),
-      plan: user?.buyerSubscriptionPlan ?? buyerSub?.plan ?? null,
+      status: buyerStatus,
+      plan: buyerPlan,
       portalUserId,
       marketplaceId: portalUserId,
     },
     sellerSubscription: {
-      status: hasSellerSub
-        ? 'ACTIVE'
-        : (hasEverActivatedSellerSub(user) ? (user.sellerSubscriptionStatus ?? 'EXPIRED') : null),
-      plan: user?.sellerSubscriptionPlan ?? sellerSub?.plan ?? null,
+      status: sellerStatus,
+      plan: sellerPlan,
       portalUserId,
       marketplaceId: portalUserId,
     },
-    buyerPlan: buyerSub?.plan ?? null,
-    sellerPlan: sellerSub?.plan ?? null,
+    buyerPlan,
+    sellerPlan,
   }
 }
 
@@ -130,7 +149,10 @@ const createOrder = asyncHandler(async (req, res) => {
   const { plan } = req.body
   const userId   = req.user.id
 
-  const config = PLAN_CONFIG[plan]
+  const { resolveCanonicalPlanKey } = require('../services/subscriptionMasterService.js')
+  const canonicalPlan = resolveCanonicalPlanKey(plan)
+
+  const config = PLAN_CONFIG[canonicalPlan]
   if (!config) {
     throw new AppError('Invalid plan', 400, 'INVALID_PLAN')
   }
@@ -138,7 +160,7 @@ const createOrder = asyncHandler(async (req, res) => {
   const recentPending = await prisma.payment.findFirst({
     where: {
       userId,
-      plan,
+      plan:      canonicalPlan,
       status:    'PENDING',
       createdAt: { gt: new Date(Date.now() - PENDING_DEDUP_WINDOW_MS) },
     },
@@ -169,14 +191,14 @@ const createOrder = asyncHandler(async (req, res) => {
     amount:   config.amountPaise,
     currency: 'INR',
     receipt:  `sub_${userId.slice(0, 8)}_${Date.now()}`,
-    notes:    { plan, userId },
+    notes:    { plan: canonicalPlan, userId },
   })
 
   await prisma.payment.create({
     data: {
       userId,
       razorpayOrderId: rzpOrder.id,
-      plan,
+      plan:            canonicalPlan,
       amountPaise: config.amountPaise,
       currency:    'INR',
       status:      'PENDING',
@@ -340,11 +362,7 @@ const getStatus = asyncHandler(async (req, res) => {
   const now    = new Date()
 
   const subscriptions = await prisma.subscription.findMany({
-    where: {
-      userId,
-      status: 'ACTIVE',
-      OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
-    },
+    where: { userId },
     orderBy: { createdAt: 'desc' },
     select: {
       id:        true,
@@ -401,4 +419,4 @@ const getStatus = asyncHandler(async (req, res) => {
   })
 })
 
-module.exports = { createOrder, verifyPayment, getStatus }
+module.exports = { createOrder, verifyPayment, getStatus, buildSubscriptionSummary }

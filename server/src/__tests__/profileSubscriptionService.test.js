@@ -32,8 +32,8 @@ describe('profileSubscriptionService', () => {
     })
 
     test('uses denormalized fallback when subscription row is missing', () => {
-      const card = buildSubscriptionCard(null, 'SELLER_MONTH', 'EXPIRED')
-      expect(card.plan).toBe('SELLER MONTH')
+      const card = buildSubscriptionCard(null, 'SELLER_MONTHLY', 'EXPIRED')
+      expect(card.plan).toBe('SELLER MONTHLY')
       expect(card.status).toBe('EXPIRED')
     })
   })

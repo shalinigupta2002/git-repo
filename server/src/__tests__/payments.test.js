@@ -71,7 +71,7 @@ describe('POST /api/subscriptions/create-order', () => {
     const res = await agent
       .post('/api/subscriptions/create-order')
       .set(cookieFor(buyerToken))
-      .send({ plan: 'BUYER_STANDARD' })
+      .send({ plan: 'BUYER_ANNUAL' })
 
     expect(res.status).toBe(200)
     expect(res.body.success).toBe(true)
@@ -80,7 +80,7 @@ describe('POST /api/subscriptions/create-order', () => {
   })
 
   test('200 – SELLER creates an order for a seller plan', async () => {
-    const sellerRzpOrder = { id: 'rzp_order_SELLER01', amount: 999900, currency: 'INR' }
+    const sellerRzpOrder = { id: 'rzp_order_SELLER01', amount: 99900, currency: 'INR' }
 
     prisma.user.findUnique.mockResolvedValue(SELLER)
     prisma.payment.findFirst.mockResolvedValue(null)
@@ -90,14 +90,14 @@ describe('POST /api/subscriptions/create-order', () => {
     const res = await agent
       .post('/api/subscriptions/create-order')
       .set(cookieFor(sellerToken))
-      .send({ plan: 'SELLER_MONTH' })
+      .send({ plan: 'SELLER_MONTHLY' })
 
     expect(res.status).toBe(200)
     expect(res.body.data.razorpayOrderId).toBe('rzp_order_SELLER01')
   })
 
   test('200 – BUYER may purchase a seller plan (both-access checkout)', async () => {
-    const sellerRzpOrder = { id: 'rzp_order_BOTH01', amount: 999900, currency: 'INR' }
+    const sellerRzpOrder = { id: 'rzp_order_BOTH01', amount: 99900, currency: 'INR' }
 
     prisma.user.findUnique.mockResolvedValue(BUYER)
     prisma.payment.findFirst.mockResolvedValue(null)
@@ -107,14 +107,14 @@ describe('POST /api/subscriptions/create-order', () => {
     const res = await agent
       .post('/api/subscriptions/create-order')
       .set(cookieFor(buyerToken))
-      .send({ plan: 'SELLER_MONTH' })
+      .send({ plan: 'SELLER_MONTHLY' })
 
     expect(res.status).toBe(200)
     expect(res.body.data.razorpayOrderId).toBe('rzp_order_BOTH01')
   })
 
   test('200 – BUYER creates a combined BOTH bundle order', async () => {
-    const bundleOrder = { id: 'rzp_order_BOTH01', amount: 1999800, currency: 'INR' }
+    const bundleOrder = { id: 'rzp_order_BOTH01', amount: 169900, currency: 'INR' }
 
     prisma.user.findUnique.mockResolvedValue(BUYER)
     prisma.payment.findFirst.mockResolvedValue(null)
@@ -124,10 +124,10 @@ describe('POST /api/subscriptions/create-order', () => {
     const res = await agent
       .post('/api/subscriptions/create-order')
       .set(cookieFor(buyerToken))
-      .send({ plan: 'BOTH_STANDARD_MONTH' })
+      .send({ plan: 'BOTH_MONTHLY' })
 
     expect(res.status).toBe(200)
-    expect(res.body.data.amount).toBe(1999800)
+    expect(res.body.data.amount).toBe(169900)
     expect(res.body.data.razorpayOrderId).toBe('rzp_order_BOTH01')
   })
 
@@ -140,7 +140,7 @@ describe('POST /api/subscriptions/create-order', () => {
     const res = await agent
       .post('/api/subscriptions/create-order')
       .set(cookieFor(sellerToken))
-      .send({ plan: 'BUYER_STANDARD' })
+      .send({ plan: 'BUYER_ANNUAL' })
 
     expect(res.status).toBe(200)
     expect(res.body.data.razorpayOrderId).toBe('rzp_order_NEWONE')
@@ -174,7 +174,7 @@ describe('POST /api/subscriptions/create-order', () => {
     const res = await agent
       .post('/api/subscriptions/create-order')
       .set(cookieFor(buyerToken))
-      .send({ plan: 'BUYER_STANDARD' })
+      .send({ plan: 'BUYER_ANNUAL' })
 
     expect(res.status).toBe(200)
     expect(res.body.data.resumed).toBe(true)
@@ -186,7 +186,7 @@ describe('POST /api/subscriptions/create-order', () => {
   test('401 – unauthenticated request', async () => {
     const res = await agent
       .post('/api/subscriptions/create-order')
-      .send({ plan: 'BUYER_STANDARD' })
+      .send({ plan: 'BUYER_ANNUAL' })
 
     expect(res.status).toBe(401)
   })
@@ -214,7 +214,7 @@ describe('POST /api/subscriptions/verify', () => {
     subscriptionId:    'sub-uuid-001',
   }
 
-  const ACTIVE_SUB = makeSubscription({ id: 'sub-uuid-001', plan: 'BUYER_STANDARD' })
+  const ACTIVE_SUB = makeSubscription({ id: 'sub-uuid-001', plan: 'BUYER_ANNUAL' })
 
   function verifyBody(sigOverride) {
     return {
@@ -255,7 +255,7 @@ describe('POST /api/subscriptions/verify', () => {
 
     expect(res.status).toBe(200)
     expect(res.body.success).toBe(true)
-    expect(res.body.data.subscription.plan).toBe('BUYER_STANDARD')
+    expect(res.body.data.subscription.plan).toBe('BUYER_ANNUAL')
     expect(res.body.data.subscription.status).toBe('ACTIVE')
     expect(res.body.data.user?.portalUserId).toBe('USR-DEMO-000001')
     expect(res.body.data.user?.buyerMarketplaceId).toBe('USR-DEMO-000001')
@@ -285,7 +285,7 @@ describe('POST /api/subscriptions/verify', () => {
       ...BUYER,
       portalUserId: 'USR-DEMO-000001',
       buyerSubscriptionStatus: 'ACTIVE',
-      buyerSubscriptionPlan: 'BUYER_STANDARD',
+      buyerSubscriptionPlan: 'BUYER_ANNUAL',
       buyerSubscriptionActivatedAt: new Date(),
       sellerSubscriptionActivatedAt: null,
     }
@@ -370,12 +370,12 @@ describe('POST /api/subscriptions/verify', () => {
 
 describe('GET /api/subscriptions/status', () => {
   test('200 – returns active subscriptions for the authenticated user', async () => {
-    const activeSub = makeSubscription({ plan: 'BUYER_STANDARD' })
+    const activeSub = makeSubscription({ plan: 'BUYER_ANNUAL' })
     const userRecord = {
       ...BUYER,
       portalUserId: 'USR-DEMO-000001',
       buyerSubscriptionStatus: 'ACTIVE',
-      buyerSubscriptionPlan: 'BUYER_STANDARD',
+      buyerSubscriptionPlan: 'BUYER_ANNUAL',
       sellerSubscriptionStatus: null,
       sellerSubscriptionPlan: null,
       buyerSubscriptionActivatedAt: new Date(),

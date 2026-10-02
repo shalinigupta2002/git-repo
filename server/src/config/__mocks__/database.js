@@ -155,6 +155,7 @@ const mockPrisma = {
     updateMany: jest.fn(),
   },
   $queryRaw: jest.fn(),
+  $executeRawUnsafe: jest.fn().mockResolvedValue(undefined),
   address: {
     findMany:   jest.fn(),
     findUnique: jest.fn(),

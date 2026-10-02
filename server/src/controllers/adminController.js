@@ -443,6 +443,29 @@ const listCategoryRequests = asyncHandler(async (req, res) => {
   })
 })
 
+async function buildApprovedCatalogUpsert(existing, { name, parentId }) {
+  const catName = name || existing.categoryName
+
+  if (existing.requestType === 'SUBCATEGORY') {
+    const resolvedParentId = await resolveSubcategoryParentId(existing, parentId)
+    const slug = await buildCategorySlug(catName, resolvedParentId)
+    return {
+      sql: `INSERT INTO catalog.categories (name, slug, parent_id)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (slug) DO UPDATE SET name = EXCLUDED.name, parent_id = EXCLUDED.parent_id`,
+      params: [catName, slug, resolvedParentId],
+    }
+  }
+
+  const slug = await buildCategorySlug(catName, null)
+  return {
+    sql: `INSERT INTO catalog.categories (name, slug, parent_id)
+          VALUES ($1, $2, NULL)
+          ON CONFLICT (slug) DO UPDATE SET name = EXCLUDED.name, parent_id = NULL`,
+    params: [catName, slug],
+  }
+}
+
 const decideCategoryRequest = asyncHandler(async (req, res) => {
   const { id } = req.params
   const { decision, adminNote, name, parentId } = req.body
@@ -455,37 +478,28 @@ const decideCategoryRequest = asyncHandler(async (req, res) => {
     return res.status(409).json({ success: false, error: { message: 'Request already decided' } })
   }
 
-  const updated = await prisma.categoryRequest.update({
-    where: { id },
-    data: {
-      status:           decision,
-      adminNote:        adminNote || null,
-      notificationRead: false,
-    },
-  })
+  const catalogUpsert =
+    decision === 'APPROVED' ? await buildApprovedCatalogUpsert(existing, { name, parentId }) : null
 
-  if (decision === 'APPROVED') {
-    const catName = name || existing.categoryName
-
-    if (existing.requestType === 'SUBCATEGORY') {
-      const resolvedParentId = await resolveSubcategoryParentId(existing, parentId)
-      const slug = await buildCategorySlug(catName, resolvedParentId)
-      await query(
-        `INSERT INTO catalog.categories (name, slug, parent_id)
-         VALUES ($1, $2, $3)
-         ON CONFLICT (slug) DO UPDATE SET name = EXCLUDED.name, parent_id = EXCLUDED.parent_id`,
-        [catName, slug, resolvedParentId],
-      )
-    } else {
-      const slug = await buildCategorySlug(catName, null)
-      await query(
-        `INSERT INTO catalog.categories (name, slug, parent_id)
-         VALUES ($1, $2, NULL)
-         ON CONFLICT (slug) DO UPDATE SET name = EXCLUDED.name, parent_id = NULL`,
-        [catName, slug],
-      )
+  const updated = await prisma.$transaction(async (tx) => {
+    const { count } = await tx.categoryRequest.updateMany({
+      where: { id, status: 'PENDING' },
+      data: {
+        status:           decision,
+        adminNote:        adminNote || null,
+        notificationRead: false,
+      },
+    })
+    if (count === 0) {
+      throw new AppError('Request already decided', 409)
     }
-  }
+
+    if (catalogUpsert) {
+      await tx.$executeRawUnsafe(catalogUpsert.sql, ...catalogUpsert.params)
+    }
+
+    return tx.categoryRequest.findUnique({ where: { id } })
+  })
 
   res.json({ success: true, data: { request: updated } })
 })

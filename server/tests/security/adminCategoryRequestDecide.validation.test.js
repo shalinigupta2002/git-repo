@@ -30,17 +30,26 @@ function pendingCategoryRequest(overrides = {}) {
   }
 }
 
+function mockSuccessfulDecide(existing, statusAfter) {
+  const decided = { ...existing, status: statusAfter }
+  prisma.categoryRequest.findUnique
+    .mockResolvedValueOnce(existing)
+    .mockResolvedValueOnce(decided)
+  prisma.categoryRequest.updateMany.mockResolvedValue({ count: 1 })
+  prisma.$executeRawUnsafe.mockResolvedValue(undefined)
+}
+
 describe('PATCH /api/admin/category-requests/:id/decide (VAL-007-05)', () => {
   beforeEach(() => {
     jest.clearAllMocks()
     query.mockResolvedValue({ rows: [], rowCount: 1 })
+    prisma.$transaction.mockImplementation(async (fn) => fn(prisma))
   })
 
   test('valid REJECTED decision updates request', async () => {
     mockAdminAuth()
     const existing = pendingCategoryRequest()
-    prisma.categoryRequest.findUnique.mockResolvedValue(existing)
-    prisma.categoryRequest.update.mockResolvedValue({ ...existing, status: 'REJECTED' })
+    mockSuccessfulDecide(existing, 'REJECTED')
 
     const res = await agent
       .patch(`/api/admin/category-requests/${REQ_ID}/decide`)
@@ -49,19 +58,20 @@ describe('PATCH /api/admin/category-requests/:id/decide (VAL-007-05)', () => {
 
     expect(res.status).toBe(200)
     expect(res.body.success).toBe(true)
-    expect(prisma.categoryRequest.update).toHaveBeenCalledWith(
+    expect(prisma.$transaction).toHaveBeenCalled()
+    expect(prisma.categoryRequest.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
+        where: { id: REQ_ID, status: 'PENDING' },
         data: expect.objectContaining({ status: 'REJECTED', adminNote: 'Not suitable' }),
       }),
     )
-    expect(query).not.toHaveBeenCalled()
+    expect(prisma.$executeRawUnsafe).not.toHaveBeenCalled()
   })
 
-  test('valid APPROVED decision for CATEGORY runs catalog insert', async () => {
+  test('valid APPROVED decision for CATEGORY runs catalog insert in transaction', async () => {
     mockAdminAuth()
     const existing = pendingCategoryRequest()
-    prisma.categoryRequest.findUnique.mockResolvedValue(existing)
-    prisma.categoryRequest.update.mockResolvedValue({ ...existing, status: 'APPROVED' })
+    mockSuccessfulDecide(existing, 'APPROVED')
 
     const res = await agent
       .patch(`/api/admin/category-requests/${REQ_ID}/decide`)
@@ -69,8 +79,44 @@ describe('PATCH /api/admin/category-requests/:id/decide (VAL-007-05)', () => {
       .send({ decision: 'APPROVED' })
 
     expect(res.status).toBe(200)
-    expect(query).toHaveBeenCalled()
-    expect(prisma.categoryRequest.update).toHaveBeenCalled()
+    expect(prisma.$transaction).toHaveBeenCalled()
+    expect(prisma.$executeRawUnsafe).toHaveBeenCalledWith(
+      expect.stringContaining('INSERT INTO catalog.categories'),
+      'Requested Category',
+      expect.any(String),
+    )
+    expect(prisma.categoryRequest.updateMany).toHaveBeenCalled()
+  })
+
+  test('valid APPROVED decision for SUBCATEGORY with parentId runs catalog insert', async () => {
+    mockAdminAuth()
+    const existing = pendingCategoryRequest({
+      requestType: 'SUBCATEGORY',
+      parentCategoryId: 42,
+    })
+    mockSuccessfulDecide(existing, 'APPROVED')
+    query.mockImplementation(async (sql) => {
+      if (String(sql).includes('parent_id IS NULL')) {
+        return { rows: [{ id: 42, name: 'Root', slug: 'root' }] }
+      }
+      if (String(sql).includes('SELECT slug FROM catalog.categories')) {
+        return { rows: [{ slug: 'root' }] }
+      }
+      return { rows: [], rowCount: 0 }
+    })
+
+    const res = await agent
+      .patch(`/api/admin/category-requests/${REQ_ID}/decide`)
+      .set(cookieFor(adminToken))
+      .send({ decision: 'APPROVED', parentId: 42 })
+
+    expect(res.status).toBe(200)
+    expect(prisma.$executeRawUnsafe).toHaveBeenCalledWith(
+      expect.stringContaining('INSERT INTO catalog.categories'),
+      expect.any(String),
+      expect.any(String),
+      42,
+    )
   })
 
   test('invalid decision returns 400 VALIDATION_ERROR', async () => {
@@ -92,8 +138,7 @@ describe('PATCH /api/admin/category-requests/:id/decide (VAL-007-05)', () => {
   test('adminNote at exactly 500 characters is accepted', async () => {
     mockAdminAuth()
     const note = 'N'.repeat(500)
-    prisma.categoryRequest.findUnique.mockResolvedValue(pendingCategoryRequest())
-    prisma.categoryRequest.update.mockResolvedValue({ status: 'REJECTED' })
+    mockSuccessfulDecide(pendingCategoryRequest(), 'REJECTED')
 
     const res = await agent
       .patch(`/api/admin/category-requests/${REQ_ID}/decide`)
@@ -101,7 +146,7 @@ describe('PATCH /api/admin/category-requests/:id/decide (VAL-007-05)', () => {
       .send({ decision: 'REJECTED', adminNote: note })
 
     expect(res.status).toBe(200)
-    expect(prisma.categoryRequest.update).toHaveBeenCalledWith(
+    expect(prisma.categoryRequest.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ adminNote: note }) }),
     )
   })
@@ -122,8 +167,7 @@ describe('PATCH /api/admin/category-requests/:id/decide (VAL-007-05)', () => {
   test('name at exactly 200 characters on APPROVED is accepted', async () => {
     mockAdminAuth()
     const name = 'C'.repeat(200)
-    prisma.categoryRequest.findUnique.mockResolvedValue(pendingCategoryRequest())
-    prisma.categoryRequest.update.mockResolvedValue({ status: 'APPROVED' })
+    mockSuccessfulDecide(pendingCategoryRequest(), 'APPROVED')
 
     const res = await agent
       .patch(`/api/admin/category-requests/${REQ_ID}/decide`)
@@ -131,9 +175,10 @@ describe('PATCH /api/admin/category-requests/:id/decide (VAL-007-05)', () => {
       .send({ decision: 'APPROVED', name })
 
     expect(res.status).toBe(200)
-    expect(query).toHaveBeenCalledWith(
+    expect(prisma.$executeRawUnsafe).toHaveBeenCalledWith(
       expect.stringContaining('INSERT INTO catalog.categories'),
-      expect.arrayContaining([name, expect.any(String)]),
+      name,
+      expect.any(String),
     )
   })
 
@@ -152,8 +197,7 @@ describe('PATCH /api/admin/category-requests/:id/decide (VAL-007-05)', () => {
 
   test('omitted optional fields preserve behavior (uses existing category name)', async () => {
     mockAdminAuth()
-    prisma.categoryRequest.findUnique.mockResolvedValue(pendingCategoryRequest({ categoryName: 'From Request' }))
-    prisma.categoryRequest.update.mockResolvedValue({ status: 'APPROVED' })
+    mockSuccessfulDecide(pendingCategoryRequest({ categoryName: 'From Request' }), 'APPROVED')
 
     const res = await agent
       .patch(`/api/admin/category-requests/${REQ_ID}/decide`)
@@ -161,9 +205,10 @@ describe('PATCH /api/admin/category-requests/:id/decide (VAL-007-05)', () => {
       .send({ decision: 'APPROVED' })
 
     expect(res.status).toBe(200)
-    expect(query).toHaveBeenCalledWith(
+    expect(prisma.$executeRawUnsafe).toHaveBeenCalledWith(
       expect.any(String),
-      expect.arrayContaining(['From Request', expect.any(String)]),
+      'From Request',
+      expect.any(String),
     )
   })
 
@@ -177,7 +222,8 @@ describe('PATCH /api/admin/category-requests/:id/decide (VAL-007-05)', () => {
       .send({ decision: 'REJECTED' })
 
     expect(res.status).toBe(404)
-    expect(prisma.categoryRequest.update).not.toHaveBeenCalled()
+    expect(prisma.$transaction).not.toHaveBeenCalled()
+    expect(prisma.categoryRequest.updateMany).not.toHaveBeenCalled()
   })
 
   test('409 when request already decided', async () => {
@@ -192,7 +238,8 @@ describe('PATCH /api/admin/category-requests/:id/decide (VAL-007-05)', () => {
       .send({ decision: 'REJECTED' })
 
     expect(res.status).toBe(409)
-    expect(prisma.categoryRequest.update).not.toHaveBeenCalled()
+    expect(prisma.$transaction).not.toHaveBeenCalled()
+    expect(prisma.categoryRequest.updateMany).not.toHaveBeenCalled()
   })
 
   test('400 PARENT_NOT_FOUND when subcategory parent cannot be resolved', async () => {
@@ -212,10 +259,26 @@ describe('PATCH /api/admin/category-requests/:id/decide (VAL-007-05)', () => {
 
     expect(res.status).toBe(400)
     expect(res.body.error.code).toBe('PARENT_NOT_FOUND')
-    expect(prisma.categoryRequest.update).toHaveBeenCalled()
-    expect(query).not.toHaveBeenCalledWith(
-      expect.stringContaining('INSERT INTO catalog.categories'),
-      expect.anything(),
-    )
+    expect(prisma.$transaction).not.toHaveBeenCalled()
+    expect(prisma.categoryRequest.updateMany).not.toHaveBeenCalled()
+    expect(prisma.$executeRawUnsafe).not.toHaveBeenCalled()
+  })
+
+  test('ERR-001 catalog insert failure rolls back status update (transaction aborts)', async () => {
+    mockAdminAuth()
+    const existing = pendingCategoryRequest()
+    prisma.categoryRequest.findUnique.mockResolvedValueOnce(existing)
+    prisma.categoryRequest.updateMany.mockResolvedValue({ count: 1 })
+    prisma.$executeRawUnsafe.mockRejectedValue(new Error('catalog insert failed'))
+
+    const res = await agent
+      .patch(`/api/admin/category-requests/${REQ_ID}/decide`)
+      .set(cookieFor(adminToken))
+      .send({ decision: 'APPROVED' })
+
+    expect(res.status).toBe(500)
+    expect(prisma.$transaction).toHaveBeenCalled()
+    expect(prisma.categoryRequest.updateMany).toHaveBeenCalled()
+    expect(prisma.$executeRawUnsafe).toHaveBeenCalled()
   })
 })

@@ -1,6 +1,12 @@
 const { prisma } = require('../config/database.js')
 const { AppError } = require('../utils/AppError.js')
 const { asyncHandler } = require('../utils/asyncHandler.js')
+const { USER_SELECT } = require('../utils/serializeUser.js')
+const {
+  hasActiveSubscription,
+  PLANS_BY_TYPE,
+} = require('../middleware/requireSubscription.js')
+const { buildSubscriptionSummary } = require('./subscriptionController.js')
 
 const env = require('../config/env.js')
 const logger = require('../config/logger.js')
@@ -454,6 +460,20 @@ const getEligibleSellers = asyncHandler(async (req, res) => {
   })
 })
 
+function latestSubscriptionRowForType(subscriptions, type) {
+  const plans = new Set(PLANS_BY_TYPE[type] || [])
+  return subscriptions.find((s) => plans.has(s.plan)) ?? null
+}
+
+function validationStatusForType(summary, type) {
+  if (type === 'BUYER') {
+    if (summary.hasBuyerSubscription) return 'ACTIVE'
+    return summary.buyerSubscription.status || 'INACTIVE'
+  }
+  if (summary.hasSellerSubscription) return 'ACTIVE'
+  return summary.sellerSubscription.status || 'INACTIVE'
+}
+
 /**
  * POST /api/v1/subscriptions/validate
  * Validates buyer/seller subscription status and returns extended metadata.
@@ -468,68 +488,87 @@ const validateSubscription = asyncHandler(async (req, res) => {
   if (req.user.role !== 'ADMIN' && req.user.id !== userId) {
     throw new AppError('Forbidden', 403, 'FORBIDDEN')
   }
-  
+
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    include: {
-      subscriptions: {
-        where: { status: 'ACTIVE' },
-        orderBy: { expiresAt: 'desc' }
-      }
-    }
+    select: USER_SELECT,
   })
-  
+
   if (!user) {
     throw new AppError('User not found', 404, 'RESOURCE_NOT_FOUND')
   }
-  
+
+  const now = new Date()
+  const subscriptions = await prisma.subscription.findMany({
+    where: { userId },
+    orderBy: { createdAt: 'desc' },
+    select: {
+      id: true,
+      plan: true,
+      status: true,
+      startsAt: true,
+      expiresAt: true,
+    },
+  })
+
+  const summary = buildSubscriptionSummary(user, subscriptions, now)
+  const buyerEntitled = await hasActiveSubscription(userId, 'BUYER')
+  const sellerEntitled = await hasActiveSubscription(userId, 'SELLER')
+
   let isValid = false
   let status = 'INACTIVE'
   let planType = 'NONE'
-  
-  const activeSub = user.subscriptions[0]
-  
+
   if (requiredType === 'SELLER') {
-    isValid = user.sellerSubscriptionStatus === 'ACTIVE'
-    status = user.sellerSubscriptionStatus || 'INACTIVE'
+    isValid = sellerEntitled
     planType = 'SELLER'
+    status = isValid ? 'ACTIVE' : validationStatusForType(summary, 'SELLER')
   } else if (requiredType === 'BUYER') {
-    isValid = user.buyerSubscriptionStatus === 'ACTIVE'
-    status = user.buyerSubscriptionStatus || 'INACTIVE'
+    isValid = buyerEntitled
     planType = 'BUYER'
+    status = isValid ? 'ACTIVE' : validationStatusForType(summary, 'BUYER')
   } else if (requiredType === 'ANY') {
-    const isBuyerActive = user.buyerSubscriptionStatus === 'ACTIVE'
-    const isSellerActive = user.sellerSubscriptionStatus === 'ACTIVE'
-    isValid = isBuyerActive || isSellerActive
-    status = (isBuyerActive || isSellerActive) ? 'ACTIVE' : 'INACTIVE'
-    planType = isBuyerActive ? 'BUYER' : (isSellerActive ? 'SELLER' : 'NONE')
+    isValid = buyerEntitled || sellerEntitled
+    status = isValid ? 'ACTIVE' : 'INACTIVE'
+    planType = buyerEntitled ? 'BUYER' : (sellerEntitled ? 'SELLER' : 'NONE')
+  } else {
+    throw new AppError('requiredType must be BUYER, SELLER, or ANY', 400, 'VALIDATION_ERROR')
   }
-  
-  const isExpired = activeSub ? (activeSub.expiresAt ? new Date(activeSub.expiresAt) < new Date() : false) : true
-  
+
+  const metaRow =
+    requiredType === 'SELLER'
+      ? latestSubscriptionRowForType(subscriptions, 'SELLER')
+      : requiredType === 'BUYER'
+        ? latestSubscriptionRowForType(subscriptions, 'BUYER')
+        : (latestSubscriptionRowForType(subscriptions, 'BUYER')
+          || latestSubscriptionRowForType(subscriptions, 'SELLER'))
+
+  const isExpired = metaRow?.expiresAt ? new Date(metaRow.expiresAt) <= now : false
+
   res.json({
     success: true,
     message: 'Subscription validation completed.',
     data: {
       userId: user.id,
+      isValid,
       buyerSubscription: {
-        status: user.buyerSubscriptionStatus || 'INACTIVE',
-        plan: user.buyerSubscriptionPlan || null,
-        activatedAt: user.buyerSubscriptionActivatedAt || null
+        status: summary.buyerSubscription.status || 'INACTIVE',
+        plan: summary.buyerPlan || user.buyerSubscriptionPlan || null,
+        activatedAt: user.buyerSubscriptionActivatedAt || null,
       },
       sellerSubscription: {
-        status: user.sellerSubscriptionStatus || 'INACTIVE',
-        plan: user.sellerSubscriptionPlan || null,
-        activatedAt: user.sellerSubscriptionActivatedAt || null
+        status: summary.sellerSubscription.status || 'INACTIVE',
+        plan: summary.sellerPlan || user.sellerSubscriptionPlan || null,
+        activatedAt: user.sellerSubscriptionActivatedAt || null,
       },
       status,
       planType,
-      startDate: activeSub?.startsAt || null,
-      expiryDate: activeSub?.expiresAt || null,
-      isExpired
+      startDate: metaRow?.startsAt || null,
+      expiryDate: metaRow?.expiresAt || null,
+      isExpired,
     },
     meta: null,
-    errors: null
+    errors: null,
   })
 })
 

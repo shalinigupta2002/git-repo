@@ -3,7 +3,13 @@ jest.mock('../config/database.js', () => {
     upsert: jest.fn().mockResolvedValue({ key: 'test.png', data: Buffer.from('x') }),
     findUnique: jest.fn(),
   }
-  return { prisma: { uploadedFile, $transaction: jest.fn(async (fn) => fn({ uploadedFile, product: { create: jest.fn() } })) } }
+  return {
+    prisma: {
+      uploadedFile,
+      $queryRaw: jest.fn(),
+      $transaction: jest.fn(async (fn) => fn({ uploadedFile, product: { create: jest.fn() } })),
+    },
+  }
 })
 
 const fs = require('fs')
@@ -35,7 +41,8 @@ describe('productImageStorage', () => {
     fs.unlinkSync(filePath)
   })
 
-  test('serveProductImage serves DB blob without env import crash', async () => {
+  test('serveProductImage serves DB blob when key is referenced on a product', async () => {
+    prisma.$queryRaw.mockResolvedValue([{ id: 'prod-1' }])
     prisma.uploadedFile.findUnique.mockResolvedValue({
       key: 'db-only.png',
       mimeType: 'image/png',
@@ -58,5 +65,21 @@ describe('productImageStorage', () => {
     expect(headers['content-type']).toBe('image/png')
     expect(Buffer.isBuffer(res.body)).toBe(true)
     expect(res.body.length).toBe(4)
+  })
+
+  test('serveProductImage rejects DB blob when key is not referenced by any product', async () => {
+    prisma.$queryRaw.mockResolvedValue([])
+
+    const res = { set() {}, send() {} }
+    const served = await serveProductImage('orphan.png', res)
+
+    expect(served).toBe(false)
+    expect(prisma.uploadedFile.findUnique).not.toHaveBeenCalled()
+  })
+
+  test('serveProductImage rejects path traversal filenames', async () => {
+    const res = { set() {}, send() {} }
+    const served = await serveProductImage('../../../secret.png', res)
+    expect(served).toBe(false)
   })
 })

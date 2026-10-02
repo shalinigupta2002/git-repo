@@ -7,11 +7,43 @@
  */
 
 const fs = require('fs')
-const path = require('path')
 const { prisma } = require('../config/database.js')
 const env = require('../config/env.js')
 const logger = require('../config/logger.js')
 const { UPLOAD_DIR } = require('../middleware/contactUpload.js')
+const {
+  sanitizeUploadFilename,
+  resolvePathUnderUploadDir,
+} = require('../utils/uploadFilename.js')
+
+async function userCanAccessContactAttachment(user, filename) {
+  if (!user) return false
+  if (user.role === 'ADMIN') return true
+
+  const safeName = sanitizeUploadFilename(filename)
+  if (!safeName) return false
+
+  const pattern = `%${safeName}%`
+
+  const onMessage = await prisma.$queryRaw`
+    SELECT cm.id
+    FROM contact_messages cm
+    WHERE cm.sender_id = ${user.id}
+      AND cm.attachments::text ILIKE ${pattern}
+    LIMIT 1
+  `
+  if (Array.isArray(onMessage) && onMessage.length > 0) return true
+
+  const onReply = await prisma.$queryRaw`
+    SELECT cm.id
+    FROM contact_messages cm
+    INNER JOIN contact_message_replies cr ON cr.contact_message_id = cm.id
+    WHERE cm.sender_id = ${user.id}
+      AND cr.attachments::text ILIKE ${pattern}
+    LIMIT 1
+  `
+  return Array.isArray(onReply) && onReply.length > 0
+}
 
 async function persistUploadedContactFiles(files = [], db = prisma) {
   if (!files || !files.length) return
@@ -54,19 +86,23 @@ function toBuffer(data) {
 }
 
 async function serveContactAttachment(filename, res) {
-  const safeName = path.basename(String(filename || ''))
-  const logCtx = { filename: safeName }
+  const safeName = sanitizeUploadFilename(filename)
+  const logCtx = { filename: safeName || String(filename || '') }
 
   try {
     if (!safeName) {
-      logger.warn(logCtx, 'Contact attachment serve: empty filename')
+      logger.warn(logCtx, 'Contact attachment serve: invalid filename')
       return false
     }
 
-    const diskPath = path.resolve(UPLOAD_DIR, safeName)
+    const diskPath = resolvePathUnderUploadDir(UPLOAD_DIR, safeName)
+    if (!diskPath) {
+      logger.warn(logCtx, 'Contact attachment serve: path rejected')
+      return false
+    }
+
     const diskExists = fs.existsSync(diskPath)
     logCtx.diskExists = diskExists
-    logCtx.diskPath = diskPath
 
     if (diskExists) {
       res.set('Cache-Control', env.isProd ? 'public, max-age=604800, immutable' : 'no-cache')
@@ -104,4 +140,5 @@ async function serveContactAttachment(filename, res) {
 module.exports = {
   persistUploadedContactFiles,
   serveContactAttachment,
+  userCanAccessContactAttachment,
 }

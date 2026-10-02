@@ -7,11 +7,23 @@
  */
 
 const fs = require('fs')
-const path = require('path')
 const { prisma } = require('../config/database.js')
 const env = require('../config/env.js')
 const logger = require('../config/logger.js')
 const { UPLOAD_DIR } = require('../middleware/productUpload.js')
+const {
+  sanitizeUploadFilename,
+  resolvePathUnderUploadDir,
+} = require('../utils/uploadFilename.js')
+
+async function isProductImageKeyReferenced(safeName) {
+  const rows = await prisma.$queryRaw`
+    SELECT id FROM products
+    WHERE images IS NOT NULL AND images::text ILIKE ${`%${safeName}%`}
+    LIMIT 1
+  `
+  return Array.isArray(rows) && rows.length > 0
+}
 
 async function persistUploadedProductFiles(files = [], db = prisma) {
   if (!files.length) return
@@ -50,19 +62,23 @@ function toBuffer(data) {
 }
 
 async function serveProductImage(filename, res) {
-  const safeName = path.basename(String(filename || ''))
-  const logCtx = { filename: safeName }
+  const safeName = sanitizeUploadFilename(filename)
+  const logCtx = { filename: safeName || String(filename || '') }
 
   try {
     if (!safeName) {
-      logger.warn(logCtx, 'Product image serve: empty filename')
+      logger.warn(logCtx, 'Product image serve: invalid filename')
       return false
     }
 
-    const diskPath = path.resolve(UPLOAD_DIR, safeName)
+    const diskPath = resolvePathUnderUploadDir(UPLOAD_DIR, safeName)
+    if (!diskPath) {
+      logger.warn(logCtx, 'Product image serve: path rejected')
+      return false
+    }
+
     const diskExists = fs.existsSync(diskPath)
     logCtx.diskExists = diskExists
-    logCtx.diskPath = diskPath
 
     if (diskExists) {
       res.set('Cache-Control', env.isProd ? 'public, max-age=604800, immutable' : 'no-cache')
@@ -71,6 +87,12 @@ async function serveProductImage(filename, res) {
       })
       logger.info(logCtx, 'Product image served from disk')
       return true
+    }
+
+    const referenced = await isProductImageKeyReferenced(safeName)
+    if (!referenced) {
+      logger.warn(logCtx, 'Product image serve: key not referenced by any product')
+      return false
     }
 
     const record = await prisma.uploadedFile.findUnique({ where: { key: safeName } })

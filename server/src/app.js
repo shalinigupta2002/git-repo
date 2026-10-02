@@ -41,8 +41,14 @@ const routes         = require('./routes/index.js')
 const catalogRoutes  = require('./routes/catalog.routes.js')
 const { errorHandler, notFoundHandler } = require('./middleware/errorHandler.js')
 const { asyncHandler } = require('./utils/asyncHandler.js')
+const { authenticate } = require('./middleware/authenticate.js')
+const { AppError } = require('./utils/AppError.js')
 const { serveProductImage } = require('./services/productImageStorage.js')
-const { serveContactAttachment } = require('./services/contactAttachmentStorage.js')
+const {
+  serveContactAttachment,
+  userCanAccessContactAttachment,
+} = require('./services/contactAttachmentStorage.js')
+const { sanitizeUploadFilename } = require('./utils/uploadFilename.js')
 
 const app = express()
 
@@ -79,8 +85,19 @@ app.use(csrfProtection)
 // ── Uploaded contact attachments (disk in dev; DB fallback in production) ───
 app.get(
   '/api/uploads/contact/:filename',
+  authenticate,
   asyncHandler(async (req, res) => {
-    const served = await serveContactAttachment(req.params.filename, res)
+    const safeName = sanitizeUploadFilename(req.params.filename)
+    if (!safeName) {
+      throw new AppError('Invalid attachment filename', 400, 'VALIDATION_ERROR')
+    }
+
+    const allowed = await userCanAccessContactAttachment(req.user, safeName)
+    if (!allowed) {
+      throw new AppError('You do not have access to this attachment', 403, 'FORBIDDEN')
+    }
+
+    const served = await serveContactAttachment(safeName, res)
     if (!served) {
       res.status(404).json({ success: false, error: { message: 'File not found' } })
     }

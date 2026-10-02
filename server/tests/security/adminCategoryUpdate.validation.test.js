@@ -204,4 +204,33 @@ describe('PATCH /api/admin/categories/:id (VAL-007-02)', () => {
     expect(res.status).toBe(403)
     expect(query).not.toHaveBeenCalled()
   })
+
+  test('duplicate slug returns 409 DUPLICATE', async () => {
+    mockAdminAuth()
+    const dupErr = Object.assign(new Error('duplicate key'), { code: '23505' })
+    query.mockRejectedValueOnce(dupErr)
+
+    const res = await agent
+      .patch(`/api/admin/categories/${CATEGORY_ID}`)
+      .set(cookieFor(adminToken))
+      .send({ name: 'Duplicate Slug' })
+
+    expect(res.status).toBe(409)
+    expect(res.body.error.code).toBe('DUPLICATE')
+    expect(res.body.error.message).toBe('A category with this slug already exists')
+  })
+
+  test('other database errors are not mapped to 409', async () => {
+    mockAdminAuth()
+    const fkErr = Object.assign(new Error('foreign key violation'), { code: '23503' })
+    query.mockRejectedValueOnce(fkErr)
+
+    const res = await agent
+      .patch(`/api/admin/categories/${CATEGORY_ID}`)
+      .set(cookieFor(adminToken))
+      .send({ name: 'Updated Name' })
+
+    expect(res.status).toBe(500)
+    expect(res.body.error.code).toBe('INTERNAL_ERROR')
+  })
 })

@@ -360,12 +360,21 @@ const updateCategory = asyncHandler(async (req, res) => {
 
   const slug = slugify(name)
 
-  const { rows, rowCount } = await query(
-    `UPDATE catalog.categories SET name = $1, slug = $2, parent_id = $3
-     WHERE id = $4
-     RETURNING id, name, slug, parent_id, created_at`,
-    [name, slug, parentId ?? null, id],
-  )
+  let rows
+  let rowCount
+  try {
+    ;({ rows, rowCount } = await query(
+      `UPDATE catalog.categories SET name = $1, slug = $2, parent_id = $3
+       WHERE id = $4
+       RETURNING id, name, slug, parent_id, created_at`,
+      [name, slug, parentId ?? null, id],
+    ))
+  } catch (err) {
+    if (err && err.code === '23505') {
+      throw new AppError('A category with this slug already exists', 409, 'DUPLICATE')
+    }
+    throw err
+  }
 
   if (rowCount === 0) {
     return res.status(404).json({ success: false, error: { message: 'Category not found' } })
@@ -388,17 +397,29 @@ const updateCategory = asyncHandler(async (req, res) => {
 const deleteCategory = asyncHandler(async (req, res) => {
   const { id } = req.params
 
-  const { rowCount } = await query(
-    `WITH RECURSIVE descendants AS (
-       SELECT id FROM catalog.categories WHERE id = $1
-       UNION ALL
-       SELECT c.id FROM catalog.categories c
-       INNER JOIN descendants d ON c.parent_id = d.id
-     )
-     DELETE FROM catalog.categories
-     WHERE id IN (SELECT id FROM descendants)`,
-    [id],
-  )
+  let rowCount
+  try {
+    ;({ rowCount } = await query(
+      `WITH RECURSIVE descendants AS (
+         SELECT id FROM catalog.categories WHERE id = $1
+         UNION ALL
+         SELECT c.id FROM catalog.categories c
+         INNER JOIN descendants d ON c.parent_id = d.id
+       )
+       DELETE FROM catalog.categories
+       WHERE id IN (SELECT id FROM descendants)`,
+      [id],
+    ))
+  } catch (err) {
+    if (err && err.code === '23503') {
+      throw new AppError(
+        'This category cannot be deleted because it is still referenced or in use.',
+        409,
+        'CATEGORY_IN_USE',
+      )
+    }
+    throw err
+  }
 
   if (rowCount === 0) {
     return res.status(404).json({ success: false, error: { message: 'Category not found' } })

@@ -84,10 +84,25 @@ describe('DELETE /api/admin/categories/:id (VAL-007-03)', () => {
     expect(query).not.toHaveBeenCalled()
   })
 
-  test('database errors are not converted to 400', async () => {
+  test('foreign key violation returns 409 CATEGORY_IN_USE', async () => {
     mockAdminAuth()
     const fkErr = Object.assign(new Error('foreign key violation'), { code: '23503' })
     query.mockRejectedValueOnce(fkErr)
+
+    const res = await agent
+      .delete(`/api/admin/categories/${CATEGORY_ID}`)
+      .set(cookieFor(adminToken))
+
+    expect(res.status).toBe(409)
+    expect(res.body.error.code).toBe('CATEGORY_IN_USE')
+    expect(res.body.error.message).toBe(
+      'This category cannot be deleted because it is still referenced or in use.',
+    )
+  })
+
+  test('other database errors are not mapped to 409', async () => {
+    mockAdminAuth()
+    query.mockRejectedValueOnce(new Error('unexpected database failure'))
 
     const res = await agent
       .delete(`/api/admin/categories/${CATEGORY_ID}`)

@@ -13,6 +13,9 @@ const sellerDealRoutes       = require('./sellerDeal.routes.js')
 const adminDealRoutes        = require('./adminDeal.routes.js')
 const shopCategoryRoutes     = require('./shopCategory.routes.js')
 const { getSnapshot }        = require('../middleware/metrics.js')
+const { prisma }             = require('../config/database.js')
+const { asyncHandler }       = require('../utils/asyncHandler.js')
+const env                    = require('../config/env.js')
 
 const router = Router()
 
@@ -30,6 +33,9 @@ router.use('/quote-requests',     quoteRequestRoutes)
 router.use('/v1/deals',           dealRoutes)
 router.use('/v1/seller/deals',     sellerDealRoutes)
 router.use('/v1/admin',           adminDealRoutes)
+router.use('/v1/integrations',    require('./integration.routes.js'))
+router.use('/v1/integration',     require('./integration.routes.js'))
+router.use('/v1',                 require('./integration.routes.js'))
 
 /**
  * GET /api/health
@@ -44,18 +50,29 @@ router.use('/v1/admin',           adminDealRoutes)
  *
  * Health-check hits are suppressed from the request logger to avoid log noise.
  */
-router.get('/health', (req, res) => {
+router.get('/health', asyncHandler(async (req, res) => {
   const { version } = require('../../package.json')
 
-  res.json({
-    success: true,
+  let database = 'ok'
+  try {
+    await prisma.$queryRaw`SELECT 1`
+  } catch {
+    database = 'error'
+  }
+
+  const overallStatus = database === 'ok' ? 'ok' : 'degraded'
+
+  res.status(database === 'ok' ? 200 : 503).json({
+    success: database === 'ok',
     data: {
-      status:    'ok',
+      status: overallStatus,
+      database,
+      monitoring: env.sentryDsn ? 'sentry_configured' : 'logs_only',
       version,
       timestamp: new Date().toISOString(),
       ...getSnapshot(),
     },
   })
-})
+}))
 
 module.exports = router

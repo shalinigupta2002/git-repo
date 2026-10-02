@@ -5,7 +5,6 @@ const { AppError } = require('../utils/AppError.js')
 const env = require('../config/env.js')
 const logger = require('../config/logger.js')
 const { appendDealEvent, DEAL_EVENT_TYPES } = require('./dealEventService.js')
-const { applyDealTransition } = require('./dealLifecycleService.js')
 const { DEAL_INCLUDE } = require('./dealCreationService.js')
 const { USER_PUBLIC_SELECT } = require('./sellerProfileService.js')
 
@@ -221,6 +220,7 @@ async function markPaymentSuccessful(tx, payment, actorUserId, provider = DEFAUL
 /**
  * Unlock contact when both deal charge payments succeed.
  * Safe under concurrent payments — deal row must already be locked.
+ * Uses conditional updateMany so ACTIVE transition and unlock events occur at most once.
  * @param {import('@prisma/client').Prisma.TransactionClient} tx
  */
 async function unlockDealContactIfEligible(tx, deal, payments, actorUserId) {
@@ -228,13 +228,27 @@ async function unlockDealContactIfEligible(tx, deal, payments, actorUserId) {
     return deal
   }
 
-  const transitioned = await applyDealTransition(
-    tx,
-    deal,
-    'ACTIVE',
-    actorUserId,
-    'Both buyer and seller deal charges paid',
-  )
+  const fromStatus = deal.status
+  const statusResult = await tx.deal.updateMany({
+    where: {
+      id: deal.id,
+      status: 'PAYMENT_PENDING',
+    },
+    data: { status: 'ACTIVE' },
+  })
+
+  if (statusResult.count === 1) {
+    await appendDealEvent(tx, {
+      dealId: deal.id,
+      eventType: DEAL_EVENT_TYPES.STATUS_CHANGED,
+      actorId: actorUserId,
+      payload: {
+        fromStatus,
+        toStatus: 'ACTIVE',
+        note: 'Both buyer and seller deal charges paid',
+      },
+    })
+  }
 
   const unlockResult = await tx.deal.updateMany({
     where: {
@@ -250,7 +264,6 @@ async function unlockDealContactIfEligible(tx, deal, payments, actorUserId) {
   if (unlockResult.count === 0) {
     return tx.deal.findUnique({
       where: { id: deal.id },
-      include: { payments: true },
     })
   }
 
@@ -265,11 +278,9 @@ async function unlockDealContactIfEligible(tx, deal, payments, actorUserId) {
 
   logger.info({ dealId: deal.id, dealNumber: deal.dealNumber }, 'Deal contact unlocked')
 
-  return {
-    ...transitioned,
-    contactUnlockStatus: 'UNLOCKED',
-    contactUnlockedAt: new Date(),
-  }
+  return tx.deal.findUnique({
+    where: { id: deal.id },
+  })
 }
 
 /**

@@ -172,6 +172,23 @@ describe('register thunk', () => {
     expect(store.getState().auth.user).toEqual(newUser)
   })
 
+  it('rejected – surfaces registration disabled message from API', async () => {
+    authApi.registerRequest.mockRejectedValue(
+      new Error(
+        'Public registration is not available. Sign in with an existing account or contact support.',
+      ),
+    )
+    const store = makeStore()
+
+    const action = await store.dispatch(
+      register({ email: 'x@example.com', password: 'pass', role: 'BUYER' }),
+    )
+
+    expect(register.rejected.match(action)).toBe(true)
+    expect(action.payload).toMatch(/not available/i)
+    expect(store.getState().auth.user).toBeNull()
+  })
+
   it('rejected – stores error, user stays null', async () => {
     authApi.registerRequest.mockRejectedValue(new Error('Email already registered'))
     const store = makeStore()

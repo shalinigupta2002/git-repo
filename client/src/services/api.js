@@ -39,6 +39,24 @@ export function setUnauthorizedHandler(fn) {
   onUnauthorized = typeof fn === 'function' ? fn : () => {}
 }
 
+function readCsrfTokenFromDocument() {
+  if (typeof document === 'undefined') return ''
+  const match = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]+)/)
+  return match ? decodeURIComponent(match[1]) : ''
+}
+
+api.interceptors.request.use((config) => {
+  const method = String(config.method || 'get').toLowerCase()
+  if (['post', 'put', 'patch', 'delete'].includes(method)) {
+    const csrf = readCsrfTokenFromDocument()
+    if (csrf) {
+      config.headers = config.headers || {}
+      config.headers['X-CSRF-Token'] = csrf
+    }
+  }
+  return config
+})
+
 api.interceptors.response.use(
   (res) => res,
   (error) => {

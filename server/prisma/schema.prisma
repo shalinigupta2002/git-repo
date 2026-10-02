@@ -48,6 +48,9 @@ model User {
   rfqNotifications              RfqNotificationEvent[]
   subscriptions                 Subscription[]
 
+  @@index([isActive])
+  @@index([sellerSubscriptionStatus])
+  @@index([buyerSubscriptionStatus])
   @@map("users")
 }
 
@@ -96,7 +99,7 @@ model Payment {
   userId            String           @map("user_id")
   subscriptionId    String?          @map("subscription_id")
   razorpayOrderId   String           @unique @map("razorpay_order_id")
-  razorpayPaymentId String?          @map("razorpay_payment_id")
+  razorpayPaymentId String?          @unique @map("razorpay_payment_id")
   razorpaySignature String?          @map("razorpay_signature")
   plan              SubscriptionPlan
   amountPaise       Int              @map("amount_paise")

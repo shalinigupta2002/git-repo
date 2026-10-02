@@ -36,6 +36,22 @@ describe('profileSubscriptionService', () => {
       expect(card.plan).toBe('SELLER MONTHLY')
       expect(card.status).toBe('EXPIRED')
     })
+
+    test('future startsAt clears ACTIVE status (not yet entitled)', () => {
+      jest.useFakeTimers().setSystemTime(new Date('2026-06-01T12:00:00Z'))
+      const card = buildSubscriptionCard(
+        {
+          plan: 'BUYER_ANNUAL',
+          status: 'ACTIVE',
+          startsAt: new Date('2026-12-01'),
+          expiresAt: new Date('2027-12-01'),
+        },
+        null,
+        null,
+      )
+      expect(card.status).toBeNull()
+      jest.useRealTimers()
+    })
   })
 
   describe('formatPlanLabel', () => {

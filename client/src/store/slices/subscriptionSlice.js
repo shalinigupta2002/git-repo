@@ -1,7 +1,5 @@
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit'
 import { fetchSubscriptionStatus } from '../../services/subscription.service.js'
-import { setSellerSubscriptionActive, clearSellerSubscription } from '../../utils/sellerSubscription.js'
-import { setBuyerSubscriptionActive, clearBuyerSubscription } from '../../utils/buyerSubscription.js'
 import { logout, logoutUser } from './authSlice.js'
 
 export const loadSubscriptionStatus = createAsyncThunk(
@@ -43,8 +41,6 @@ const resetSubscriptionState = (state) => {
   state.subscriptions = []
   state.status = 'idle'
   state.error = null
-  clearSellerSubscription()
-  clearBuyerSubscription()
 }
 
 const subscriptionSlice = createSlice({
@@ -67,20 +63,16 @@ const subscriptionSlice = createSlice({
         state.hasSeller = true
         state.buyerPlanType = bundle.buyer
         state.sellerPlanType = bundle.seller
-        setBuyerSubscriptionActive()
-        setSellerSubscriptionActive()
         return
       }
 
       if (plan === 'SELLER_MONTHLY' || plan === 'SELLER_ANNUAL' || plan === 'SELLER_LIFETIME') {
         state.hasSeller = true
         state.sellerPlanType = plan
-        setSellerSubscriptionActive()
       }
       if (plan === 'BUYER_MONTHLY' || plan === 'BUYER_ANNUAL' || plan === 'BUYER_LIFETIME') {
         state.hasBuyer = true
         state.buyerPlanType = plan
-        setBuyerSubscriptionActive()
       }
     },
     resetSubscription(state) {
@@ -118,22 +110,15 @@ const subscriptionSlice = createSlice({
           (s) => s.plan === 'BUYER_MONTHLY' || s.plan === 'BUYER_ANNUAL' || s.plan === 'BUYER_LIFETIME',
         )
         state.buyerPlanType = buyerSub?.plan ?? null
-
-        // Keep localStorage in sync with authoritative server state
-        if (action.payload.hasSellerSubscription) {
-          setSellerSubscriptionActive()
-        } else {
-          clearSellerSubscription()
-        }
-        if (action.payload.hasBuyerSubscription) {
-          setBuyerSubscriptionActive()
-        } else {
-          clearBuyerSubscription()
-        }
       })
       .addCase(loadSubscriptionStatus.rejected, (state, action) => {
         state.status = 'failed'
         state.error = action.payload || 'Failed to load subscription'
+        state.hasSeller = false
+        state.hasBuyer = false
+        state.sellerPlanType = null
+        state.buyerPlanType = null
+        state.subscriptions = []
       })
       .addCase(logout, resetSubscriptionState)
       .addCase(logoutUser.fulfilled, resetSubscriptionState)
@@ -152,6 +137,12 @@ export function selectHasSellerSubscription(state) {
 }
 export function selectHasBuyerSubscription(state) {
   return state.subscription.hasBuyer
+}
+export function selectSubscriptionStatus(state) {
+  return state.subscription.status
+}
+export function selectSubscriptionError(state) {
+  return state.subscription.error
 }
 export function selectSellerPlanType(state) {
   return state.subscription.sellerPlanType

@@ -4,6 +4,7 @@ const authController = require('../controllers/authController.js')
 const { authenticate } = require('../middleware/authenticate.js')
 const { validate } = require('../middleware/validate.js')
 const { registerBody, loginBody } = require('../validators/auth.validator.js')
+const { requirePublicRegistration } = require('../middleware/requirePublicRegistration.js')
 
 const router = Router()
 
@@ -14,7 +15,13 @@ const authLimiter = rateLimit({
   legacyHeaders: false,
 })
 
-router.post('/register', authLimiter, validate(registerBody), authController.register)
+router.post(
+  '/register',
+  authLimiter,
+  requirePublicRegistration,
+  validate(registerBody),
+  authController.register,
+)
 router.post('/login', authLimiter, validate(loginBody), authController.login)
 router.get('/me', authenticate, authController.me)
 

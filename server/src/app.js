@@ -35,6 +35,8 @@ const env            = require('./config/env.js')
 const corsOptions    = require('./config/cors.js')
 const requestLogger  = require('./middleware/requestLogger.js')
 const { metricsMiddleware } = require('./middleware/metrics.js')
+const { csrfProtection } = require('./middleware/csrfProtection.js')
+const { handleRazorpayWebhook } = require('./controllers/subscriptionWebhookController.js')
 const routes         = require('./routes/index.js')
 const catalogRoutes  = require('./routes/catalog.routes.js')
 const { errorHandler, notFoundHandler } = require('./middleware/errorHandler.js')
@@ -65,8 +67,14 @@ app.use(requestLogger)     // attaches req.id, logs req+res pairs
 app.use(metricsMiddleware) // increments counters + records response times
 
 // ── Body parsing ──────────────────────────────────────────────────────────────
+app.post(
+  '/api/subscriptions/webhook',
+  express.raw({ type: 'application/json' }),
+  handleRazorpayWebhook,
+)
 app.use(express.json({ limit: '1mb' }))
 app.use(cookieParser())
+app.use(csrfProtection)
 
 // ── Uploaded contact attachments (disk in dev; DB fallback in production) ───
 app.get(

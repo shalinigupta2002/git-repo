@@ -33,6 +33,7 @@ function makeToken({ id = IDS.BUYER, email = 'test@example.com', role = 'BUYER' 
   return jwt.sign({ sub: id, email, role }, TEST_JWT_SECRET, {
     expiresIn: '1h',
     issuer: 'b2b-ecommerce-api',
+    algorithm: 'HS256',
   })
 }
 
@@ -43,7 +44,11 @@ function makeToken({ id = IDS.BUYER, email = 'test@example.com', role = 'BUYER' 
 function cookieFor(tokenOrOptions) {
   const token =
     typeof tokenOrOptions === 'string' ? tokenOrOptions : makeToken(tokenOrOptions)
-  return { Cookie: `auth_token=${token}` }
+  const csrf = process.env.TEST_CSRF_TOKEN || 'test-csrf-token-for-jest'
+  return {
+    Cookie: `auth_token=${token}; csrf_token=${csrf}`,
+    'X-CSRF-Token': csrf,
+  }
 }
 
 // ── Test-data factories ───────────────────────────────────────────────────────

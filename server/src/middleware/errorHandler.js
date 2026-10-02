@@ -2,6 +2,7 @@ const { AppError } = require('../utils/AppError.js')
 const { Prisma }   = require('@prisma/client')
 const env          = require('../config/env.js')
 const logger       = require('../config/logger.js')
+const { getCaptureException } = require('../config/monitoring.js')
 
 function errorHandler(err, req, res, next) {
   if (res.headersSent) {
@@ -61,6 +62,12 @@ function errorHandler(err, req, res, next) {
     { requestId: req.id, err },
     'Unhandled internal error',
   )
+
+  try {
+    getCaptureException()(err, { requestId: req.id })
+  } catch {
+    /* monitoring must not block error responses */
+  }
 
   const statusCode = err.statusCode || 500
   res.status(statusCode).json({

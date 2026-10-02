@@ -46,6 +46,7 @@ async function hasActiveSubscription(userId, type) {
       userId,
       plan: { in: plans },
       status: 'ACTIVE',
+      startsAt: { lte: now },
       OR: [
         { expiresAt: null },
         { expiresAt: { gt: now } },

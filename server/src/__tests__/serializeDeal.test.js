@@ -57,7 +57,10 @@ describe('serializeDeal contact privacy', () => {
     expect(serialized.seller.companyName).toBeUndefined()
     expect(serialized.seller.email).toBeUndefined()
     expect(serialized.seller.phone).toBeUndefined()
-    expect(serialized.seller.addressLine1).toBeUndefined()
+    expect(serialized.seller.address).toBeUndefined()
+    expect(serialized.seller.gst).toBeUndefined()
+    expect(serialized.seller.contactPerson).toBeUndefined()
+    expect(serialized.seller).not.toHaveProperty('id')
   })
 
   test('returns full counterparty profile when contact is UNLOCKED', () => {
@@ -70,9 +73,8 @@ describe('serializeDeal contact privacy', () => {
     expect(serialized.seller.companyName).toBe('Seller Co')
     expect(serialized.seller.email).toBe('seller@test.com')
     expect(serialized.seller.phone).toBe('9999999999')
-    expect(serialized.seller.addressLine1).toBe('12 Market Road')
-    expect(serialized.seller.state).toBe('Maharashtra')
-    expect(serialized.seller.postalCode).toBe('400001')
+    expect(serialized.seller.address).toBe('12 Market Road, Floor 2, Mumbai, Maharashtra, 400001')
+    expect(serialized.seller).not.toHaveProperty('id')
   })
 
   test('unlocks profile when contactUnlockOverride is true', () => {
@@ -84,5 +86,21 @@ describe('serializeDeal contact privacy', () => {
     expect(serialized.buyer.profileUnlocked).toBe(true)
     expect(serialized.buyer.companyName).toBe('Acme Corp')
     expect(serialized.buyer.email).toBe('contact@acme.test')
+  })
+
+  test('includes complete counterparty contact immediately after unlock in payment response shape', () => {
+    const deal = makeDeal({
+      contactUnlockStatus: 'UNLOCKED',
+      status: 'ACTIVE',
+    })
+    const serialized = serializeDeal(deal)
+
+    expect(serialized.contactUnlockStatus).toBe('UNLOCKED')
+    expect(serialized.buyer.email).toBe('contact@acme.test')
+    expect(serialized.buyer.phone).toBe('9999999999')
+    expect(serialized.buyer.companyName).toBe('Acme Corp')
+    expect(serialized.seller.email).toBe('seller@test.com')
+    expect(serialized.seller.companyName).toBe('Seller Co')
+    expect(serialized.seller.address).toContain('12 Market Road')
   })
 })

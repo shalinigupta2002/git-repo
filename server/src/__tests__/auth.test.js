@@ -15,6 +15,9 @@
 jest.mock('../config/database')
 jest.mock('../utils/audit')
 
+const jwt = require('jsonwebtoken')
+const env = require('../config/env.js')
+
 const { agent, makeToken, makeUser, IDS } = require('./helpers')
 const { prisma } = require('../config/database')
 const { hashPassword } = require('../utils/password')
@@ -183,6 +186,38 @@ describe('POST /api/auth/login', () => {
 
     expect(res.status).toBe(400)
   })
+
+  test('403 – deactivated user cannot login', async () => {
+    prisma.user.findUnique.mockResolvedValue({
+      ...BUYER,
+      passwordHash: BUYER_PASSWORD_HASH,
+      isActive: false,
+    })
+
+    const res = await agent.post('/api/auth/login').send({
+      email: 'buyer@example.com',
+      password: 'CorrectPassword1!',
+    })
+
+    expect(res.status).toBe(403)
+    expect(res.body.error.code).toBe('ACCOUNT_DEACTIVATED')
+  })
+
+  test('200 – login Set-Cookie includes HttpOnly auth_token', async () => {
+    prisma.user.findUnique.mockResolvedValue({
+      ...BUYER,
+      passwordHash: BUYER_PASSWORD_HASH,
+    })
+
+    const res = await agent.post('/api/auth/login').send({
+      email: 'buyer@example.com',
+      password: 'CorrectPassword1!',
+    })
+
+    const setCookie = (res.headers['set-cookie'] ?? []).join(';')
+    expect(setCookie).toMatch(/auth_token=/)
+    expect(setCookie.toLowerCase()).toMatch(/httponly/)
+  })
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -219,6 +254,21 @@ describe('GET /api/auth/me', () => {
     expect(res.body.error.code).toBe('INVALID_TOKEN')
   })
 
+  test('401 – expired JWT is rejected', async () => {
+    const token = jwt.sign(
+      { sub: BUYER.id, email: BUYER.email, role: BUYER.role },
+      env.jwtSecret,
+      { expiresIn: '-1s', issuer: 'b2b-ecommerce-api', algorithm: 'HS256' },
+    )
+
+    const res = await agent
+      .get('/api/auth/me')
+      .set('Cookie', `auth_token=${token}`)
+
+    expect(res.status).toBe(401)
+    expect(res.body.error.code).toBe('INVALID_TOKEN')
+  })
+
   test('401 – valid token but user deleted from DB', async () => {
     prisma.user.findUnique.mockResolvedValue(null) // user no longer exists
 
@@ -241,6 +291,18 @@ describe('GET /api/auth/me', () => {
 
     expect(res.status).toBe(200)
     expect(res.body.data.user.id).toBe(BUYER.id)
+  })
+
+  test('403 – deactivated user cannot use protected /auth/me', async () => {
+    prisma.user.findUnique.mockResolvedValue({ ...BUYER, isActive: false })
+
+    const token = makeToken({ id: BUYER.id, email: BUYER.email, role: BUYER.role })
+    const res = await agent
+      .get('/api/auth/me')
+      .set('Cookie', `auth_token=${token}`)
+
+    expect(res.status).toBe(403)
+    expect(res.body.error.code).toBe('ACCOUNT_DEACTIVATED')
   })
 })
 
@@ -265,3 +327,4 @@ describe('POST /api/auth/logout', () => {
     expect(res.status).toBe(200)
   })
 })
+

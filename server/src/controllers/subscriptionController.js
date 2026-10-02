@@ -97,9 +97,13 @@ function buildSubscriptionSummary(user, subscriptions, now) {
   let buyerPlan = null
   if (latestBuyerSub) {
     buyerPlan = latestBuyerSub.plan
-    buyerStatus = (latestBuyerSub.expiresAt && latestBuyerSub.expiresAt <= now)
-      ? 'EXPIRED'
-      : latestBuyerSub.status
+    if (latestBuyerSub.startsAt && latestBuyerSub.startsAt > now) {
+      buyerStatus = null
+    } else if (latestBuyerSub.expiresAt && latestBuyerSub.expiresAt <= now) {
+      buyerStatus = 'EXPIRED'
+    } else {
+      buyerStatus = latestBuyerSub.status
+    }
   } else if (user?.buyerSubscriptionPlan) {
     buyerPlan = user.buyerSubscriptionPlan
     buyerStatus = user.buyerSubscriptionStatus
@@ -109,9 +113,13 @@ function buildSubscriptionSummary(user, subscriptions, now) {
   let sellerPlan = null
   if (latestSellerSub) {
     sellerPlan = latestSellerSub.plan
-    sellerStatus = (latestSellerSub.expiresAt && latestSellerSub.expiresAt <= now)
-      ? 'EXPIRED'
-      : latestSellerSub.status
+    if (latestSellerSub.startsAt && latestSellerSub.startsAt > now) {
+      sellerStatus = null
+    } else if (latestSellerSub.expiresAt && latestSellerSub.expiresAt <= now) {
+      sellerStatus = 'EXPIRED'
+    } else {
+      sellerStatus = latestSellerSub.status
+    }
   } else if (user?.sellerSubscriptionPlan) {
     sellerPlan = user.sellerSubscriptionPlan
     sellerStatus = user.sellerSubscriptionStatus
@@ -219,140 +227,21 @@ const createOrder = asyncHandler(async (req, res) => {
 /** POST /api/subscriptions/verify */
 const verifyPayment = asyncHandler(async (req, res) => {
   const { razorpayOrderId, razorpayPaymentId, razorpaySignature } = req.body
-  const userId = req.user.id
+  const {
+    fulfillSubscriptionPayment,
+    formatFulfillmentResponse,
+  } = require('../services/subscriptionPaymentService.js')
 
-  const paymentCheck = await prisma.payment.findUnique({
-    where:  { razorpayOrderId },
-    select: { userId: true, status: true },
-  })
-  if (!paymentCheck) {
-    throw new AppError('Payment record not found', 404, 'NOT_FOUND')
-  }
-  if (paymentCheck.userId !== userId) {
-    throw new AppError('Forbidden', 403, 'FORBIDDEN')
-  }
-
-  const expectedSignature = crypto
-    .createHmac('sha256', env.razorpayKeySecret)
-    .update(`${razorpayOrderId}|${razorpayPaymentId}`)
-    .digest('hex')
-
-  if (expectedSignature !== razorpaySignature) {
-    await prisma.payment.updateMany({
-      where: { razorpayOrderId, status: 'PENDING' },
-      data:  { status: 'FAILED' },
-    })
-    throw new AppError('Payment signature verification failed', 400, 'INVALID_SIGNATURE')
-  }
-
-  const { subscriptions, alreadyPaid, bundle, user } = await prisma.$transaction(async (tx) => {
-    const payment = await tx.payment.findUnique({
-      where:  { razorpayOrderId },
-      select: { id: true, status: true, plan: true, subscriptionId: true },
-    })
-
-    if (payment.status === 'PAID') {
-      if (payment.subscriptionId) {
-        const linked = await tx.subscription.findUnique({
-          where:  { id: payment.subscriptionId },
-          select: {
-            id: true,
-            plan: true,
-            status: true,
-            startsAt: true,
-            expiresAt: true,
-          },
-        })
-        if (linked) {
-          const serializedUser = await applySubscriptionSync(tx, userId, [linked])
-          return {
-            subscriptions: [linked],
-            alreadyPaid:     true,
-            bundle:          isBundlePlan(payment.plan),
-            user: serializedUser,
-          }
-        }
-      }
-
-      const grantPlans = grantsForPlan(payment.plan).map((g) => g.plan)
-      const existing = await tx.subscription.findMany({
-        where: {
-          userId,
-          plan:   { in: grantPlans },
-          status: 'ACTIVE',
-        },
-        select: {
-          id: true,
-          plan: true,
-          status: true,
-          startsAt: true,
-          expiresAt: true,
-        },
-      })
-      if (existing.length) {
-        const serializedUser = await applySubscriptionSync(tx, userId, existing)
-        return {
-          subscriptions: existing,
-          alreadyPaid:     true,
-          bundle:          isBundlePlan(payment.plan),
-          user: serializedUser,
-        }
-      }
-    }
-
-    if (payment.status === 'FAILED') {
-      throw new AppError(
-        'This payment was marked as failed. Please start a new subscription payment.',
-        409,
-        'PAYMENT_FAILED',
-      )
-    }
-
-    const created = await createGrantsForPayment(tx, userId, payment.plan)
-
-    await tx.payment.update({
-      where: { razorpayOrderId },
-      data: {
-        razorpayPaymentId,
-        razorpaySignature,
-        status:         'PAID',
-        subscriptionId: created[0]?.id ?? null,
-      },
-    })
-
-    const serializedUser = await applySubscriptionSync(tx, userId, created)
-
-    return {
-      subscriptions: created,
-      alreadyPaid:     false,
-      bundle:        isBundlePlan(payment.plan),
-      user: serializedUser,
-    }
+  const result = await fulfillSubscriptionPayment({
+    razorpayOrderId,
+    razorpayPaymentId,
+    razorpaySignature,
+    expectedUserId: req.user.id,
   })
 
   res.json({
     success: true,
-    data: {
-      subscription:  subscriptions[0]
-        ? {
-            id:        subscriptions[0].id,
-            plan:      subscriptions[0].plan,
-            status:    subscriptions[0].status,
-            startsAt:  subscriptions[0].startsAt,
-            expiresAt: subscriptions[0].expiresAt,
-          }
-        : null,
-      subscriptions: subscriptions.map((s) => ({
-        id:        s.id,
-        plan:      s.plan,
-        status:    s.status,
-        startsAt:  s.startsAt,
-        expiresAt: s.expiresAt,
-      })),
-      bundle,
-      user,
-      ...(alreadyPaid ? { alreadyPaid: true } : {}),
-    },
+    data: formatFulfillmentResponse(result),
   })
 })
 

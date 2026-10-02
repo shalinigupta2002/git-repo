@@ -1,8 +1,5 @@
-import { hasActiveBuyerSubscription, isBuyerFreePath } from './buyerSubscription.js'
-import {
-  hasActiveSellerSubscription,
-  isSellerFreePath,
-} from './sellerSubscription.js'
+import { isBuyerFreePath } from './buyerSubscription.js'
+import { isSellerFreePath } from './sellerSubscription.js'
 
 export const PORTAL_HOME = '/portal'
 export const BUYER_DASHBOARD_PATH = '/buyer/dashboard'
@@ -16,12 +13,12 @@ export const PORTAL_PRIMARY_NAV = Object.freeze([
   { to: '/portal/contact-admin', label: 'Contact Admin' },
 ])
 
-export function canAccessBuyerWorkspace(role, hasBuyer = hasActiveBuyerSubscription()) {
+export function canAccessBuyerWorkspace(role, hasBuyer = false) {
   if (role === 'ADMIN') return true
   return Boolean(hasBuyer)
 }
 
-export function canAccessSellerWorkspace(role, hasSeller = hasActiveSellerSubscription()) {
+export function canAccessSellerWorkspace(role, hasSeller = false) {
   if (role === 'ADMIN') return true
   return Boolean(hasSeller)
 }
@@ -29,8 +26,8 @@ export function canAccessSellerWorkspace(role, hasSeller = hasActiveSellerSubscr
 /** Navbar / marketing dashboard destinations from role + active subscriptions. */
 export function dashboardNavOptions({
   role,
-  hasBuyer = hasActiveBuyerSubscription(),
-  hasSeller = hasActiveSellerSubscription(),
+  hasBuyer = false,
+  hasSeller = false,
 } = {}) {
   const options = []
   if (canAccessBuyerWorkspace(role, hasBuyer)) {
@@ -48,8 +45,8 @@ export function dashboardNavOptions({
  */
 export function marketingDashboardMenuOptions({
   role,
-  hasBuyer = hasActiveBuyerSubscription(),
-  hasSeller = hasActiveSellerSubscription(),
+  hasBuyer = false,
+  hasSeller = false,
 } = {}) {
   if (role === 'ADMIN') {
     return [{ to: '/admin', label: 'Admin Dashboard', locked: false }]
@@ -85,8 +82,8 @@ export function marketingDashboardMenuOptions({
 export function visiblePortalPrimaryNav(
   role,
   {
-    hasBuyer = hasActiveBuyerSubscription(),
-    hasSeller = hasActiveSellerSubscription(),
+    hasBuyer = false,
+    hasSeller = false,
     activeWorkspace = null,
   } = {},
 ) {
@@ -113,8 +110,8 @@ export function visiblePortalPrimaryNav(
 export function portalRoleLabel(
   role,
   {
-    hasBuyer = hasActiveBuyerSubscription(),
-    hasSeller = hasActiveSellerSubscription(),
+    hasBuyer = false,
+    hasSeller = false,
     activeWorkspace = null,
   } = {},
 ) {
@@ -136,8 +133,8 @@ export function roleDashboardPath(role) {
 
 export function primaryDashboardPath({
   role,
-  hasBuyer = hasActiveBuyerSubscription(),
-  hasSeller = hasActiveSellerSubscription(),
+  hasBuyer = false,
+  hasSeller = false,
 } = {}) {
   const options = dashboardNavOptions({ role, hasBuyer, hasSeller })
   return options[0]?.to ?? PORTAL_HOME
@@ -146,7 +143,7 @@ export function primaryDashboardPath({
 export function isPathAllowedForUser(
   user,
   path,
-  { hasBuyer = hasActiveBuyerSubscription(), hasSeller = hasActiveSellerSubscription() } = {},
+  { hasBuyer = false, hasSeller = false } = {},
 ) {
   if (!path || typeof path !== 'string') return false
   const role = user?.role
@@ -166,7 +163,7 @@ export function isPathAllowedForUser(
 }
 
 /** Nested links under Buyer Dashboard — premium items show as locked when unsubscribed. */
-export function visibleBuyerSubNav(hasSub = hasActiveBuyerSubscription()) {
+export function visibleBuyerSubNav(hasSub = false) {
   const items = [
     { to: '/buyer/dashboard', label: 'Dashboard', end: true },
     { to: '/products', label: 'Products' },
@@ -182,7 +179,7 @@ export function visibleBuyerSubNav(hasSub = hasActiveBuyerSubscription()) {
 }
 
 /** Nested links under Seller Dashboard — premium items show as locked when unsubscribed. */
-export function visibleSellerSubNav(hasSub = hasActiveSellerSubscription()) {
+export function visibleSellerSubNav(hasSub = false) {
   const items = [
     { to: '/seller/dashboard', label: 'Overview', end: true },
     { to: '/seller/products', label: 'Listed products' },

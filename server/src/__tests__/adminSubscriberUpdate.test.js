@@ -34,6 +34,19 @@ const existingUserRecord = {
 }
 
 describe('Admin Subscriber Expiry Edit APIs', () => {
+  test('L – BUYER cannot patch subscriber subscription (403 FORBIDDEN)', async () => {
+    const buyerToken = makeToken({ id: IDS.BUYER, role: 'BUYER', email: 'buyer@test.com' })
+
+    const res = await agent
+      .patch(`/api/admin/subscribers/${targetUserId}`)
+      .set(cookieFor(buyerToken))
+      .send({ buyerSubscriptionExpiresAt: new Date().toISOString() })
+
+    expect(res.status).toBe(403)
+    expect(res.body.error.code).toBe('FORBIDDEN')
+    expect(prisma.subscription.update).not.toHaveBeenCalled()
+  })
+
   beforeEach(() => {
     prisma.$transaction.mockImplementation(async (fn) => fn(prisma))
     prisma.user.findUnique.mockImplementation(async ({ where }) => {

@@ -58,13 +58,7 @@ function serializeDealChargeConfig(config) {
 function serializeDealParty(user, role, deal) {
   if (!user) return undefined
 
-  const profile = serializeCounterpartyUser(user, role, buildDealContactContext(deal))
-  if (!profile) return undefined
-
-  return {
-    id: user.id,
-    ...profile,
-  }
+  return serializeCounterpartyUser(user, role, buildDealContactContext(deal)) ?? undefined
 }
 
 function serializeDeal(deal) {

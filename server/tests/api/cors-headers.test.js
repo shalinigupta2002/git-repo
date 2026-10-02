@@ -1,5 +1,7 @@
 'use strict'
 
+jest.mock('../../src/config/database')
+
 jest.mock('../../src/services/shopCategoryDbService.js', () => ({
   fetchActiveCategoryTree: jest.fn(async () => [
     { id: 'electronics', label: 'Electronics', slug: 'electronics', children: [] },
@@ -27,19 +29,33 @@ jest.mock('../../src/config/env.js', () => ({
     'Accept',
     'Cache-Control',
     'X-Requested-With',
+    'X-CSRF-Token',
   ],
   clientUrls: [
     'https://git-repo-gilt.vercel.app',
     'https://git-repo-*.vercel.app',
   ],
   useCrossSiteCookies: true,
-  razorpayKeyId: '',
-  razorpayKeySecret: '',
+  razorpayKeyId: 'rzp_live_testmock',
+  razorpayKeySecret: 'live_secret_mock',
+  razorpayWebhookSecret: 'webhook_secret_mock',
+  integrationApiEnabled: false,
+  integrationAllowDevNegotiationStub: false,
+  integrationNegotiationVerifyUrl: '',
+  integrationS2sSharedSecret: '',
+  csrfProtectionEnabled: true,
+  enablePublicRegistration: false,
+  sentryDsn: '',
   mainPortalProfileEnabled: false,
   allowDummyDealPayments: false,
 }))
 
 const { agent } = require('../../src/__tests__/helpers')
+const { prisma } = require('../../src/config/database')
+
+beforeEach(() => {
+  prisma.$queryRaw.mockResolvedValue([{ ok: 1 }])
+})
 
 const ORIGIN = 'https://git-repo-gilt.vercel.app'
 

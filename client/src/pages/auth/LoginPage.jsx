@@ -92,7 +92,7 @@ export function LoginPage({ variant = 'default' }) {
     toast.success('Signed in successfully')
     let target = safeRedirectPath(user, from, subFlags) || PORTAL_HOME
     if (user.role !== 'ADMIN' && target.startsWith('/seller')) {
-      target = resolveSellerEntryPath(target)
+      target = resolveSellerEntryPath(target, subFlags.hasSeller)
     }
     navigate(target, { replace: true })
   }
@@ -153,7 +153,11 @@ export function LoginPage({ variant = 'default' }) {
             <p className="authFooterText">
               <Link to="/login">Standard sign in</Link>
             </p>
-          ) : null}
+          ) : (
+            <p className="authFooterText">
+              Need an account? <Link to="/register">Create account</Link>
+            </p>
+          )}
         </form>
       </div>
     </div>

@@ -7,7 +7,6 @@ import { useRazorpayCheckout } from '../../hooks/useRazorpayCheckout.js'
 import { useAppSelector } from '../../hooks/redux.js'
 import { selectUser } from '../../store/slices/authSlice.js'
 import { selectHasBuyerSubscription } from '../../store/slices/subscriptionSlice.js'
-import { hasActiveBuyerSubscription } from '../../utils/buyerSubscription.js'
 import {
   bothFlowBuyerPath,
   dashboardAfterBothComplete,
@@ -31,7 +30,7 @@ export function BuyerBothSellerPricing() {
   const onSubscribeCheckout = window.location.pathname.startsWith('/subscribe/')
 
   useEffect(() => {
-    if (hasBuyerSub || hasActiveBuyerSubscription()) return
+    if (hasBuyerSub) return
     toast.error('Complete the buyer payment first (step 1).')
     const buyerPlanParam = searchParams.get('buyerPlan')
     const buyerPlan =

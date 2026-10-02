@@ -11,6 +11,7 @@
 const env = require('./env.js')
 
 const COOKIE_NAME = 'auth_token'
+const CSRF_COOKIE_NAME = 'csrf_token'
 
 function authCookieOptions() {
   const crossSite = env.useCrossSiteCookies
@@ -32,8 +33,22 @@ function clearAuthCookieOptions() {
   return rest
 }
 
+function csrfCookieOptions() {
+  const crossSite = env.useCrossSiteCookies
+
+  return {
+    httpOnly: false,
+    secure: crossSite || env.nodeEnv === 'production',
+    sameSite: crossSite ? 'none' : 'lax',
+    path: '/',
+    ...(crossSite ? { partitioned: true } : {}),
+  }
+}
+
 module.exports = {
   COOKIE_NAME,
+  CSRF_COOKIE_NAME,
   authCookieOptions,
   clearAuthCookieOptions,
+  csrfCookieOptions,
 }

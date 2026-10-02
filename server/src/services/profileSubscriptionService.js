@@ -32,8 +32,12 @@ function pickLatestSubscription(subscriptions, planSet) {
 function buildSubscriptionCard(subscription, fallbackPlan, fallbackStatus) {
   const plan = subscription?.plan ?? fallbackPlan ?? null
   let status = subscription?.status ?? fallbackStatus ?? null
+  const now = new Date()
 
-  if (subscription?.expiresAt && new Date(subscription.expiresAt) <= new Date()) {
+  // Align with requireSubscription / buildSubscriptionSummary — future start is not active.
+  if (subscription?.startsAt && new Date(subscription.startsAt) > now) {
+    status = null
+  } else if (subscription?.expiresAt && new Date(subscription.expiresAt) <= now) {
     status = 'EXPIRED'
   }
 

@@ -3,8 +3,6 @@
  * ─────────────────────────────────────────────────────────────────────────────
  * Tests the reducer, sync actions, and loadSubscriptionStatus thunk.
  * The subscription service is mocked so no HTTP requests are made.
- * The localStorage helpers (sellerSubscription / buyerSubscription) are also
- * mocked to prevent side-effects on the real localStorage in test runs.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
@@ -12,16 +10,6 @@ import { configureStore } from '@reduxjs/toolkit'
 
 vi.mock('../services/subscription.service.js', () => ({
   fetchSubscriptionStatus: vi.fn(),
-}))
-
-vi.mock('../utils/sellerSubscription.js', () => ({
-  setSellerSubscriptionActive: vi.fn(),
-  clearSellerSubscription:     vi.fn(),
-}))
-
-vi.mock('../utils/buyerSubscription.js', () => ({
-  setBuyerSubscriptionActive: vi.fn(),
-  clearBuyerSubscription:     vi.fn(),
 }))
 
 import {
@@ -193,11 +181,14 @@ describe('loadSubscriptionStatus thunk', () => {
     fetchSubscriptionStatus.mockRejectedValue(new Error('Network error'))
 
     const store = makeStore()
+    store.dispatch(activateSubscription('BUYER_ANNUAL'))
     await store.dispatch(loadSubscriptionStatus())
     const state = store.getState().subscription
 
     expect(state.status).toBe('failed')
     expect(state.error).toBeTruthy()
+    expect(state.hasBuyer).toBe(false)
+    expect(state.hasSeller).toBe(false)
   })
 
   it('pending – sets status to loading', () => {

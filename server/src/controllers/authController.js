@@ -8,7 +8,12 @@ const { hashPassword, comparePassword } = require('../utils/password.js')
 
 const { signToken } = require('../utils/jwt.js')
 
-const { COOKIE_NAME, authCookieOptions, clearAuthCookieOptions } = require('../config/cookies.js')
+const { COOKIE_NAME, authCookieOptions, clearAuthCookieOptions, CSRF_COOKIE_NAME, csrfCookieOptions } = require('../config/cookies.js')
+const { generateCsrfToken } = require('../utils/csrf.js')
+
+function issueCsrfCookie(res) {
+  res.cookie(CSRF_COOKIE_NAME, generateCsrfToken(), csrfCookieOptions())
+}
 
 const { serializeUser, USER_SELECT } = require('../utils/serializeUser.js')
 
@@ -67,8 +72,7 @@ const register = asyncHandler(async (req, res) => {
 
 
   setAuthCookie(res, { sub: user.id, email: user.email, role: user.role })
-
-
+  issueCsrfCookie(res)
 
   res.status(201).json({
 
@@ -115,31 +119,23 @@ const login = asyncHandler(async (req, res) => {
 
 
   setAuthCookie(res, { sub: user.id, email: user.email, role: user.role })
-
-
+  issueCsrfCookie(res)
 
   res.json({
-
     success: true,
-
     data: { user: serializeUser(safeUser) },
-
   })
-
 })
 
 
 
 const me = asyncHandler(async (req, res) => {
+  issueCsrfCookie(res)
 
   res.json({
-
     success: true,
-
     data: { user: serializeUser(req.user) },
-
   })
-
 })
 
 

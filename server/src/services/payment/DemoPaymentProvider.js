@@ -11,6 +11,7 @@ class DemoPaymentProvider extends PaymentProvider {
 
   async processPayment(tx, { dealId, payerRole, actorUserId }) {
     const {
+      assertDummyPaymentAllowed,
       lockDealRow,
       markPaymentSuccessful,
       unlockDealContactIfEligible,
@@ -18,6 +19,7 @@ class DemoPaymentProvider extends PaymentProvider {
       getPaymentByRole,
     } = require('../dealPaymentService.js')
 
+    assertDummyPaymentAllowed()
     await lockDealRow(tx, dealId)
 
     const deal = await tx.deal.findUnique({

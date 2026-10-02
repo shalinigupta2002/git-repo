@@ -2,10 +2,10 @@ import { useEffect, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { BrandLogo } from '../components/common/BrandLogo.jsx'
 import { SidebarLogoutButton } from '../components/common/SidebarLogoutButton.jsx'
-import { hasActiveBuyerSubscription } from '../utils/buyerSubscription.js'
 import { useLogoutRedirect } from '../hooks/useAuth.js'
 import { useAppSelector } from '../hooks/redux.js'
 import { selectUser } from '../store/slices/authSlice.js'
+import { selectHasBuyerSubscription } from '../store/slices/subscriptionSlice.js'
 import { fetchContactUnreadCount } from '../services/contact.service.js'
 
 function SearchIcon() {
@@ -75,7 +75,7 @@ export function BuyerLayout() {
   const { pathname } = useLocation()
   const logout = useLogoutRedirect()
   const user = useAppSelector(selectUser)
-  const hasSub = hasActiveBuyerSubscription()
+  const hasSub = useAppSelector(selectHasBuyerSubscription)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [replyCount,  setReplyCount]  = useState(0)
 

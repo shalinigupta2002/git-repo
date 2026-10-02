@@ -41,16 +41,16 @@ describe('counterpartyProfileService', () => {
       expect(profile).not.toHaveProperty('companyName')
     })
 
-    it('unlocks full profile after deal accepted and charges paid', () => {
+    it('unlocks full profile when contactUnlockStatus is UNLOCKED', () => {
       const profile = serializeCounterpartyUser(sampleBuyer, 'BUYER', {
-        dealAccepted: true,
-        dealChargesPaid: true,
+        contactUnlockStatus: 'UNLOCKED',
       })
       expect(profile.portalUserId).toBe('USR-DEMO-000042')
       expect(profile.marketplaceId).toBe('USR-DEMO-000042')
       expect(profile.city).toBe('Mumbai')
       expect(profile.email).toBe('buyer@test.com')
       expect(profile.companyName).toBe('Acme Corp')
+      expect(profile.address).toBe('Secret St, Mumbai, MH')
       expect(profile.profileUnlocked).toBe(true)
     })
   })
@@ -84,17 +84,17 @@ describe('counterpartyProfileService', () => {
   })
 
   describe('isProfileUnlocked', () => {
-    it('requires both deal accepted and deal charges paid', () => {
-      expect(isProfileUnlocked({ dealAccepted: true, dealChargesPaid: false })).toBe(false)
-      expect(isProfileUnlocked({ dealAccepted: false, dealChargesPaid: true })).toBe(false)
-      expect(isProfileUnlocked({ dealAccepted: true, dealChargesPaid: true })).toBe(true)
+    it('requires contactUnlockStatus UNLOCKED or admin override', () => {
+      expect(isProfileUnlocked({ contactUnlockStatus: 'LOCKED' })).toBe(false)
+      expect(isProfileUnlocked({ contactUnlockStatus: 'UNLOCKED' })).toBe(true)
+      expect(isProfileUnlocked({ contactUnlockOverride: true })).toBe(true)
     })
   })
 
   describe('maskCounterpartyProfile', () => {
     it('strips empty optional fields from unlocked profile', () => {
       const full = buildFullPartyProfile(sampleSeller, 'SELLER')
-      const masked = maskCounterpartyProfile(full, { dealAccepted: true, dealChargesPaid: true })
+      const masked = maskCounterpartyProfile(full, { contactUnlockStatus: 'UNLOCKED' })
       expect(masked.gst).toBeUndefined()
       expect(masked.contactPerson).toBeUndefined()
     })

@@ -1,20 +1,24 @@
+import { useEffect, useRef } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth.js'
-import { useAppSelector } from '../hooks/redux.js'
-import { selectHasBuyerSubscription, selectHasSellerSubscription } from '../store/slices/subscriptionSlice.js'
+import { useAppDispatch, useAppSelector } from '../hooks/redux.js'
+import {
+  loadSubscriptionStatus,
+  selectHasBuyerSubscription,
+  selectHasSellerSubscription,
+  selectSubscriptionStatus,
+} from '../store/slices/subscriptionSlice.js'
 import { PageLoader } from '../components/ui/PageLoader.jsx'
 import {
   PORTAL_HOME,
-  SELLER_DASHBOARD_PATH,
   canAccessBuyerWorkspace,
   canAccessSellerWorkspace,
-  primaryDashboardPath,
   roleDashboardPath,
 } from '../utils/portalNav.js'
-import { hasActiveBuyerSubscription } from '../utils/buyerSubscription.js'
 import {
-  hasActiveSellerSubscription,
-} from '../utils/sellerSubscription.js'
+  hasSubscriptionEntitlement,
+  isSubscriptionStatusPending,
+} from '../utils/subscriptionEntitlement.js'
 import { setIntendedRoute } from '../utils/authStorage.js'
 
 /**
@@ -25,10 +29,9 @@ function dashboardForRole(role) {
   return roleDashboardPath(role) || PORTAL_HOME
 }
 
-function checkSubscription(kind) {
-  if (kind === 'buyer') return hasActiveBuyerSubscription()
-  if (kind === 'seller') return hasActiveSellerSubscription()
-  return true
+function needsSubscriptionLoad(user, workspace, subscription) {
+  if (!user || user.role === 'ADMIN') return false
+  return Boolean(workspace || subscription)
 }
 
 function SubscriptionExpiredOverlay() {
@@ -80,8 +83,8 @@ function SubscriptionExpiredOverlay() {
           boxShadow: '0 4px 6px -1px rgba(79, 70, 229, 0.2)',
           transition: 'all 0.2s'
         }}
-        onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#4338CA'}
-        onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#4F46E5'}
+        onMouseOver={(e) => { e.currentTarget.style.backgroundColor = '#4338CA' }}
+        onMouseOut={(e) => { e.currentTarget.style.backgroundColor = '#4F46E5' }}
       >
         Renew Subscription
       </a>
@@ -91,21 +94,6 @@ function SubscriptionExpiredOverlay() {
 
 /**
  * Single, composable route guard. Replaces per-concern guards.
- *
- * Props:
- *   - requireAuth (boolean, default true): block unauthenticated users.
- *   - roles (string[] | undefined): require the user's role to be in this list.
- *   - subscription ('buyer' | 'seller' | undefined): require an active plan.
- *   - guestOnly (boolean): if true, redirect already-authenticated users to
- *     their dashboard (used for /login, /register).
- *   - redirectTo (string): override the fallback redirect path for the
- *     unauthenticated case (e.g. send admin pages to `/admin/login`).
- *   - children: the protected tree.
- *
- * Behaviour:
- *   - Unauthenticated → redirect to `/login` (or `redirectTo`) and remember
- *     the intended destination so post-login redirect works.
- *   - Wrong role / missing subscription → redirect to `/unauthorized`.
  */
 export function ProtectedRoute({
   children,
@@ -117,9 +105,32 @@ export function ProtectedRoute({
   redirectTo,
 }) {
   const location = useLocation()
+  const dispatch = useAppDispatch()
   const { user, initialized, isAuthenticated } = useAuth()
   const hasBuyerSub = useAppSelector(selectHasBuyerSubscription)
   const hasSellerSub = useAppSelector(selectHasSellerSubscription)
+  const subscriptionStatus = useAppSelector(selectSubscriptionStatus)
+  const loadDispatched = useRef(false)
+
+  useEffect(() => {
+    loadDispatched.current = false
+  }, [user?.id])
+
+  useEffect(() => {
+    if (!isAuthenticated || !user) return
+    if (!needsSubscriptionLoad(user, workspace, subscription)) return
+    if (subscriptionStatus !== 'idle') return
+    if (loadDispatched.current) return
+    loadDispatched.current = true
+    dispatch(loadSubscriptionStatus())
+  }, [
+    dispatch,
+    isAuthenticated,
+    user,
+    workspace,
+    subscription,
+    subscriptionStatus,
+  ])
 
   if (!initialized) {
     return <PageLoader label="Loading session" />
@@ -144,6 +155,16 @@ export function ProtectedRoute({
     )
   }
 
+  const awaitingSubscription =
+    isAuthenticated &&
+    user &&
+    needsSubscriptionLoad(user, workspace, subscription) &&
+    isSubscriptionStatusPending(subscriptionStatus)
+
+  if (awaitingSubscription) {
+    return <PageLoader label="Loading subscription" />
+  }
+
   if (workspace === 'buyer' && user && !canAccessBuyerWorkspace(user.role, hasBuyerSub)) {
     return <Navigate to="/pricing" replace state={{ from: location, reason: 'subscription' }} />
   }
@@ -156,8 +177,15 @@ export function ProtectedRoute({
     return <Navigate to="/unauthorized" replace state={{ from: location }} />
   }
 
-  if (subscription && !checkSubscription(subscription)) {
-    return <SubscriptionExpiredOverlay />
+  if (subscription) {
+    const entitled = hasSubscriptionEntitlement(subscription, {
+      hasBuyer: hasBuyerSub,
+      hasSeller: hasSellerSub,
+      status: subscriptionStatus,
+    })
+    if (entitled === false) {
+      return <SubscriptionExpiredOverlay />
+    }
   }
 
   return children

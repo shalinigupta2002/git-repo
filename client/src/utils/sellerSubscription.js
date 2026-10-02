@@ -1,5 +1,3 @@
-const SELLER_SUB_KEY = 'seller_subscription_active'
-
 /** Paths available to sellers without an active subscription. */
 export const SELLER_FREE_PATHS = Object.freeze([
   '/seller/dashboard',
@@ -10,10 +8,6 @@ export const SELLER_FREE_PATHS = Object.freeze([
 
 export const SELLER_SUBSCRIBE_MESSAGE =
   'Subscribe to unlock deals, quotations, and advanced seller tools. Product listing stays free.'
-
-export function hasActiveSellerSubscription() {
-  return localStorage.getItem(SELLER_SUB_KEY) === '1'
-}
 
 export function isSellerFreePath(pathname) {
   if (!pathname) return false
@@ -30,20 +24,14 @@ export function defaultSellerHomePath() {
 /**
  * For unsubscribed sellers, only free-tier listing flows are reachable; other paths fall back.
  * Subscribed sellers and non-matching paths return `requestedPath` unchanged.
+ * @param {string} requestedPath
+ * @param {boolean} hasSellerSubscription — from Redux / GET /api/subscriptions/status
  */
-export function resolveSellerEntryPath(requestedPath) {
+export function resolveSellerEntryPath(requestedPath, hasSellerSubscription = false) {
   if (!requestedPath) return defaultSellerHomePath()
   if (requestedPath === '/seller/welcome' || requestedPath.startsWith('/seller/welcome/')) {
     return requestedPath
   }
-  if (hasActiveSellerSubscription()) return requestedPath
+  if (hasSellerSubscription) return requestedPath
   return isSellerFreePath(requestedPath) ? requestedPath : defaultSellerHomePath()
-}
-
-export function setSellerSubscriptionActive() {
-  localStorage.setItem(SELLER_SUB_KEY, '1')
-}
-
-export function clearSellerSubscription() {
-  localStorage.removeItem(SELLER_SUB_KEY)
 }

@@ -1,8 +1,11 @@
 const app    = require('./app.js')
 const env    = require('./config/env.js')
 const logger = require('./config/logger.js')
+const { initMonitoring } = require('./config/monitoring.js')
 const { prisma } = require('./config/database.js')
 const { pool }   = require('./db/pool.js')
+
+initMonitoring()
 
 // ─── Startup ──────────────────────────────────────────────────────────────────
 

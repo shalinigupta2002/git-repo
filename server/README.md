@@ -42,7 +42,7 @@ Base URL: `/api`
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | GET | `/health` | — | Liveness |
-| POST | `/auth/register` | — | Register as `BUYER` or `SELLER` |
+| POST | `/auth/register` | — | Register as `BUYER` or `SELLER` (disabled in production unless `ENABLE_PUBLIC_REGISTRATION=true`) |
 | POST | `/auth/login` | — | Login, returns JWT |
 | GET | `/auth/me` | JWT | Current user |
 | GET | `/products` | Optional | List products (pagination, `search`, `sellerId`, `mine`, `includeInactive` for seller/admin) |

@@ -17,8 +17,13 @@ jest.mock('../utils/audit')
 // Mock Razorpay constructor so no real API calls are made
 jest.mock('razorpay', () => {
   const mockOrders = { create: jest.fn() }
-  const RazorpayMock = jest.fn().mockImplementation(() => ({ orders: mockOrders }))
+  const mockPayments = { fetch: jest.fn() }
+  const RazorpayMock = jest.fn().mockImplementation(() => ({
+    orders: mockOrders,
+    payments: mockPayments,
+  }))
   RazorpayMock._mockOrders = mockOrders
+  RazorpayMock._mockPayments = mockPayments
   return RazorpayMock
 })
 
@@ -53,6 +58,7 @@ beforeEach(() => {
   prisma.$transaction.mockImplementation(async (fn) => fn(prisma))
   // Reset Razorpay mock between tests
   Razorpay._mockOrders.create.mockReset()
+  Razorpay._mockPayments.fetch.mockReset()
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -236,15 +242,25 @@ describe('POST /api/subscriptions/verify', () => {
       sellerSubscriptionActivatedAt: null,
     }
 
+    Razorpay._mockPayments.fetch.mockResolvedValue({
+      amount: PENDING_PAYMENT.amountPaise,
+      currency: PENDING_PAYMENT.currency,
+    })
+
     prisma.user.findUnique.mockImplementation(() => Promise.resolve(storedUser))
     prisma.user.update.mockImplementation(({ data }) => {
       storedUser = { ...storedUser, ...data }
       return Promise.resolve(storedUser)
     })
     prisma.payment.findUnique
-      .mockResolvedValueOnce({ userId: BUYER.id, status: 'PENDING' })
+      .mockResolvedValueOnce({
+        userId: BUYER.id,
+        status: 'PENDING',
+        amountPaise: PENDING_PAYMENT.amountPaise,
+        currency: PENDING_PAYMENT.currency,
+      })
       .mockResolvedValueOnce(PENDING_PAYMENT)
-    prisma.payment.updateMany.mockResolvedValue({ count: 0 })
+    prisma.payment.updateMany.mockResolvedValue({ count: 1 })
     prisma.subscription.create.mockResolvedValue(ACTIVE_SUB)
     prisma.payment.update.mockResolvedValue({})
 
@@ -264,7 +280,12 @@ describe('POST /api/subscriptions/verify', () => {
 
   test('400 – tampered signature is rejected (INVALID_SIGNATURE)', async () => {
     prisma.user.findUnique.mockResolvedValue(BUYER)
-    prisma.payment.findUnique.mockResolvedValue({ userId: BUYER.id, status: 'PENDING' })
+    prisma.payment.findUnique.mockResolvedValue({
+      userId: BUYER.id,
+      status: 'PENDING',
+      amountPaise: PENDING_PAYMENT.amountPaise,
+      currency: PENDING_PAYMENT.currency,
+    })
     prisma.payment.updateMany.mockResolvedValue({ count: 1 })
 
     const res = await agent
@@ -293,7 +314,12 @@ describe('POST /api/subscriptions/verify', () => {
     prisma.user.findUnique.mockResolvedValue(userRecord)
     prisma.user.update.mockResolvedValue(userRecord)
     prisma.payment.findUnique
-      .mockResolvedValueOnce({ userId: BUYER.id, status: 'PAID' })
+      .mockResolvedValueOnce({
+        userId: BUYER.id,
+        status: 'PAID',
+        amountPaise: PAID_PAYMENT.amountPaise,
+        currency: PAID_PAYMENT.currency,
+      })
       .mockResolvedValueOnce(PAID_PAYMENT)
     prisma.subscription.findUnique.mockResolvedValue(ACTIVE_SUB)
 
@@ -304,6 +330,7 @@ describe('POST /api/subscriptions/verify', () => {
 
     expect(res.status).toBe(200)
     expect(res.body.data.alreadyPaid).toBe(true)
+    expect(Razorpay._mockPayments.fetch).not.toHaveBeenCalled()
     expect(res.body.data.subscription.id).toBe(ACTIVE_SUB.id)
     expect(res.body.data.user?.portalUserId).toBe('USR-DEMO-000001')
     expect(res.body.data.user?.buyerMarketplaceId).toBe('USR-DEMO-000001')
@@ -315,8 +342,13 @@ describe('POST /api/subscriptions/verify', () => {
 
     prisma.user.findUnique.mockResolvedValue(BUYER)
     prisma.payment.findUnique
-      .mockResolvedValueOnce({ userId: BUYER.id, status: 'FAILED' }) // pre-check
-      .mockResolvedValueOnce(failedPayment)                           // inside tx
+      .mockResolvedValueOnce({
+        userId: BUYER.id,
+        status: 'FAILED',
+        amountPaise: failedPayment.amountPaise,
+        currency: failedPayment.currency,
+      }) // pre-check
+      .mockResolvedValueOnce(failedPayment) // inside tx
 
     const res = await agent
       .post('/api/subscriptions/verify')
@@ -346,7 +378,12 @@ describe('POST /api/subscriptions/verify', () => {
 
     prisma.user.findUnique.mockResolvedValue(otherBuyer)
     // payment.userId = BUYER.id, but the requester is otherBuyer
-    prisma.payment.findUnique.mockResolvedValue({ userId: BUYER.id, status: 'PENDING' })
+    prisma.payment.findUnique.mockResolvedValue({
+      userId: BUYER.id,
+      status: 'PENDING',
+      amountPaise: PENDING_PAYMENT.amountPaise,
+      currency: PENDING_PAYMENT.currency,
+    })
 
     const res = await agent
       .post('/api/subscriptions/verify')
@@ -432,5 +469,322 @@ describe('GET /api/subscriptions/status', () => {
     const res = await agent.get('/api/subscriptions/status')
 
     expect(res.status).toBe(401)
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/subscriptions/webhook
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('POST /api/subscriptions/webhook', () => {
+  const RZP_ORDER_ID = 'rzp_order_WEBHOOK'
+  const RZP_PAYMENT_ID = 'pay_WEBHOOK123'
+  const WEBHOOK_SECRET = process.env.RAZORPAY_WEBHOOK_SECRET
+
+  function webhookSignature(body) {
+    return crypto
+      .createHmac('sha256', WEBHOOK_SECRET)
+      .update(body)
+      .digest('hex')
+  }
+
+  function capturedPayload(overrides = {}) {
+    return JSON.stringify({
+      event: 'payment.captured',
+      payload: {
+        payment: {
+          entity: {
+            id: RZP_PAYMENT_ID,
+            order_id: RZP_ORDER_ID,
+            amount: PENDING_PAYMENT.amountPaise,
+            currency: PENDING_PAYMENT.currency,
+            ...overrides,
+          },
+        },
+      },
+    })
+  }
+
+  const PENDING_PAYMENT = makePayment({
+    razorpayOrderId: RZP_ORDER_ID,
+    userId: BUYER.id,
+    status: 'PENDING',
+  })
+
+  const ACTIVE_SUB = makeSubscription({ id: 'sub-webhook-001', plan: 'BUYER_ANNUAL' })
+
+  test('200 – valid webhook signature activates subscription', async () => {
+    const body = capturedPayload()
+    const sig = webhookSignature(body)
+
+    let storedUser = {
+      ...BUYER,
+      portalUserId: null,
+      buyerSubscriptionStatus: null,
+      buyerSubscriptionPlan: null,
+      sellerSubscriptionStatus: null,
+      sellerSubscriptionPlan: null,
+      buyerSubscriptionActivatedAt: null,
+      sellerSubscriptionActivatedAt: null,
+    }
+
+    prisma.payment.findUnique
+      .mockResolvedValueOnce({
+        userId: BUYER.id,
+        status: 'PENDING',
+        amountPaise: PENDING_PAYMENT.amountPaise,
+        currency: PENDING_PAYMENT.currency,
+      })
+      .mockResolvedValueOnce({
+        id: PENDING_PAYMENT.id,
+        status: 'PENDING',
+        plan: 'BUYER_ANNUAL',
+        subscriptionId: null,
+        amountPaise: PENDING_PAYMENT.amountPaise,
+        currency: PENDING_PAYMENT.currency,
+      })
+    prisma.user.findUnique.mockImplementation(() => Promise.resolve(storedUser))
+    prisma.user.update.mockImplementation(({ data }) => {
+      storedUser = { ...storedUser, ...data }
+      return Promise.resolve(storedUser)
+    })
+    prisma.payment.updateMany.mockResolvedValue({ count: 1 })
+    prisma.subscription.create.mockResolvedValue(ACTIVE_SUB)
+    prisma.payment.update.mockResolvedValue({})
+
+    const res = await agent
+      .post('/api/subscriptions/webhook')
+      .set('Content-Type', 'application/json')
+      .set('X-Razorpay-Signature', sig)
+      .send(body)
+
+    expect(res.status).toBe(200)
+    expect(res.body.data.processed).toBe(true)
+    expect(prisma.subscription.create).toHaveBeenCalledTimes(1)
+    expect(Razorpay._mockPayments.fetch).not.toHaveBeenCalled()
+  })
+
+  test('200 – duplicate webhook delivery is idempotent (no second grant)', async () => {
+    const body = capturedPayload()
+    const sig = webhookSignature(body)
+
+    let storedUser = {
+      ...BUYER,
+      portalUserId: null,
+      buyerSubscriptionStatus: null,
+      buyerSubscriptionPlan: null,
+      sellerSubscriptionStatus: null,
+      sellerSubscriptionPlan: null,
+      sellerSubscriptionActivatedAt: null,
+      buyerSubscriptionActivatedAt: null,
+    }
+
+    prisma.payment.findUnique
+      .mockResolvedValueOnce({
+        userId: BUYER.id,
+        status: 'PENDING',
+        amountPaise: PENDING_PAYMENT.amountPaise,
+        currency: PENDING_PAYMENT.currency,
+      })
+      .mockResolvedValueOnce({
+        id: PENDING_PAYMENT.id,
+        status: 'PENDING',
+        plan: 'BUYER_ANNUAL',
+        subscriptionId: null,
+        amountPaise: PENDING_PAYMENT.amountPaise,
+        currency: PENDING_PAYMENT.currency,
+      })
+    prisma.user.findUnique.mockImplementation(() => Promise.resolve(storedUser))
+    prisma.user.update.mockImplementation(({ data }) => {
+      storedUser = { ...storedUser, ...data }
+      return Promise.resolve(storedUser)
+    })
+    prisma.payment.updateMany.mockResolvedValue({ count: 1 })
+    prisma.subscription.create.mockResolvedValue(ACTIVE_SUB)
+    prisma.payment.update.mockResolvedValue({})
+
+    const first = await agent
+      .post('/api/subscriptions/webhook')
+      .set('Content-Type', 'application/json')
+      .set('X-Razorpay-Signature', sig)
+      .send(body)
+
+    expect(first.status).toBe(200)
+    expect(first.body.data.processed).toBe(true)
+    expect(prisma.subscription.create).toHaveBeenCalledTimes(1)
+
+    prisma.payment.findUnique
+      .mockResolvedValueOnce({
+        userId: BUYER.id,
+        status: 'PAID',
+        amountPaise: PENDING_PAYMENT.amountPaise,
+        currency: PENDING_PAYMENT.currency,
+      })
+      .mockResolvedValueOnce({
+        id: 'pay-uuid-webhook',
+        status: 'PAID',
+        plan: 'BUYER_ANNUAL',
+        subscriptionId: ACTIVE_SUB.id,
+        amountPaise: PENDING_PAYMENT.amountPaise,
+        currency: PENDING_PAYMENT.currency,
+      })
+    prisma.user.findUnique.mockResolvedValue({
+      ...BUYER,
+      portalUserId: 'USR-DEMO-000001',
+      buyerSubscriptionStatus: 'ACTIVE',
+      buyerSubscriptionPlan: 'BUYER_ANNUAL',
+      buyerSubscriptionActivatedAt: new Date(),
+      sellerSubscriptionActivatedAt: null,
+    })
+    prisma.subscription.findUnique.mockResolvedValue(ACTIVE_SUB)
+
+    const second = await agent
+      .post('/api/subscriptions/webhook')
+      .set('Content-Type', 'application/json')
+      .set('X-Razorpay-Signature', sig)
+      .send(body)
+
+    expect(second.status).toBe(200)
+    expect(second.body.data.alreadyPaid).toBe(true)
+    expect(prisma.subscription.create).toHaveBeenCalledTimes(1)
+  })
+
+  test('400 – invalid webhook signature rejected', async () => {
+    const body = capturedPayload()
+
+    const res = await agent
+      .post('/api/subscriptions/webhook')
+      .set('Content-Type', 'application/json')
+      .set('X-Razorpay-Signature', 'invalid-signature')
+      .send(body)
+
+    expect(res.status).toBe(400)
+    expect(res.body.error.code).toBe('INVALID_WEBHOOK_SIGNATURE')
+  })
+
+  test('400 – webhook with wrong capture amount does not fulfill', async () => {
+    const body = capturedPayload({ amount: PENDING_PAYMENT.amountPaise - 100 })
+    const sig = webhookSignature(body)
+
+    prisma.payment.findUnique
+      .mockResolvedValueOnce({
+        userId: BUYER.id,
+        status: 'PENDING',
+        amountPaise: PENDING_PAYMENT.amountPaise,
+        currency: PENDING_PAYMENT.currency,
+      })
+      .mockResolvedValueOnce({
+        id: PENDING_PAYMENT.id,
+        status: 'PENDING',
+        plan: 'BUYER_ANNUAL',
+        subscriptionId: null,
+        amountPaise: PENDING_PAYMENT.amountPaise,
+        currency: PENDING_PAYMENT.currency,
+      })
+
+    const res = await agent
+      .post('/api/subscriptions/webhook')
+      .set('Content-Type', 'application/json')
+      .set('X-Razorpay-Signature', sig)
+      .send(body)
+
+    expect(res.status).toBe(400)
+    expect(res.body.error.code).toBe('PAYMENT_AMOUNT_MISMATCH')
+    expect(prisma.subscription.create).not.toHaveBeenCalled()
+    expect(prisma.payment.update).not.toHaveBeenCalled()
+  })
+
+  test('400 – webhook with wrong currency does not fulfill', async () => {
+    const body = capturedPayload({ currency: 'USD' })
+    const sig = webhookSignature(body)
+
+    prisma.payment.findUnique
+      .mockResolvedValueOnce({
+        userId: BUYER.id,
+        status: 'PENDING',
+        amountPaise: PENDING_PAYMENT.amountPaise,
+        currency: PENDING_PAYMENT.currency,
+      })
+      .mockResolvedValueOnce({
+        id: PENDING_PAYMENT.id,
+        status: 'PENDING',
+        plan: 'BUYER_ANNUAL',
+        subscriptionId: null,
+        amountPaise: PENDING_PAYMENT.amountPaise,
+        currency: PENDING_PAYMENT.currency,
+      })
+
+    const res = await agent
+      .post('/api/subscriptions/webhook')
+      .set('Content-Type', 'application/json')
+      .set('X-Razorpay-Signature', sig)
+      .send(body)
+
+    expect(res.status).toBe(400)
+    expect(res.body.error.code).toBe('PAYMENT_CURRENCY_MISMATCH')
+    expect(prisma.subscription.create).not.toHaveBeenCalled()
+  })
+
+  test('200 – webhook for unknown order is ignored safely', async () => {
+    const body = capturedPayload()
+    const sig = webhookSignature(body)
+
+    prisma.payment.findUnique.mockResolvedValue(null)
+
+    const res = await agent
+      .post('/api/subscriptions/webhook')
+      .set('Content-Type', 'application/json')
+      .set('X-Razorpay-Signature', sig)
+      .send(body)
+
+    expect(res.status).toBe(200)
+    expect(res.body.data.ignored).toBe(true)
+    expect(res.body.data.reason).toBe('payment_not_found')
+    expect(prisma.subscription.create).not.toHaveBeenCalled()
+  })
+})
+
+describe('POST /api/subscriptions/verify amount validation', () => {
+  const RZP_ORDER_ID = 'rzp_order_VERIFY_AMT'
+  const RZP_PAYMENT_ID = 'pay_VERIFY_AMT'
+  const VALID_SIG = makeValidSignature(RZP_ORDER_ID, RZP_PAYMENT_ID)
+
+  const PENDING_PAYMENT = makePayment({
+    razorpayOrderId: RZP_ORDER_ID,
+    userId: BUYER.id,
+    amountPaise: 999900,
+    currency: 'INR',
+    status: 'PENDING',
+  })
+
+  test('400 – verify rejects when Razorpay capture amount (paise) mismatches server order', async () => {
+    Razorpay._mockPayments.fetch.mockResolvedValue({
+      amount: 100,
+      currency: 'INR',
+    })
+
+    prisma.user.findUnique.mockResolvedValue(BUYER)
+    prisma.payment.findUnique
+      .mockResolvedValueOnce({
+        userId: BUYER.id,
+        status: 'PENDING',
+        amountPaise: PENDING_PAYMENT.amountPaise,
+        currency: PENDING_PAYMENT.currency,
+      })
+      .mockResolvedValueOnce(PENDING_PAYMENT)
+
+    const res = await agent
+      .post('/api/subscriptions/verify')
+      .set(cookieFor(buyerToken))
+      .send({
+        razorpayOrderId: RZP_ORDER_ID,
+        razorpayPaymentId: RZP_PAYMENT_ID,
+        razorpaySignature: VALID_SIG,
+      })
+
+    expect(res.status).toBe(400)
+    expect(res.body.error.code).toBe('PAYMENT_AMOUNT_MISMATCH')
+    expect(Razorpay._mockPayments.fetch).toHaveBeenCalledWith(RZP_PAYMENT_ID)
+    expect(prisma.subscription.create).not.toHaveBeenCalled()
   })
 })

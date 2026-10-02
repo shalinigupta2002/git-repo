@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { hasActiveBuyerSubscription } from '../../utils/buyerSubscription.js'
 import { listOrders } from '../../services/order.service.js'
 import { fetchRfqStats } from '../../services/quoteRequest.service.js'
 import { useAuth } from '../../hooks/useAuth.js'
 import { useAppSelector } from '../../hooks/redux.js'
-import { selectPortalUserId } from '../../store/slices/subscriptionSlice.js'
+import {
+  selectHasBuyerSubscription,
+  selectPortalUserId,
+} from '../../store/slices/subscriptionSlice.js'
 import { UserIdDisplay, ProfileLinkHint } from '../../components/common/MarketplaceIdDisplay.jsx'
 import { Spinner } from '../../components/ui/Spinner.jsx'
 
@@ -24,7 +26,7 @@ function formatAmount(v, currency = 'INR') {
 }
 
 export function BuyerDashboard() {
-  const hasSub = hasActiveBuyerSubscription()
+  const hasSub = useAppSelector(selectHasBuyerSubscription)
   const { user } = useAuth()
   const portalUserId = useAppSelector(selectPortalUserId) ?? user?.portalUserId
   const [stats, setStats] = useState({ total: 0, active: 0, spend: 0, unlocked: 0, paidCharges: 0, loading: true, error: '' })

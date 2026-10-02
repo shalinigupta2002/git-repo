@@ -45,6 +45,9 @@ const CancellationRefundsPage = lazy(() =>
 const LoginPage = lazy(() =>
   import('../pages/auth/LoginPage.jsx').then((m) => ({ default: m.LoginPage })),
 )
+const RegisterPage = lazy(() =>
+  import('../pages/auth/RegisterPage.jsx').then((m) => ({ default: m.RegisterPage })),
+)
 
 const UserPortalLayout = lazy(() =>
   import('../layouts/UserPortalLayout.jsx').then((m) => ({ default: m.UserPortalLayout })),
@@ -230,7 +233,11 @@ export function AppRoutes() {
         />
         <Route
           path="/register"
-          element={<Navigate to="/login" replace />}
+          element={
+            <ProtectedRoute guestOnly>
+              <RegisterPage />
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/admin/login"

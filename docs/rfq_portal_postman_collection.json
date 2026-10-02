@@ -1,0 +1,361 @@
+{
+  "info": {
+    "_postman_id": "a9dbf3df-128a-40a2-aa9d-1283fb519e4a",
+    "name": "RFQ Portal ↔ Auction Portal Integration API",
+    "description": "Integration testing endpoints for the B2B RFQ Portal. Created to support the Auction Portal development team.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"buyer.premium1@test.com\",\n  \"password\": \"Buyer@123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Login endpoint using B2B credentials. Establishes the HTTP cookie session automatically."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Product Catalog",
+      "item": [
+        {
+          "name": "Get Product Catalog (Unified)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/v1/products?page=1&limit=10&sortBy=price&sortOrder=desc",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "products"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "q",
+                  "value": "iPhone",
+                  "disabled": true
+                },
+                {
+                  "key": "sku",
+                  "value": "E2E-MOB-002",
+                  "disabled": true
+                },
+                {
+                  "key": "category",
+                  "value": "Electronics",
+                  "disabled": true
+                },
+                {
+                  "key": "brand",
+                  "value": "Apple",
+                  "disabled": true
+                },
+                {
+                  "key": "sortBy",
+                  "value": "price"
+                },
+                {
+                  "key": "sortOrder",
+                  "value": "desc"
+                }
+              ]
+            },
+            "description": "Retrieve products from B2B master listing. Supports search, page limits, sorting, category, and brand filtering."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Product Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/v1/products/02a41116-13b7-4b31-bf6a-30451f5e8f53",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "products",
+                "02a41116-13b7-4b31-bf6a-30451f5e8f53"
+              ]
+            },
+            "description": "Get detailed specifications of a product from master catalog."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Product Eligible Sellers",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/v1/products/02a41116-13b7-4b31-bf6a-30451f5e8f53/eligible-sellers",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "products",
+                "02a41116-13b7-4b31-bf6a-30451f5e8f53",
+                "eligible-sellers"
+              ]
+            },
+            "description": "Fetches active, subscribed sellers who supply products matching the category/brand of the specified item."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Product Categories",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/v1/categories",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "categories"
+              ]
+            },
+            "description": "Get flat list of category structures."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "User & Seller Directory",
+      "item": [
+        {
+          "name": "Get Eligible Users",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/v1/users/eligible?page=1&limit=10",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "users",
+                "eligible"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "city",
+                  "value": "Mumbai",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Fetch eligible active B2B users with basic company structures."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Eligible Sellers (Masked)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/v1/sellers/eligible?page=1&limit=10",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "sellers",
+                "eligible"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "city",
+                  "value": "Pune",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Fetch active, verified sellers who possess active, unexpired seller subscriptions. Outputs anonymous fields only."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Basic User Profile",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/v1/users/ebfbe645-bcf5-4410-b4b3-18556ebc9c28/profile",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "users",
+                "ebfbe645-bcf5-4410-b4b3-18556ebc9c28",
+                "profile"
+              ]
+            },
+            "description": "Fetch basic read-only profile properties for a user ID."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Supplier PII Profile (Secure Context Check)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Auction-Context-Id",
+                "value": "a7c234a9-83bc-42fe-bd12-f04b1239aa82",
+                "description": "Simulated Active Negotiation context ID"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/v1/suppliers/56493079-1eca-47a3-ba8b-a0af4ef8fabd/profile",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "suppliers",
+                "56493079-1eca-47a3-ba8b-a0af4ef8fabd",
+                "profile"
+              ]
+            },
+            "description": "Retrieve contact person, phone, email, GST, and address details. Secure context ID is verified on the backend before release."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Subscription Checks",
+      "item": [
+        {
+          "name": "Validate User Subscription",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"ebfbe645-bcf5-4410-b4b3-18556ebc9c28\",\n  \"requiredType\": \"BUYER\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/v1/subscriptions/validate",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "subscriptions",
+                "validate"
+              ]
+            },
+            "description": "Validates subscription and returns extended metadata including plan status, type, and expirations."
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

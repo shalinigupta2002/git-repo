@@ -4,27 +4,34 @@ const PUBLIC_FIELDS = ['portalUserId', 'city']
 const UNLOCKED_FIELDS = [
   'portalUserId',
   'city',
-  'state',
   'companyName',
   'contactPerson',
   'phone',
   'email',
   'gst',
-  'website',
-  'businessDescription',
-  'addressLine1',
-  'addressLine2',
-  'postalCode',
+  'address',
 ]
 
 function pickUserCity(user) {
   return user?.addresses?.[0]?.city ?? null
 }
 
+function formatAddress(address, city, state, postalCode) {
+  const parts = [
+    address?.line1,
+    address?.line2,
+    city,
+    state,
+    postalCode,
+  ].filter((part) => part != null && String(part).trim() !== '')
+
+  return parts.length > 0 ? parts.join(', ') : null
+}
+
 function isProfileUnlocked(context = {}) {
   if (context.contactUnlockStatus === 'UNLOCKED') return true
   if (context.contactUnlockOverride === true) return true
-  return Boolean(context.dealAccepted && context.dealChargesPaid)
+  return false
 }
 
 function buildDealContactContext(deal) {
@@ -32,8 +39,6 @@ function buildDealContactContext(deal) {
   return {
     contactUnlockStatus: deal.contactUnlockStatus,
     contactUnlockOverride: deal.contactUnlockOverride,
-    dealAccepted: true,
-    dealChargesPaid: deal.contactUnlockStatus === 'UNLOCKED',
   }
 }
 
@@ -48,22 +53,19 @@ function buildFullPartyProfile(user, role) {
   if (!user) return null
   const address = user.addresses?.[0]
   const portalUserId = pickPortalUserId(user)
+  const city = pickUserCity(user)
+
   return {
     portalUserId,
     /** @deprecated Transition alias — same as portalUserId */
     marketplaceId: portalUserId,
-    city: pickUserCity(user),
-    state: address?.state ?? null,
+    city,
     companyName: user.companyName ?? null,
-    contactPerson: null,
+    contactPerson: user.contactPerson ?? user.fullName ?? null,
     phone: address?.phone ?? null,
     email: user.email ?? null,
-    gst: null,
-    website: null,
-    businessDescription: user.companyName ?? null,
-    addressLine1: address?.line1 ?? null,
-    addressLine2: address?.line2 ?? null,
-    postalCode: address?.postalCode ?? null,
+    gst: user.gst ?? null,
+    address: formatAddress(address, city, address?.state, address?.postalCode),
   }
 }
 
@@ -127,6 +129,7 @@ module.exports = {
   buildDealContactContext,
   pickUserCity,
   pickPortalUserId,
+  formatAddress,
   buildFullPartyProfile,
   maskCounterpartyProfile,
   serializeCounterpartyUser,

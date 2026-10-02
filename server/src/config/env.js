@@ -47,6 +47,7 @@ const isProd  = nodeEnv === 'production'
 const isDev   = !isProd
 
 const jwtExpiresIn = optional('JWT_EXPIRES_IN', '7d')
+const jwtSecret = required('JWT_SECRET')
 
 // ─── CORS allowlist (CLIENT_URL + CORS_ALLOWED_ORIGINS) ─────────────────────
 //
@@ -109,6 +110,7 @@ const DEFAULT_CORS_ALLOWED_HEADERS = Object.freeze([
   'Accept',
   'Cache-Control',
   'X-Requested-With',
+  'X-CSRF-Token',
 ])
 
 function parseHeaderList(raw, defaults) {
@@ -150,25 +152,81 @@ if (useCrossSiteCookies && !isProd) {
 
 const razorpayKeyId     = optional('RAZORPAY_KEY_ID')
 const razorpayKeySecret = optional('RAZORPAY_KEY_SECRET')
+const razorpayWebhookSecret = optional('RAZORPAY_WEBHOOK_SECRET')
 
-if (isProd) {
-  const placeholders = ['', 'rzp_test_REPLACE_ME', 'REPLACE_ME_SECRET']
-  if (placeholders.includes(razorpayKeyId) || razorpayKeyId.startsWith('rzp_test_')) {
-    console.warn(
-      '[config] WARNING: RAZORPAY_KEY_ID is missing or is a test/placeholder key in production.',
+const integrationApiEnabled = isProd
+  ? optional('INTEGRATION_API_ENABLED', 'false') === 'true'
+  : optional('INTEGRATION_API_ENABLED', 'true') === 'true'
+
+/** When true (non-production only), allows UUID-only negotiation stub for integration QA. */
+const integrationAllowDevNegotiationStub =
+  !isProd && optional('INTEGRATION_ALLOW_DEV_NEGOTIATION_STUB', 'false') === 'true'
+
+const integrationNegotiationVerifyUrl = optional('INTEGRATION_NEGOTIATION_VERIFY_URL', '')
+const integrationS2sSharedSecret = optional('INTEGRATION_S2S_SHARED_SECRET', '')
+
+const csrfProtectionEnabled = optional('CSRF_PROTECTION_ENABLED', isProd ? 'true' : 'true') === 'true'
+
+/** Public B2B self-registration (POST /auth/register). Off in production unless explicitly enabled. */
+const enablePublicRegistration = isProd
+  ? optional('ENABLE_PUBLIC_REGISTRATION', 'false') === 'true'
+  : optional('ENABLE_PUBLIC_REGISTRATION', 'true') === 'true'
+
+const sentryDsn = optional('SENTRY_DSN', '')
+
+function assertProductionJwtSecret(secret) {
+  if (!secret || secret.length < 32) {
+    throw new Error(
+      '[config] Production JWT_SECRET must be at least 32 characters.',
     )
   }
-  if (placeholders.includes(razorpayKeySecret)) {
-    console.warn(
-      '[config] WARNING: RAZORPAY_KEY_SECRET is missing or is a placeholder in production.',
+  const lower = secret.toLowerCase()
+  const placeholderFragments = [
+    'replace-with',
+    'changeme',
+    'your-secret',
+    'example',
+    'jwt_secret',
+  ]
+  if (placeholderFragments.some((fragment) => lower.includes(fragment))) {
+    throw new Error(
+      '[config] Production JWT_SECRET must not use placeholder or example values.',
     )
   }
 }
 
+function assertProductionRazorpayKeys() {
+  const placeholders = ['', 'rzp_test_REPLACE_ME', 'REPLACE_ME_SECRET']
+  const missingId = !razorpayKeyId || placeholders.includes(razorpayKeyId)
+  const testId = razorpayKeyId.startsWith('rzp_test_')
+  const missingSecret = !razorpayKeySecret || placeholders.includes(razorpayKeySecret)
+
+  if (missingId || testId) {
+    throw new Error(
+      '[config] Production requires a live RAZORPAY_KEY_ID (rzp_live_*). Test keys are not allowed.',
+    )
+  }
+  if (missingSecret) {
+    throw new Error(
+      '[config] Production requires RAZORPAY_KEY_SECRET. Placeholder or missing values are not allowed.',
+    )
+  }
+  if (!razorpayWebhookSecret) {
+    throw new Error(
+      '[config] Production requires RAZORPAY_WEBHOOK_SECRET for payment webhook verification.',
+    )
+  }
+}
+
+if (isProd) {
+  assertProductionJwtSecret(jwtSecret)
+  assertProductionRazorpayKeys()
+}
+
 // ─── Exported config (frozen — callers must not mutate) ─────────────────────
 
-/** Dummy deal payments are allowed only outside production (dev/test/CI) unless overridden by environment. */
-const allowDummyDealPayments = optional('ALLOW_DUMMY_DEAL_PAYMENTS', isProd ? 'false' : 'true') === 'true'
+/** Dummy deal payments are allowed only outside production (dev/test/CI). Production always rejects dummy. */
+const allowDummyDealPayments = !isProd && optional('ALLOW_DUMMY_DEAL_PAYMENTS', 'true') === 'true'
 
 module.exports = Object.freeze({
   nodeEnv,
@@ -176,7 +234,7 @@ module.exports = Object.freeze({
   isDev,
   port:          parseInt(optional('PORT', '3001'), 10),
   databaseUrl:   required('DATABASE_URL'),
-  jwtSecret:     required('JWT_SECRET'),
+  jwtSecret,
   jwtExpiresIn,
   cookieMaxAge:  parseDurationMs(jwtExpiresIn),
   clientUrls,
@@ -185,6 +243,14 @@ module.exports = Object.freeze({
   useCrossSiteCookies,
   razorpayKeyId,
   razorpayKeySecret,
+  razorpayWebhookSecret,
+  integrationApiEnabled,
+  integrationAllowDevNegotiationStub,
+  integrationNegotiationVerifyUrl,
+  integrationS2sSharedSecret,
+  csrfProtectionEnabled,
+  enablePublicRegistration,
+  sentryDsn,
   mainPortalProfileEnabled: optional('MAIN_PORTAL_PROFILE_ENABLED', 'false') === 'true',
   allowDummyDealPayments,
 })

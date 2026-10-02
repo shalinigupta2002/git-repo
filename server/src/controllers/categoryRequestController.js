@@ -4,9 +4,6 @@ const { asyncHandler } = require('../utils/asyncHandler.js')
 /** POST /api/category-requests — seller submits a new category or subcategory request */
 const createRequest = asyncHandler(async (req, res) => {
   const { categoryName, description, requestType, parentCategoryName, parentCategoryId } = req.body
-  if (!categoryName || !categoryName.trim()) {
-    return res.status(400).json({ success: false, error: { message: 'categoryName is required' } })
-  }
   const type = requestType === 'SUBCATEGORY' ? 'SUBCATEGORY' : 'CATEGORY'
   if (type === 'SUBCATEGORY' && !parentCategoryName?.trim() && !parentCategoryId) {
     return res.status(400).json({ success: false, error: { message: 'parentCategoryName or parentCategoryId is required for subcategory requests' } })
@@ -24,7 +21,7 @@ const createRequest = asyncHandler(async (req, res) => {
   const existing = await prisma.categoryRequest.findFirst({
     where: {
       sellerId:     req.user.id,
-      categoryName: { equals: categoryName.trim(), mode: 'insensitive' },
+      categoryName: { equals: categoryName, mode: 'insensitive' },
       requestType:  type,
       status:       'PENDING',
     },
@@ -37,7 +34,7 @@ const createRequest = asyncHandler(async (req, res) => {
     data: {
       sellerId:           req.user.id,
       requestType:        type,
-      categoryName:       categoryName.trim(),
+      categoryName,
       parentCategoryName: type === 'SUBCATEGORY' ? (parentCategoryName?.trim() || null) : null,
       parentCategoryId:   type === 'SUBCATEGORY' ? resolvedParentId : null,
       description:        description?.trim() || null,

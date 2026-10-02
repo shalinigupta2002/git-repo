@@ -9,9 +9,17 @@ const {
   paginationQuery,
   listAuditLogsQuery,
   listSubscribersQuery,
+  listCategoryRequestsQuery,
+  listAdminMessagesQuery,
+  createAdminCategoryBody,
+  catalogCategoryIdParam,
+  updateAdminCategoryBody,
   subscriberIdParam,
   updateSubscriberBody,
 } = require('../validators/admin.validator.js')
+const { uuidIdParam } = require('../validators/common.validator.js')
+const { adminContactReplyBody } = require('../validators/contact.validator.js')
+const { decideCategoryRequestBody } = require('../validators/categoryRequest.validator.js')
 
 const router = Router()
 
@@ -31,20 +39,47 @@ router.get('/audit-logs',   validate(listAuditLogsQuery,   'query'), adminContro
 
 // ─── Catalog category management ─────────────────────────────────────────────
 router.get('/categories',          adminController.listCategories)
-router.post('/categories',         adminController.createCategory)
-router.patch('/categories/:id',    adminController.updateCategory)
-router.delete('/categories/:id',   adminController.deleteCategory)
+router.post('/categories', validate(createAdminCategoryBody), adminController.createCategory)
+router.patch(
+  '/categories/:id',
+  validate(catalogCategoryIdParam, 'params'),
+  validate(updateAdminCategoryBody),
+  adminController.updateCategory,
+)
+router.delete(
+  '/categories/:id',
+  validate(catalogCategoryIdParam, 'params'),
+  adminController.deleteCategory,
+)
 
 // ─── Category requests (seller requests) ──────────────────────────────────────
-router.get('/category-requests',               adminController.listCategoryRequests)
-router.patch('/category-requests/:id/decide',  adminController.decideCategoryRequest)
+router.get(
+  '/category-requests',
+  validate(listCategoryRequestsQuery, 'query'),
+  adminController.listCategoryRequests,
+)
+router.patch(
+  '/category-requests/:id/decide',
+  validate(uuidIdParam, 'params'),
+  validate(decideCategoryRequestBody),
+  adminController.decideCategoryRequest,
+)
 
 // ─── Contact messages (buyer/seller → admin) ──────────────────────────────────
 router.get('/messages/unread-count',           contactController.adminUnreadCount)
-router.get('/messages',                        contactController.adminListMessages)
-router.get('/messages/:id',                    contactController.adminGetMessage)
-router.patch('/messages/:id/read',             contactController.adminMarkRead)
-router.patch('/messages/:id/reply',            contactController.adminReply)
+router.get(
+  '/messages',
+  validate(listAdminMessagesQuery, 'query'),
+  contactController.adminListMessages,
+)
+router.get('/messages/:id', validate(uuidIdParam, 'params'), contactController.adminGetMessage)
+router.patch('/messages/:id/read', validate(uuidIdParam, 'params'), contactController.adminMarkRead)
+router.patch(
+  '/messages/:id/reply',
+  validate(uuidIdParam, 'params'),
+  validate(adminContactReplyBody),
+  contactController.adminReply,
+)
 
 module.exports = router
 

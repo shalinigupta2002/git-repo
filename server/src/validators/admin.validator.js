@@ -52,6 +52,47 @@ const listSubscribersQuery = paginationQuery.extend({
   planType: z.enum(['MONTHLY', 'ANNUAL', 'LIFETIME', 'ALL']).optional().default('ALL'),
 })
 
+/** GET /admin/category-requests — defaults match listCategoryRequests (page 1, limit 20). */
+const listCategoryRequestsQuery = z.object({
+  page: z.coerce.number().int().min(1).optional().default(1),
+  limit: z.coerce.number().int().min(1).max(100).optional().default(20),
+  status: z.enum(['PENDING', 'APPROVED', 'REJECTED']).optional(),
+})
+
+/** GET /admin/messages — defaults match adminListMessages (page 1, limit 20). */
+const listAdminMessagesQuery = z.object({
+  page: z.coerce.number().int().min(1).optional().default(1),
+  limit: z.coerce.number().int().min(1).max(100).optional().default(20),
+  status: z.enum(['UNREAD', 'READ', 'REPLIED']).optional(),
+})
+
+/** POST /admin/categories — catalog.categories (name TEXT; align with category request max 200). */
+const createAdminCategoryBody = z.object({
+  name: z.string().trim().min(1, 'name is required').max(200),
+  parentId: z.preprocess(
+    (val) => (val === undefined || val === null || val === '' ? undefined : val),
+    z.coerce.number().int().positive().optional(),
+  ),
+})
+
+/** PATCH /admin/categories/:id — catalog category numeric id (SERIAL). */
+const catalogCategoryIdParam = z.object({
+  id: z.coerce.number().int().positive(),
+})
+
+/** PATCH /admin/categories/:id */
+const updateAdminCategoryBody = z.object({
+  name: z.string().trim().min(1, 'name is required').max(200),
+  parentId: z.preprocess(
+    (val) => {
+      if (val === undefined) return undefined
+      if (val === null || val === '') return null
+      return val
+    },
+    z.union([z.coerce.number().int().positive(), z.null()]).optional(),
+  ),
+})
+
 const subscriberIdParam = z.object({
   id: z.string().uuid(),
 })
@@ -77,4 +118,17 @@ const updateSubscriberBody = z.object({
   { message: 'At least one editable field is required' },
 )
 
-module.exports = { listUsersQuery, listTransactionsQuery, paginationQuery, listAuditLogsQuery, listSubscribersQuery, subscriberIdParam, updateSubscriberBody }
+module.exports = {
+  listUsersQuery,
+  listTransactionsQuery,
+  paginationQuery,
+  listAuditLogsQuery,
+  listSubscribersQuery,
+  listCategoryRequestsQuery,
+  listAdminMessagesQuery,
+  createAdminCategoryBody,
+  catalogCategoryIdParam,
+  updateAdminCategoryBody,
+  subscriberIdParam,
+  updateSubscriberBody,
+}

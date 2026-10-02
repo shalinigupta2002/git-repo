@@ -10,6 +10,7 @@ const {
   listProductsQuery,
   productIdParam,
   stockAdjustBody,
+  inventoryLogsQuery,
 } = require('../validators/product.validator.js')
 
 const router = Router()
@@ -77,6 +78,7 @@ router.get(
   authenticate,
   authorizeWorkspace('SELLER'),
   validate(productIdParam, 'params'),
+  validate(inventoryLogsQuery, 'query'),
   productController.inventoryLogs,
 )
 

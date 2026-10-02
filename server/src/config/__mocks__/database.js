@@ -136,7 +136,9 @@ const mockPrisma = {
   },
   categoryRequest: {
     findFirst:  jest.fn(),
+    findUnique: jest.fn(),
     findMany:   jest.fn(),
+    count:      jest.fn(),
     create:     jest.fn(),
     update:     jest.fn(),
     updateMany: jest.fn(),

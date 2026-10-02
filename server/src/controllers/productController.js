@@ -339,7 +339,7 @@ const stockAdjust = asyncHandler(async (req, res) => {
  */
 const inventoryLogs = asyncHandler(async (req, res) => {
   const { id } = req.params
-  const { page = 1, limit = 50 } = req.query
+  const { page, limit } = req.query
 
   const product = await prisma.product.findUnique({
     where:  { id },
@@ -350,13 +350,13 @@ const inventoryLogs = asyncHandler(async (req, res) => {
     throw new AppError('Forbidden', 403, 'FORBIDDEN')
   }
 
-  const skip = (Number(page) - 1) * Number(limit)
+  const skip = (page - 1) * limit
   const [logs, total] = await Promise.all([
     prisma.inventoryLog.findMany({
       where:   { productId: id },
       orderBy: { createdAt: 'desc' },
       skip,
-      take:    Number(limit),
+      take:    limit,
     }),
     prisma.inventoryLog.count({ where: { productId: id } }),
   ])
@@ -366,10 +366,10 @@ const inventoryLogs = asyncHandler(async (req, res) => {
     data: {
       logs,
       pagination: {
-        page:       Number(page),
-        limit:      Number(limit),
+        page,
+        limit,
         total,
-        totalPages: Math.ceil(total / Number(limit)) || 0,
+        totalPages: Math.ceil(total / limit) || 0,
       },
     },
   })

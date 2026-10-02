@@ -216,6 +216,16 @@ async function fetchRootCategoryById(id) {
   return rows[0] || null
 }
 
+async function fetchCategoryById(id) {
+  const numId = Number(id)
+  if (!Number.isFinite(numId)) return null
+  const { rows } = await query(
+    `SELECT id FROM catalog.categories WHERE id = $1`,
+    [numId],
+  )
+  return rows[0] || null
+}
+
 async function findRootCategoryByName(name) {
   if (!name?.trim()) return null
   const { normalizeCategoryName } = require('../services/shopCategoryTreeService.js')
@@ -300,23 +310,28 @@ const listCategories = asyncHandler(async (_req, res) => {
 
 const createCategory = asyncHandler(async (req, res) => {
   const { name, parentId } = req.body
-  if (!name || !name.trim()) {
-    return res.status(400).json({ success: false, error: { message: 'name is required' } })
-  }
 
   const parent = parentId ? await fetchRootCategoryById(parentId) : null
   if (parentId && !parent) {
-    return res.status(400).json({ success: false, error: { message: 'Invalid parent category' } })
+    throw new AppError('Invalid parent category', 400, 'PARENT_NOT_FOUND')
   }
 
   const slug = await buildCategorySlug(name, parent?.id ?? null)
 
-  const { rows } = await query(
-    `INSERT INTO catalog.categories (name, slug, parent_id)
-     VALUES ($1, $2, $3)
-     RETURNING id, name, slug, parent_id, created_at`,
-    [name.trim(), slug, parent?.id ?? null],
-  )
+  let rows
+  try {
+    ;({ rows } = await query(
+      `INSERT INTO catalog.categories (name, slug, parent_id)
+       VALUES ($1, $2, $3)
+       RETURNING id, name, slug, parent_id, created_at`,
+      [name, slug, parent?.id ?? null],
+    ))
+  } catch (err) {
+    if (err && err.code === '23505') {
+      throw new AppError('A category with this slug already exists', 409, 'DUPLICATE')
+    }
+    throw err
+  }
 
   res.status(201).json({
     success: true,
@@ -335,16 +350,21 @@ const createCategory = asyncHandler(async (req, res) => {
 const updateCategory = asyncHandler(async (req, res) => {
   const { id } = req.params
   const { name, parentId } = req.body
-  if (!name || !name.trim()) {
-    return res.status(400).json({ success: false, error: { message: 'name is required' } })
+
+  if (parentId != null) {
+    const parent = await fetchCategoryById(parentId)
+    if (!parent) {
+      throw new AppError('Invalid parent category', 400, 'PARENT_NOT_FOUND')
+    }
   }
+
   const slug = slugify(name)
 
   const { rows, rowCount } = await query(
     `UPDATE catalog.categories SET name = $1, slug = $2, parent_id = $3
      WHERE id = $4
      RETURNING id, name, slug, parent_id, created_at`,
-    [name.trim(), slug, parentId ?? null, Number(id)],
+    [name, slug, parentId ?? null, id],
   )
 
   if (rowCount === 0) {
@@ -367,10 +387,6 @@ const updateCategory = asyncHandler(async (req, res) => {
 
 const deleteCategory = asyncHandler(async (req, res) => {
   const { id } = req.params
-  const numId = Number(id)
-  if (!Number.isFinite(numId)) {
-    return res.status(400).json({ success: false, error: { message: 'Invalid category id' } })
-  }
 
   const { rowCount } = await query(
     `WITH RECURSIVE descendants AS (
@@ -381,7 +397,7 @@ const deleteCategory = asyncHandler(async (req, res) => {
      )
      DELETE FROM catalog.categories
      WHERE id IN (SELECT id FROM descendants)`,
-    [numId],
+    [id],
   )
 
   if (rowCount === 0) {
@@ -394,8 +410,8 @@ const deleteCategory = asyncHandler(async (req, res) => {
 // ─── Category Requests (seller → admin approval workflow) ─────────────────────
 
 const listCategoryRequests = asyncHandler(async (req, res) => {
-  const { status, page = 1, limit = 20 } = req.query
-  const skip = (Number(page) - 1) * Number(limit)
+  const { status, page, limit } = req.query
+  const skip = (page - 1) * limit
 
   const where = {}
   if (status) where.status = status
@@ -404,7 +420,7 @@ const listCategoryRequests = asyncHandler(async (req, res) => {
     prisma.categoryRequest.findMany({
       where,
       skip,
-      take:    Number(limit),
+      take:    limit,
       orderBy: { createdAt: 'desc' },
       include: {
         seller: { select: { id: true, email: true, companyName: true } },
@@ -418,22 +434,18 @@ const listCategoryRequests = asyncHandler(async (req, res) => {
     data: {
       requests:   rows,
       pagination: {
-        page:       Number(page),
-        limit:      Number(limit),
+        page,
+        limit,
         total,
-        totalPages: Math.ceil(total / Number(limit)) || 0,
+        totalPages: Math.ceil(total / limit) || 0,
       },
     },
   })
 })
 
 const decideCategoryRequest = asyncHandler(async (req, res) => {
-  const { id }                 = req.params
+  const { id } = req.params
   const { decision, adminNote, name, parentId } = req.body
-
-  if (!['APPROVED', 'REJECTED'].includes(decision)) {
-    return res.status(400).json({ success: false, error: { message: 'decision must be APPROVED or REJECTED' } })
-  }
 
   const existing = await prisma.categoryRequest.findUnique({ where: { id } })
   if (!existing) {
@@ -453,7 +465,7 @@ const decideCategoryRequest = asyncHandler(async (req, res) => {
   })
 
   if (decision === 'APPROVED') {
-    const catName = (name?.trim()) || existing.categoryName
+    const catName = name || existing.categoryName
 
     if (existing.requestType === 'SUBCATEGORY') {
       const resolvedParentId = await resolveSubcategoryParentId(existing, parentId)

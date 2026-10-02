@@ -47,10 +47,17 @@ const stockAdjustBody = z.object({
   note:   z.string().trim().max(500).optional().nullable(),
 })
 
+/** GET /products/:id/inventory-logs — defaults match inventoryLogs controller (page 1, limit 50). */
+const inventoryLogsQuery = z.object({
+  page:  z.coerce.number().int().min(1).optional().default(1),
+  limit: z.coerce.number().int().min(1).max(100).optional().default(50),
+})
+
 module.exports = {
   createProductBody,
   updateProductBody,
   listProductsQuery,
   productIdParam,
   stockAdjustBody,
+  inventoryLogsQuery,
 }

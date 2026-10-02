@@ -13,15 +13,7 @@ const {
 
 /** POST /api/contact — send a new message to admin (optional image/video attachments) */
 const sendMessage = asyncHandler(async (req, res) => {
-  const subject = typeof req.body?.subject === 'string' ? req.body.subject : ''
-  const message = typeof req.body?.message === 'string' ? req.body.message : ''
-
-  if (!subject.trim()) {
-    return res.status(400).json({ success: false, error: { message: 'subject is required' } })
-  }
-  if (!message.trim()) {
-    return res.status(400).json({ success: false, error: { message: 'message is required' } })
-  }
+  const { subject, message } = req.body
 
   const attachments = buildContactAttachments(req.files)
   const uploadedFileList = [...(req.files?.images || []), ...(req.files?.videos || [])]
@@ -30,8 +22,8 @@ const sendMessage = asyncHandler(async (req, res) => {
   const record = await prisma.contactMessage.create({
     data: {
       senderId: req.user.id,
-      subject:  subject.trim(),
-      message:  message.trim(),
+      subject,
+      message,
       attachments,
     },
     include: messageInclude,
@@ -65,7 +57,7 @@ const getMyMessage = asyncHandler(async (req, res) => {
 
 /** POST /api/contact/:id/replies — sender follow-up in an existing ticket */
 const sendFollowUp = asyncHandler(async (req, res) => {
-  const body = typeof req.body?.message === 'string' ? req.body.message.trim() : ''
+  const body = req.body.message ?? ''
   const attachments = buildContactAttachments(req.files)
   const uploadedFileList = [...(req.files?.images || []), ...(req.files?.videos || [])]
   await persistUploadedContactFiles(uploadedFileList)
@@ -152,8 +144,8 @@ const markAllRepliesRead = asyncHandler(async (req, res) => {
 
 /** GET /api/admin/messages — list all contact messages for admin */
 const adminListMessages = asyncHandler(async (req, res) => {
-  const { status, page = 1, limit = 20 } = req.query
-  const skip = (Number(page) - 1) * Number(limit)
+  const { status, page, limit } = req.query
+  const skip = (page - 1) * limit
 
   const where = {}
   if (status) where.status = status
@@ -162,7 +154,7 @@ const adminListMessages = asyncHandler(async (req, res) => {
     prisma.contactMessage.findMany({
       where,
       skip,
-      take:    Number(limit),
+      take:    limit,
       orderBy: { updatedAt: 'desc' },
       include: messageInclude,
     }),
@@ -174,10 +166,10 @@ const adminListMessages = asyncHandler(async (req, res) => {
     data: {
       messages:   rows.map(serializeContactThread),
       pagination: {
-        page:       Number(page),
-        limit:      Number(limit),
+        page,
+        limit,
         total,
-        totalPages: Math.ceil(total / Number(limit)) || 0,
+        totalPages: Math.ceil(total / limit) || 0,
       },
     },
   })
@@ -211,19 +203,13 @@ const adminMarkRead = asyncHandler(async (req, res) => {
 
 /** PATCH /api/admin/messages/:id/reply — admin replies (appends to thread) */
 const adminReply = asyncHandler(async (req, res) => {
-  const { id }        = req.params
-  const { adminReply: replyBody } = req.body
-
-  if (!replyBody?.trim()) {
-    return res.status(400).json({ success: false, error: { message: 'adminReply is required' } })
-  }
+  const { id } = req.params
+  const trimmed = req.body.adminReply
 
   const existing = await prisma.contactMessage.findUnique({ where: { id } })
   if (!existing) {
     return res.status(404).json({ success: false, error: { message: 'Message not found' } })
   }
-
-  const trimmed = replyBody.trim()
   const now = new Date()
 
   const updated = await prisma.$transaction(async (tx) => {

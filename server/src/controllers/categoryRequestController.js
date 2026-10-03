@@ -1,19 +1,24 @@
 const { prisma }       = require('../config/database.js')
 const { asyncHandler } = require('../utils/asyncHandler.js')
+const { AppError } = require('../utils/AppError.js')
 
 /** POST /api/category-requests — seller submits a new category or subcategory request */
 const createRequest = asyncHandler(async (req, res) => {
   const { categoryName, description, requestType, parentCategoryName, parentCategoryId } = req.body
   const type = requestType === 'SUBCATEGORY' ? 'SUBCATEGORY' : 'CATEGORY'
   if (type === 'SUBCATEGORY' && !parentCategoryName?.trim() && !parentCategoryId) {
-    return res.status(400).json({ success: false, error: { message: 'parentCategoryName or parentCategoryId is required for subcategory requests' } })
+    throw new AppError(
+      'parentCategoryName or parentCategoryId is required for subcategory requests',
+      400,
+      'VALIDATION_ERROR',
+    )
   }
 
   let resolvedParentId = null
   if (type === 'SUBCATEGORY' && parentCategoryId != null && parentCategoryId !== '') {
     const numId = Number(parentCategoryId)
     if (!Number.isFinite(numId)) {
-      return res.status(400).json({ success: false, error: { message: 'parentCategoryId must be a number' } })
+      throw new AppError('parentCategoryId must be a number', 400, 'VALIDATION_ERROR')
     }
     resolvedParentId = numId
   }
@@ -27,7 +32,7 @@ const createRequest = asyncHandler(async (req, res) => {
     },
   })
   if (existing) {
-    return res.status(409).json({ success: false, error: { message: 'You already have a pending request for this category' } })
+    throw new AppError('You already have a pending request for this category', 409, 'CONFLICT')
   }
 
   const request = await prisma.categoryRequest.create({
@@ -74,7 +79,7 @@ const markRead = asyncHandler(async (req, res) => {
     where: { id, sellerId: req.user.id },
   })
   if (!existing) {
-    return res.status(404).json({ success: false, error: { message: 'Request not found' } })
+    throw new AppError('Request not found', 404, 'NOT_FOUND')
   }
 
   await prisma.categoryRequest.update({

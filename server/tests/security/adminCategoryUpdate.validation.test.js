@@ -81,6 +81,8 @@ describe('PATCH /api/admin/categories/:id (VAL-007-02)', () => {
       .send({ name: 'Ghost' })
 
     expect(res.status).toBe(404)
+    expect(res.body.error.code).toBe('NOT_FOUND')
+    expect(res.body.error.message).toBe('Category not found')
   })
 
   test.each([

@@ -377,7 +377,7 @@ const updateCategory = asyncHandler(async (req, res) => {
   }
 
   if (rowCount === 0) {
-    return res.status(404).json({ success: false, error: { message: 'Category not found' } })
+    throw new AppError('Category not found', 404, 'NOT_FOUND')
   }
 
   res.json({
@@ -422,7 +422,7 @@ const deleteCategory = asyncHandler(async (req, res) => {
   }
 
   if (rowCount === 0) {
-    return res.status(404).json({ success: false, error: { message: 'Category not found' } })
+    throw new AppError('Category not found', 404, 'NOT_FOUND')
   }
 
   res.json({ success: true, data: { message: 'Category deleted' } })
@@ -493,10 +493,10 @@ const decideCategoryRequest = asyncHandler(async (req, res) => {
 
   const existing = await prisma.categoryRequest.findUnique({ where: { id } })
   if (!existing) {
-    return res.status(404).json({ success: false, error: { message: 'Request not found' } })
+    throw new AppError('Request not found', 404, 'NOT_FOUND')
   }
   if (existing.status !== 'PENDING') {
-    return res.status(409).json({ success: false, error: { message: 'Request already decided' } })
+    throw new AppError('Request already decided', 409, 'CONFLICT')
   }
 
   const catalogUpsert =
@@ -512,7 +512,7 @@ const decideCategoryRequest = asyncHandler(async (req, res) => {
       },
     })
     if (count === 0) {
-      throw new AppError('Request already decided', 409)
+      throw new AppError('Request already decided', 409, 'CONFLICT')
     }
 
     if (catalogUpsert) {

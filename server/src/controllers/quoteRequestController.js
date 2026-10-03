@@ -334,10 +334,7 @@ function attachRevisions(request, revisions) {
 
 const createRequest = asyncHandler(async (req, res) => {
   if (req.user.role !== 'ADMIN' && !(await userHasBuyerWorkspace(req.user))) {
-    return res.status(403).json({
-      success: false,
-      error: { message: 'Buyer workspace access is required to request quotes.' },
-    })
+    throw new AppError('Buyer workspace access is required to request quotes.', 403, 'FORBIDDEN')
   }
 
   if (req.user.role !== 'ADMIN' && !(await hasActiveSubscription(req.user.id, 'BUYER'))) {
@@ -350,18 +347,12 @@ const createRequest = asyncHandler(async (req, res) => {
 
   const productTitle = cleanText(req.body.productTitle, 300)
   if (!productTitle) {
-    return res.status(400).json({
-      success: false,
-      error: { message: 'productTitle is required' },
-    })
+    throw new AppError('productTitle is required', 400, 'VALIDATION_ERROR')
   }
 
   const message = cleanText(req.body.message, 1000)
   if (!message) {
-    return res.status(400).json({
-      success: false,
-      error: { message: 'message is required' },
-    })
+    throw new AppError('message is required', 400, 'VALIDATION_ERROR')
   }
 
   const quantity = Number.parseInt(req.body.quantity, 10)
@@ -371,18 +362,12 @@ const createRequest = asyncHandler(async (req, res) => {
     : new Prisma.Decimal(String(req.body.targetPrice))
   const deliveryLocation = cleanText(req.body.deliveryLocation, 500)
   if (!deliveryLocation) {
-    return res.status(400).json({
-      success: false,
-      error: { message: 'deliveryLocation is required' },
-    })
+    throw new AppError('deliveryLocation is required', 400, 'VALIDATION_ERROR')
   }
 
   const expectedDeliveryDate = parseExpectedDeliveryDate(req.body.expectedDeliveryDate)
   if (!expectedDeliveryDate) {
-    return res.status(400).json({
-      success: false,
-      error: { message: 'expectedDeliveryDate must be a valid date' },
-    })
+    throw new AppError('expectedDeliveryDate must be a valid date', 400, 'VALIDATION_ERROR')
   }
 
   const attachments = parseAttachments(req.body.attachments)

@@ -99,7 +99,7 @@ app.get(
 
     const served = await serveContactAttachment(safeName, res)
     if (!served) {
-      res.status(404).json({ success: false, error: { message: 'File not found' } })
+      throw new AppError('File not found', 404, 'NOT_FOUND')
     }
   }),
 )
@@ -110,7 +110,7 @@ app.get(
   asyncHandler(async (req, res) => {
     const served = await serveProductImage(req.params.filename, res)
     if (!served) {
-      res.status(404).json({ success: false, error: { message: 'File not found' } })
+      throw new AppError('File not found', 404, 'NOT_FOUND')
     }
   }),
 )

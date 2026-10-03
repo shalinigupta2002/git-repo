@@ -51,6 +51,7 @@ describe('DELETE /api/admin/categories/:id (VAL-007-03)', () => {
 
     expect(res.status).toBe(404)
     expect(res.body.error.message).toBe('Category not found')
+    expect(res.body.error.code).toBe('NOT_FOUND')
   })
 
   test.each([

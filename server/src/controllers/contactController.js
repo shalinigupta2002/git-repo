@@ -1,5 +1,6 @@
 const { prisma }       = require('../config/database.js')
 const { asyncHandler } = require('../utils/asyncHandler.js')
+const { AppError } = require('../utils/AppError.js')
 const { buildContactAttachments } = require('../middleware/contactUpload.js')
 const { persistUploadedContactFiles } = require('../services/contactAttachmentStorage.js')
 const {
@@ -50,7 +51,7 @@ const listMyMessages = asyncHandler(async (req, res) => {
 const getMyMessage = asyncHandler(async (req, res) => {
   const message = await findMessageForSender(req.params.id, req.user.id)
   if (!message) {
-    return res.status(404).json({ success: false, error: { message: 'Message not found' } })
+    throw new AppError('Message not found', 404, 'NOT_FOUND')
   }
   res.json({ success: true, data: { message: serializeContactThread(message) } })
 })
@@ -63,15 +64,12 @@ const sendFollowUp = asyncHandler(async (req, res) => {
   await persistUploadedContactFiles(uploadedFileList)
 
   if (!body && !attachments.length) {
-    return res.status(400).json({
-      success: false,
-      error: { message: 'message or at least one attachment is required' },
-    })
+    throw new AppError('message or at least one attachment is required', 400, 'VALIDATION_ERROR')
   }
 
   const existing = await findMessageForSender(req.params.id, req.user.id)
   if (!existing) {
-    return res.status(404).json({ success: false, error: { message: 'Message not found' } })
+    throw new AppError('Message not found', 404, 'NOT_FOUND')
   }
 
   const updated = await prisma.$transaction(async (tx) => {
@@ -120,7 +118,7 @@ const markReplyRead = asyncHandler(async (req, res) => {
     where: { id, senderId: req.user.id },
   })
   if (!existing) {
-    return res.status(404).json({ success: false, error: { message: 'Message not found' } })
+    throw new AppError('Message not found', 404, 'NOT_FOUND')
   }
 
   await prisma.contactMessage.update({
@@ -179,7 +177,7 @@ const adminListMessages = asyncHandler(async (req, res) => {
 const adminGetMessage = asyncHandler(async (req, res) => {
   const message = await findMessageById(req.params.id)
   if (!message) {
-    return res.status(404).json({ success: false, error: { message: 'Message not found' } })
+    throw new AppError('Message not found', 404, 'NOT_FOUND')
   }
   res.json({ success: true, data: { message: serializeContactThread(message) } })
 })
@@ -189,7 +187,7 @@ const adminMarkRead = asyncHandler(async (req, res) => {
   const { id } = req.params
   const existing = await prisma.contactMessage.findUnique({ where: { id } })
   if (!existing) {
-    return res.status(404).json({ success: false, error: { message: 'Message not found' } })
+    throw new AppError('Message not found', 404, 'NOT_FOUND')
   }
 
   const updated = await prisma.contactMessage.update({
@@ -208,7 +206,7 @@ const adminReply = asyncHandler(async (req, res) => {
 
   const existing = await prisma.contactMessage.findUnique({ where: { id } })
   if (!existing) {
-    return res.status(404).json({ success: false, error: { message: 'Message not found' } })
+    throw new AppError('Message not found', 404, 'NOT_FOUND')
   }
   const now = new Date()
 

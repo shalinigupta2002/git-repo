@@ -222,6 +222,8 @@ describe('PATCH /api/admin/category-requests/:id/decide (VAL-007-05)', () => {
       .send({ decision: 'REJECTED' })
 
     expect(res.status).toBe(404)
+    expect(res.body.error.code).toBe('NOT_FOUND')
+    expect(res.body.error.message).toBe('Request not found')
     expect(prisma.$transaction).not.toHaveBeenCalled()
     expect(prisma.categoryRequest.updateMany).not.toHaveBeenCalled()
   })
@@ -238,6 +240,8 @@ describe('PATCH /api/admin/category-requests/:id/decide (VAL-007-05)', () => {
       .send({ decision: 'REJECTED' })
 
     expect(res.status).toBe(409)
+    expect(res.body.error.code).toBe('CONFLICT')
+    expect(res.body.error.message).toBe('Request already decided')
     expect(prisma.$transaction).not.toHaveBeenCalled()
     expect(prisma.categoryRequest.updateMany).not.toHaveBeenCalled()
   })

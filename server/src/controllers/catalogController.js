@@ -6,6 +6,7 @@
  */
 
 const { asyncHandler } = require('../utils/asyncHandler.js')
+const { AppError } = require('../utils/AppError.js')
 const sellerBrowseService = require('../services/sellerBrowseService.js')
 
 /**
@@ -40,10 +41,7 @@ const getProduct = asyncHandler(async (req, res) => {
   const product = await sellerBrowseService.getSellerProductById(req.params.id)
 
   if (!product) {
-    return res.status(404).json({
-      success: false,
-      error: { message: 'Product not found' },
-    })
+    throw new AppError('Product not found', 404, 'NOT_FOUND')
   }
 
   res.json({ success: true, data: { product } })

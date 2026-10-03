@@ -11,6 +11,56 @@ const basePayload = {
   productId: '11111111-1111-4111-8111-111111111111',
 }
 
+describe('createQuoteRequestBody expectedDeliveryDate', () => {
+  test('accepts YYYY-MM-DD date-only value', () => {
+    const result = createQuoteRequestBody.safeParse(basePayload)
+    expect(result.success).toBe(true)
+    expect(result.data.expectedDeliveryDate).toBe('2026-08-01')
+  })
+
+  test('accepts valid ISO datetime', () => {
+    const result = createQuoteRequestBody.safeParse({
+      ...basePayload,
+      expectedDeliveryDate: '2026-08-15T00:00:00.000Z',
+    })
+    expect(result.success).toBe(true)
+    expect(result.data.expectedDeliveryDate).toBe('2026-08-15T00:00:00.000Z')
+  })
+
+  test('rejects invalid date string', () => {
+    const result = createQuoteRequestBody.safeParse({
+      ...basePayload,
+      expectedDeliveryDate: 'not-a-valid-date',
+    })
+    expect(result.success).toBe(false)
+    expect(result.error.flatten().fieldErrors.expectedDeliveryDate).toContain(
+      'expectedDeliveryDate must be a valid date',
+    )
+  })
+
+  test('rejects malformed date value', () => {
+    const result = createQuoteRequestBody.safeParse({
+      ...basePayload,
+      expectedDeliveryDate: '2026-13-45',
+    })
+    expect(result.success).toBe(false)
+    expect(result.error.flatten().fieldErrors.expectedDeliveryDate).toContain(
+      'expectedDeliveryDate must be a valid date',
+    )
+  })
+
+  test('rejects blank and whitespace-only values', () => {
+    for (const value of ['', '   ']) {
+      const result = createQuoteRequestBody.safeParse({
+        ...basePayload,
+        expectedDeliveryDate: value,
+      })
+      expect(result.success).toBe(false)
+      expect(result.error.flatten().fieldErrors.expectedDeliveryDate).toBeDefined()
+    }
+  })
+})
+
 describe('createQuoteRequestBody attachments', () => {
   test('accepts payload with attachments omitted', () => {
     const result = createQuoteRequestBody.safeParse(basePayload)

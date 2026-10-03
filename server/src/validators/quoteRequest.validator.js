@@ -24,6 +24,13 @@ function isValidAttachmentUrl(value) {
   }
 }
 
+const EXPECTED_DELIVERY_DATE_INVALID_MESSAGE = 'expectedDeliveryDate must be a valid date'
+
+function isParseableDateString(value) {
+  const date = new Date(value)
+  return !Number.isNaN(date.getTime())
+}
+
 function normalizeAttachmentsInput(raw) {
   if (raw == null) return undefined
   if (!Array.isArray(raw)) return undefined
@@ -106,7 +113,11 @@ const createQuoteRequestBody = z.object({
   targetPrice: z.coerce.number().positive().max(1e12).optional().nullable(),
   message: z.string().trim().min(1).max(1000),
   deliveryLocation: z.string().trim().min(1).max(500),
-  expectedDeliveryDate: z.string().trim().min(1),
+  expectedDeliveryDate: z
+    .string()
+    .trim()
+    .min(1)
+    .refine(isParseableDateString, { message: EXPECTED_DELIVERY_DATE_INVALID_MESSAGE }),
   attachments: z.preprocess(normalizeAttachmentsInput, z.array(attachmentItem).max(5).optional()),
 }).superRefine((data, ctx) => {
   if (Array.isArray(data.productIds) && data.productIds.length > 1) {

@@ -123,6 +123,8 @@ describe('ERR-004 — error responses include stable error.code', () => {
 
     expect(res.status).toBe(400)
     expect(res.body.error.code).toBe('VALIDATION_ERROR')
-    expect(res.body.error.message).toBe('expectedDeliveryDate must be a valid date')
+    expect(res.body.error.details.fieldErrors.expectedDeliveryDate).toContain(
+      'expectedDeliveryDate must be a valid date',
+    )
   })
 })

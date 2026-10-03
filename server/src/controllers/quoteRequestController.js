@@ -92,13 +92,6 @@ function parseAttachments(raw) {
   })).filter((item) => item.name && item.url)
 }
 
-function parseExpectedDeliveryDate(raw) {
-  if (!raw) return null
-  const date = new Date(raw)
-  if (Number.isNaN(date.getTime())) return null
-  return date
-}
-
 async function resolveSellerIds(body, product) {
   const fromArray = Array.isArray(body.sellerIds)
     ? body.sellerIds.map((id) => cleanText(id, 64)).filter(Boolean)
@@ -365,10 +358,7 @@ const createRequest = asyncHandler(async (req, res) => {
     throw new AppError('deliveryLocation is required', 400, 'VALIDATION_ERROR')
   }
 
-  const expectedDeliveryDate = parseExpectedDeliveryDate(req.body.expectedDeliveryDate)
-  if (!expectedDeliveryDate) {
-    throw new AppError('expectedDeliveryDate must be a valid date', 400, 'VALIDATION_ERROR')
-  }
+  const expectedDeliveryDate = new Date(req.body.expectedDeliveryDate)
 
   const attachments = parseAttachments(req.body.attachments)
 
